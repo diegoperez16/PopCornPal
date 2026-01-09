@@ -187,19 +187,19 @@ export default function AddEntryPage() {
 
         {/* Selection Modal */}
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-5 pb-6 sm:p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200 max-h-[85vh] sm:max-h-[90vh] overflow-y-auto mb-0 sm:mb-4">
               <button
                 onClick={() => setSelectedItem(null)}
-                className="absolute top-3 right-3 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
+                className="absolute top-4 right-4 p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h2 className="text-lg sm:text-xl font-bold mb-1 pr-10 truncate">{selectedItem.title}</h2>
-              <p className="text-gray-400 text-xs sm:text-sm mb-4 sm:mb-6">{selectedItem.year} • {activeTab}</p>
+              <h2 className="text-lg sm:text-xl font-bold mb-0.5 pr-10 truncate">{selectedItem.title}</h2>
+              <p className="text-gray-400 text-xs sm:text-sm mb-5">{selectedItem.year} • {activeTab}</p>
 
-              <div className="space-y-4 sm:space-y-6">
+              <div className="space-y-4">
                 {/* Status */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
@@ -227,7 +227,7 @@ export default function AddEntryPage() {
                 {/* Rating */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating</label>
-                  <div className="flex gap-1 sm:gap-2">
+                  <div className="flex gap-1.5 sm:gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
@@ -235,7 +235,7 @@ export default function AddEntryPage() {
                         className="focus:outline-none"
                       >
                         <Star
-                          className={`w-8 h-8 transition-colors ${
+                          className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${
                             star <= rating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'
                           }`}
                         />
@@ -246,12 +246,12 @@ export default function AddEntryPage() {
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 transition-colors"
+                    rows={2}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 transition-colors resize-none"
                     placeholder="What did you think?"
                   />
                 </div>
@@ -259,7 +259,7 @@ export default function AddEntryPage() {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3.5 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50 active:scale-[0.98]"
                 >
                   {saving ? 'Saving...' : 'Add to Library'}
                 </button>
