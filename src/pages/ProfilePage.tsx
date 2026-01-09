@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera } from 'lucide-react'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut } from 'lucide-react'
 
 export default function ProfilePage() {
-  const { user, profile, updateProfile } = useAuthStore()
+  const { user, profile, updateProfile, signOut } = useAuthStore()
   const { entries, userStats, fetchEntries, fetchUserStats, updateEntry, deleteEntry } = useMediaStore()
   const navigate = useNavigate()
   
@@ -52,7 +52,10 @@ export default function ProfilePage() {
     }
   }, [selectedEntry])
 
-  // signOut is handled by DesktopNav
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/auth')
+  }
 
   const handleSaveProfile = async () => {
     setSavingProfile(true)
@@ -686,11 +689,11 @@ export default function ProfilePage() {
             <h2 className="text-xl font-bold mb-1 pr-8 truncate">{selectedEntry.title}</h2>
             <p className="text-gray-400 text-sm mb-6 capitalize">{selectedEntry.media_type}</p>
 
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Status */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">Status</label>
-                <div className="grid grid-cols-3 gap-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   {[
                     { value: 'completed', label: 'Completed' },
                     { value: 'in-progress', label: 'In Progress' },
@@ -699,7 +702,7 @@ export default function ProfilePage() {
                     <button
                       key={s.value}
                       onClick={() => setEditStatus(s.value as any)}
-                      className={`py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                      className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
                         editStatus === s.value
                           ? 'bg-red-500/10 border-red-500 text-red-500'
                           : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
@@ -712,26 +715,24 @@ export default function ProfilePage() {
               </div>
 
               {/* Rating */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">Rating</label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setEditRating(star === editRating ? 0 : star)}
-                      className="focus:outline-none"
-                    >
-                      <Star
-                        className={`w-8 h-8 transition-colors ${
-                          star <= editRating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notes */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating</label>
+                  <div className="flex gap-1 sm:gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setEditRating(star === editRating ? 0 : star)}
+                        className="focus:outline-none"
+                      >
+                        <Star
+                          className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${
+                            star <= editRating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>              {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Notes</label>
                 <textarea
@@ -763,6 +764,17 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Logout Button */}
+      <div className="mt-8 pb-24 md:pb-8">
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 hover:border-red-500/50 text-gray-400 hover:text-red-400 rounded-xl transition-all"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="font-medium">Sign Out</span>
+        </button>
+      </div>
     </div>
   )
 }
