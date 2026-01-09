@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Search, UserPlus, UserCheck, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { useLocation, Link } from 'react-router-dom'
 
 type Profile = {
   id: string
@@ -17,19 +18,31 @@ type ProfileWithFollowStatus = Profile & {
 
 export default function PeoplePage() {
   const { user } = useAuthStore()
+  const location = useLocation()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
   const [followers, setFollowers] = useState<ProfileWithFollowStatus[]>([])
   const [following, setFollowing] = useState<ProfileWithFollowStatus[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'search' | 'followers' | 'following'>('search')
+  const [activeTab, setActiveTab] = useState<'search' | 'followers' | 'following'>(
+    (location.state as any)?.initialTab || 'search'
+  )
 
   // Fetch followers and following on mount
   useEffect(() => {
     if (user) {
       Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setInitialLoading(false))
     }
+
+    // Handle tab visibility - refetch when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchFollowers()
+        fetchFollowing()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Set up real-time subscription for follows changes
     if (!user) return
@@ -44,8 +57,7 @@ export default function PeoplePage() {
           table: 'follows',
           filter: `follower_id=eq.${user.id}`
         },
-        (payload) => {
-          console.log('Following change received:', payload)
+        () => {
           fetchFollowing()
         }
       )
@@ -57,8 +69,7 @@ export default function PeoplePage() {
           table: 'follows',
           filter: `following_id=eq.${user.id}`
         },
-        (payload) => {
-          console.log('Follower change received:', payload)
+        () => {
           fetchFollowers()
         }
       )
@@ -66,6 +77,7 @@ export default function PeoplePage() {
 
     // Cleanup subscription on unmount
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(followsChannel)
     }
   }, [user])
@@ -84,6 +96,7 @@ export default function PeoplePage() {
 
     if (error) {
       console.error('Error fetching followers:', error)
+      setRefreshing(false)
       return
     }
 
@@ -126,6 +139,7 @@ export default function PeoplePage() {
 
     if (error) {
       console.error('Error fetching following:', error)
+      setRefreshing(false)
       return
     }
 
@@ -151,6 +165,7 @@ export default function PeoplePage() {
         isFollower: followerIds.has(p.id),
       }))
     )
+    console.log('PeoplePage: Following fetch complete')
     setRefreshing(false)
   }
 
@@ -272,7 +287,10 @@ export default function PeoplePage() {
       className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 hover:border-gray-600 transition-colors"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
+        <Link 
+          to={`/user/${profile.username}`}
+          className="flex items-start gap-3 flex-1 min-w-0 group"
+        >
           {/* Avatar */}
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
             {profile.username.charAt(0).toUpperCase()}
@@ -280,7 +298,7 @@ export default function PeoplePage() {
 
           {/* Profile Info */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-white truncate">{profile.username}</h3>
+            <h3 className="font-semibold text-white group-hover:text-red-400 transition-colors truncate">{profile.username}</h3>
             {profile.bio && (
               <p className="text-sm text-gray-400 line-clamp-2 mt-1">{profile.bio}</p>
             )}
@@ -297,7 +315,7 @@ export default function PeoplePage() {
               )}
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Follow Button */}
         <button

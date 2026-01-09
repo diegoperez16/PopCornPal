@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -91,9 +91,12 @@ function CommentThread({
         </div>
         <div className="flex-1">
           <div className="bg-gray-800/50 rounded-lg p-3">
-            <p className="text-sm font-semibold text-white mb-1">
+            <Link 
+              to={`/user/${comment.profiles.username}`}
+              className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
+            >
               @{comment.profiles.username}
-            </p>
+            </Link>
             <p className="text-sm text-gray-300">{comment.content}</p>
             <div className="flex items-center gap-3 mt-2">
               <p className="text-xs text-gray-500">
@@ -190,6 +193,14 @@ export default function FeedPage() {
     fetchFeed().finally(() => setInitialLoading(false))
     if (user) fetchEntries(user.id)
 
+    // Handle tab visibility - refetch when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchFeed()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     // Set up real-time subscriptions
     const postsChannel = supabase
       .channel('posts-changes')
@@ -200,8 +211,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'posts'
         },
-        (payload) => {
-          console.log('Posts change received:', payload)
+        () => {
           fetchFeed() // Refetch feed on any post change
         }
       )
@@ -216,8 +226,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'post_likes'
         },
-        (payload) => {
-          console.log('Like change received:', payload)
+        () => {
           fetchFeed() // Refetch to update like counts
         }
       )
@@ -232,8 +241,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'post_comments'
         },
-        (payload) => {
-          console.log('Comment change received:', payload)
+        () => {
           fetchFeed() // Refetch to update comment counts
         }
       )
@@ -241,6 +249,7 @@ export default function FeedPage() {
 
     // Cleanup subscriptions on unmount
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(postsChannel)
       supabase.removeChannel(likesChannel)
       supabase.removeChannel(commentsChannel)
@@ -806,7 +815,12 @@ export default function FeedPage() {
                     )}
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold">@{post.profiles.username}</p>
+                    <Link 
+                      to={`/user/${post.profiles.username}`}
+                      className="font-semibold hover:text-red-400 transition-colors inline-block"
+                    >
+                      @{post.profiles.username}
+                    </Link>
                     <p className="text-xs text-gray-400 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatTimeAgo(post.created_at)}

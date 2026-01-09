@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore'
 import { isSupabaseConfigured } from './lib/supabase'
 import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
+import UserProfilePage from './pages/UserProfilePage'
 import AddEntryPage from './pages/AddEntryPage'
 import FeedPage from './pages/FeedPage'
 import PeoplePage from './pages/PeoplePage'
@@ -191,6 +192,7 @@ function AppContent() {
         <Route path="/activity" element={<ActivityPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/user/:username" element={<UserProfilePage />} />
         <Route path="/add" element={<AddEntryPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

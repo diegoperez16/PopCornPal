@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star } from 'lucide-react'
 import { api, type SearchResult } from '../lib/api'
 import { useMediaStore } from '../store/mediaStore'
+import { useAuthStore } from '../store/authStore'
+import { supabase } from '../lib/supabase'
 
 type MediaType = 'movie' | 'show' | 'game' | 'book'
 
 export default function AddEntryPage() {
   const navigate = useNavigate()
   const { addEntry } = useMediaStore()
+  const { user } = useAuthStore()
   
   const [activeTab, setActiveTab] = useState<MediaType>('movie')
   const [query, setQuery] = useState('')
@@ -21,6 +24,7 @@ export default function AddEntryPage() {
   const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [duplicateError, setDuplicateError] = useState(false)
 
   // Hide mobile nav when modal is open
   useEffect(() => {
@@ -65,10 +69,31 @@ export default function AddEntryPage() {
   }
 
   const handleSave = async () => {
-    if (!selectedItem) return
+    if (!selectedItem || !user) return
 
     setSaving(true)
+    setDuplicateError(false)
+    
     try {
+      // Only check for duplicates if adding to library (logged status)
+      // Activity posts (completed, in-progress, planned) can have duplicates
+      if (status === 'logged') {
+        const { data: existingEntry } = await supabase
+          .from('media_entries')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('media_type', selectedItem.type)
+          .eq('title', selectedItem.title)
+          .eq('status', 'logged')
+          .single()
+
+        if (existingEntry) {
+          setDuplicateError(true)
+          setSaving(false)
+          return
+        }
+      }
+
       await addEntry({
         media_type: selectedItem.type,
         title: selectedItem.title,
@@ -212,6 +237,17 @@ export default function AddEntryPage() {
 
               <h2 className="text-xl font-bold mb-1 pr-10 leading-tight">{selectedItem.title}</h2>
               <p className="text-gray-400 text-sm mb-6">{selectedItem.year} • {activeTab}</p>
+
+              {/* Duplicate Error Alert */}
+              {duplicateError && (
+                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6 flex items-start gap-3">
+                  <span className="text-red-500 flex-shrink-0 mt-0.5">⚠️</span>
+                  <div className="flex-1 text-sm">
+                    <p className="font-medium mb-1">Already in your library</p>
+                    <p className="text-red-400/80">"{selectedItem.title}" is already in your {activeTab} library. You can still add it as activity using other statuses.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-6">
                 {/* Status */}
