@@ -80,10 +80,14 @@ function CommentThread({
   return (
     <div className={`${depth > 0 ? 'ml-8 mt-3' : ''}`}>
       <div className="flex gap-3">
-        <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0`}>
-          <span className="text-white text-xs font-bold">
-            {comment.profiles.username.charAt(0).toUpperCase()}
-          </span>
+        <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
+          {comment.profiles.avatar_url ? (
+            <img src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-white text-xs font-bold">
+              {comment.profiles.username.charAt(0).toUpperCase()}
+            </span>
+          )}
         </div>
         <div className="flex-1">
           <div className="bg-gray-800/50 rounded-lg p-3">
@@ -355,8 +359,8 @@ export default function FeedPage() {
       } else {
         setCommentText('')
       }
+      // Only refetch comments for this post, not entire feed
       await fetchComments(postId)
-      await fetchFeed()
     } catch (error) {
       console.error('Error posting comment:', error)
     } finally {
