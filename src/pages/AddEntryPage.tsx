@@ -187,23 +187,23 @@ export default function AddEntryPage() {
 
         {/* Selection Modal */}
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200 max-h-[90vh] overflow-y-auto">
               <button
                 onClick={() => setSelectedItem(null)}
-                className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"
+                className="absolute top-3 right-3 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h2 className="text-xl font-bold mb-1 pr-8 truncate">{selectedItem.title}</h2>
-              <p className="text-gray-400 text-sm mb-6">{selectedItem.year} • {activeTab}</p>
+              <h2 className="text-lg sm:text-xl font-bold mb-1 pr-10 truncate">{selectedItem.title}</h2>
+              <p className="text-gray-400 text-xs sm:text-sm mb-4 sm:mb-6">{selectedItem.year} • {activeTab}</p>
 
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Status */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Status</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                     {[
                       { value: 'completed', label: 'Completed' },
                       { value: 'in-progress', label: 'In Progress' },
@@ -212,7 +212,7 @@ export default function AddEntryPage() {
                       <button
                         key={s.value}
                         onClick={() => setStatus(s.value as any)}
-                        className={`py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                        className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
                           status === s.value
                             ? 'bg-red-500/10 border-red-500 text-red-500'
                             : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
@@ -226,8 +226,8 @@ export default function AddEntryPage() {
 
                 {/* Rating */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Rating</label>
-                  <div className="flex gap-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating</label>
+                  <div className="flex gap-1 sm:gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
