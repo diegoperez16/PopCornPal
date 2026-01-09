@@ -6,7 +6,7 @@ import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loade
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, signOut } = useAuthStore()
-  const { entries, userStats, fetchEntries, fetchUserStats, updateEntry, deleteEntry } = useMediaStore()
+  const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore()
   const navigate = useNavigate()
   
   // Profile Editing State
