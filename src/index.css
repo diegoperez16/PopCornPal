@@ -59,3 +59,16 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(136, 136, 136, 0.7);
 }
+
+/* Loading bar animation */
+@keyframes loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(150%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
