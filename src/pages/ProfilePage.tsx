@@ -1073,8 +1073,8 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Logout Button */}
-      <div className="mt-8 pb-24 md:pb-8">
+      {/* Logout Button - Mobile only */}
+      <div className="mt-8 pb-24 md:hidden">
         <button
           onClick={handleSignOut}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 hover:border-red-500/50 text-gray-400 hover:text-red-400 rounded-xl transition-all"
