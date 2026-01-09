@@ -21,6 +21,7 @@ export default function ProfilePage() {
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [filterType, setFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
   
   // Edit Entry Form State
   const [editRating, setEditRating] = useState(0)
@@ -356,21 +357,24 @@ export default function ProfilePage() {
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           {[
-            { label: 'Movies', count: entries.filter(e => e.media_type === 'movie').length, icon: Film },
-            { label: 'Shows', count: entries.filter(e => e.media_type === 'show').length, icon: Tv },
-            { label: 'Games', count: entries.filter(e => e.media_type === 'game').length, icon: Gamepad2 },
-            { label: 'Books', count: entries.filter(e => e.media_type === 'book').length, icon: Book },
+            { label: 'Movies', count: entries.filter(e => e.media_type === 'movie').length, icon: Film, type: 'movie' as const },
+            { label: 'Shows', count: entries.filter(e => e.media_type === 'show').length, icon: Tv, type: 'show' as const },
+            { label: 'Games', count: entries.filter(e => e.media_type === 'game').length, icon: Gamepad2, type: 'game' as const },
+            { label: 'Books', count: entries.filter(e => e.media_type === 'book').length, icon: Book, type: 'book' as const },
           ].map((stat) => (
-            <div
+            <button
               key={stat.label}
-              className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 text-center group hover:border-gray-600 transition-colors"
+              onClick={() => setFilterType(filterType === stat.type ? null : stat.type)}
+              className={`bg-gray-800/50 backdrop-blur-sm border rounded-xl p-4 sm:p-6 text-center group hover:border-gray-600 transition-all cursor-pointer ${
+                filterType === stat.type ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-700'
+              }`}
             >
               <stat.icon className="w-6 h-6 mx-auto mb-2 text-gray-500 group-hover:text-white transition-colors" />
               <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
                 {stat.count}
               </div>
               <div className="text-gray-400 text-xs sm:text-sm mt-1">{stat.label}</div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -588,7 +592,9 @@ export default function ProfilePage() {
         {/* Recent Activity */}
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-semibold">Recent Activity</h3>
+            <h3 className="text-xl font-semibold">
+              {filterType ? `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} Activity` : 'Recent Activity'}
+            </h3>
             <button 
               onClick={() => navigate('/add')}
               className="sm:hidden p-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-lg shadow-red-500/20"
@@ -597,9 +603,9 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {entries.filter(e => e.status !== 'logged').length > 0 ? (
+          {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {entries.filter(e => e.status !== 'logged').map((entry) => {
+              {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).map((entry) => {
                 const Icon = getIcon(entry.media_type)
                 return (
                   <div
@@ -684,11 +690,13 @@ export default function ProfilePage() {
         </div>
 
         {/* Library - Logged entries without dates */}
-        {entries.filter(e => e.status === 'logged').length > 0 && (
+        {entries.filter(e => e.status === 'logged' && (!filterType || e.media_type === filterType)).length > 0 && (
           <div className="space-y-4 mt-8">
-            <h3 className="text-xl font-semibold">Library</h3>
+            <h3 className="text-xl font-semibold">
+              {filterType ? `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} Library` : 'Library'}
+            </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {entries.filter(e => e.status === 'logged').map((entry) => {
+              {entries.filter(e => e.status === 'logged' && (!filterType || e.media_type === filterType)).map((entry) => {
                 const Icon = getIcon(entry.media_type)
                 return (
                   <div
@@ -768,50 +776,45 @@ export default function ProfilePage() {
               {/* Rating */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
-                    Rating (tap to select, drag to adjust)
+                    Rating {editRating > 0 && `(${editRating}/5)`}
                   </label>
-                  <div className="flex gap-0.5 sm:gap-1 items-center">
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const isFilled = editRating >= star
-                      const isHalfFilled = editRating >= star - 0.5 && editRating < star
-                      
-                      return (
-                        <div key={star} className="relative">
-                          <button
-                            onClick={() => setEditRating(star === editRating ? 0 : star)}
-                            onMouseDown={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              const x = e.clientX - rect.left
-                              const isLeftHalf = x < rect.width / 2
-                              setEditRating(isLeftHalf ? star - 0.5 : star)
-                            }}
-                            onTouchStart={(e) => {
-                              const touch = e.touches[0]
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              const x = touch.clientX - rect.left
-                              const isLeftHalf = x < rect.width / 2
-                              setEditRating(isLeftHalf ? star - 0.5 : star)
-                            }}
-                            className="focus:outline-none relative"
-                          >
+                  <div className="space-y-3">
+                    {/* Star Display */}
+                    <div className="flex gap-1 items-center justify-center">
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const isFilled = editRating >= star
+                        const isHalfFilled = editRating >= star - 0.5 && editRating < star
+                        
+                        return (
+                          <div key={star} className="relative">
                             {/* Background star */}
-                            <Star className="w-7 h-7 sm:w-8 sm:h-8 text-gray-700" />
+                            <Star className="w-8 h-8 sm:w-9 sm:h-9 text-gray-700" />
                             {/* Filled overlay */}
                             {(isFilled || isHalfFilled) && (
                               <div
-                                className="absolute inset-0 overflow-hidden"
+                                className="absolute inset-0 overflow-hidden pointer-events-none"
                                 style={{ width: isHalfFilled ? '50%' : '100%' }}
                               >
-                                <Star className="w-7 h-7 sm:w-8 sm:h-8 fill-yellow-500 text-yellow-500" />
+                                <Star className="w-8 h-8 sm:w-9 sm:h-9 fill-yellow-500 text-yellow-500" />
                               </div>
                             )}
-                          </button>
-                        </div>
-                      )
-                    })}
-                    {editRating > 0 && (
-                      <span className="ml-2 text-sm text-gray-400">{editRating}/5</span>
-                    )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {/* Slider */}
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="1"
+                      value={editRating * 2}
+                      onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)}
+                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                      style={{
+                        background: `linear-gradient(to right, #eab308 0%, #eab308 ${(editRating / 5) * 100}%, #374151 ${(editRating / 5) * 100}%, #374151 100%)`
+                      }}
+                    />
                   </div>
                 </div>              {/* Notes */}
               <div>

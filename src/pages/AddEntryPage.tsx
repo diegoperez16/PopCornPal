@@ -250,50 +250,45 @@ export default function AddEntryPage() {
                 {(status === 'completed' || status === 'logged') && (
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
-                      Rating (tap to select, drag to adjust)
+                      Rating {rating > 0 && `(${rating}/5)`}
                     </label>
-                    <div className="flex gap-0.5 sm:gap-1 items-center">
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const isFilled = rating >= star
-                        const isHalfFilled = rating >= star - 0.5 && rating < star
-                        
-                        return (
-                          <div key={star} className="relative">
-                            <button
-                              onClick={() => setRating(star === rating ? 0 : star)}
-                              onMouseDown={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                const x = e.clientX - rect.left
-                                const isLeftHalf = x < rect.width / 2
-                                setRating(isLeftHalf ? star - 0.5 : star)
-                              }}
-                              onTouchStart={(e) => {
-                                const touch = e.touches[0]
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                const x = touch.clientX - rect.left
-                                const isLeftHalf = x < rect.width / 2
-                                setRating(isLeftHalf ? star - 0.5 : star)
-                              }}
-                              className="focus:outline-none relative"
-                            >
+                    <div className="space-y-3">
+                      {/* Star Display */}
+                      <div className="flex gap-1 items-center justify-center">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const isFilled = rating >= star
+                          const isHalfFilled = rating >= star - 0.5 && rating < star
+                          
+                          return (
+                            <div key={star} className="relative">
                               {/* Background star */}
-                              <Star className="w-7 h-7 sm:w-8 sm:h-8 text-gray-700" />
+                              <Star className="w-8 h-8 sm:w-9 sm:h-9 text-gray-700" />
                               {/* Filled overlay */}
                               {(isFilled || isHalfFilled) && (
                                 <div
-                                  className="absolute inset-0 overflow-hidden"
+                                  className="absolute inset-0 overflow-hidden pointer-events-none"
                                   style={{ width: isHalfFilled ? '50%' : '100%' }}
                                 >
-                                  <Star className="w-7 h-7 sm:w-8 sm:h-8 fill-yellow-500 text-yellow-500" />
+                                  <Star className="w-8 h-8 sm:w-9 sm:h-9 fill-yellow-500 text-yellow-500" />
                                 </div>
                               )}
-                            </button>
-                          </div>
-                        )
-                      })}
-                      {rating > 0 && (
-                        <span className="ml-2 text-sm text-gray-400">{rating}/5</span>
-                      )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {/* Slider */}
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="1"
+                        value={rating * 2}
+                        onChange={(e) => setRating(parseFloat(e.target.value) / 2)}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                        style={{
+                          background: `linear-gradient(to right, #eab308 0%, #eab308 ${(rating / 5) * 100}%, #374151 ${(rating / 5) * 100}%, #374151 100%)`
+                        }}
+                      />
                     </div>
                   </div>
                 )}
