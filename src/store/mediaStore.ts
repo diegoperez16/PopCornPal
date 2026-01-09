@@ -7,7 +7,7 @@ export interface MediaEntry {
   media_type: 'movie' | 'show' | 'game' | 'book'
   title: string
   rating: number | null
-  status: 'completed' | 'in-progress' | 'planned'
+  status: 'completed' | 'in-progress' | 'planned' | 'logged'
   completed_date: string | null
   notes: string | null
   genre: string | null
