@@ -262,6 +262,12 @@ export default function AddEntryPage() {
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
+                    onBlur={() => {
+                      // Auto zoom-out on iOS when user finishes typing
+                      if (window.visualViewport) {
+                        window.scrollTo(0, 0)
+                      }
+                    }}
                     rows={3}
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-base focus:outline-none focus:border-red-500 transition-colors"
                     placeholder="What did you think?"
