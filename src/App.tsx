@@ -185,6 +185,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth/callback" element={<AuthPage />} />
         <Route path="/feed" element={<FeedPage />} />
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/activity" element={<ActivityPage />} />

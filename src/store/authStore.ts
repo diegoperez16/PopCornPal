@@ -76,8 +76,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ profile })
           }
           
-          // Clean up URL (don't redirect, let the router handle it)
-          window.history.replaceState({}, document.title, '/')
+          // Clean up URL and redirect to feed after successful confirmation
+          window.history.replaceState({}, document.title, '/feed')
           set({ loading: false })
           return
         }
