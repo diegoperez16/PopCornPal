@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star } from 'lucide-react'
 import { api, type SearchResult } from '../lib/api'
@@ -21,6 +21,18 @@ export default function AddEntryPage() {
   const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned'>('completed')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Hide mobile nav when modal is open
+  useEffect(() => {
+    const mobileNav = document.querySelector('.mobile-nav')
+    if (mobileNav) {
+      if (selectedItem) {
+        mobileNav.classList.add('hidden')
+      } else {
+        mobileNav.classList.remove('hidden')
+      }
+    }
+  }, [selectedItem])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -187,19 +199,19 @@ export default function AddEntryPage() {
 
         {/* Selection Modal */}
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-5 relative max-h-[80vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200 max-h-[90vh] overflow-y-auto">
               <button
                 onClick={() => setSelectedItem(null)}
-                className="absolute top-4 right-4 p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
+                className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h2 className="text-lg sm:text-xl font-bold mb-0.5 pr-10 truncate">{selectedItem.title}</h2>
-              <p className="text-gray-400 text-xs sm:text-sm mb-4">{selectedItem.year} • {activeTab}</p>
+              <h2 className="text-xl font-bold mb-1 pr-10 truncate">{selectedItem.title}</h2>
+              <p className="text-gray-400 text-sm mb-6">{selectedItem.year} • {activeTab}</p>
 
-              <div className="space-y-3.5">
+              <div className="space-y-6">
                 {/* Status */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
@@ -246,12 +258,12 @@ export default function AddEntryPage() {
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-1.5">Notes (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    rows={2}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-2.5 text-sm focus:outline-none focus:border-red-500 transition-colors resize-none"
+                    rows={3}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 transition-colors"
                     placeholder="What did you think?"
                   />
                 </div>
@@ -259,7 +271,7 @@ export default function AddEntryPage() {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-2.5 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50 active:scale-[0.98] mt-1"
+                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3.5 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : 'Add to Library'}
                 </button>
