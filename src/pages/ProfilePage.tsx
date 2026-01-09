@@ -24,7 +24,7 @@ export default function ProfilePage() {
   
   // Edit Entry Form State
   const [editRating, setEditRating] = useState(0)
-  const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned'>('completed')
+  const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
 
   useEffect(() => {

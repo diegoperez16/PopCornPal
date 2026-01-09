@@ -18,7 +18,7 @@ export default function AddEntryPage() {
   
   // Form State
   const [rating, setRating] = useState(0)
-  const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned'>('completed')
+  const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
