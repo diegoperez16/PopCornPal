@@ -222,7 +222,7 @@ export default function AddEntryPage() {
                       { value: 'completed', label: 'Completed' },
                       { value: 'in-progress', label: 'In Progress' },
                       { value: 'planned', label: 'Plan to Watch' },
-                      { value: 'logged', label: 'Logged' },
+                      { value: 'logged', label: 'Library' },
                     ].map((s) => (
                       <button
                         key={s.value}

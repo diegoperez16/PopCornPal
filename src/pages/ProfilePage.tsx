@@ -684,6 +684,18 @@ export default function ProfilePage() {
             </button>
           </div>
 
+          {/* View Library Button */}
+          <button
+            onClick={() => navigate('/library')}
+            className="w-full bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-3">
+              <Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+              <span className="text-gray-300 group-hover:text-white font-medium transition-colors">View Your Library</span>
+            </div>
+            <span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span>
+          </button>
+
           {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
               {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).map((entry) => {
@@ -769,49 +781,6 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
-
-        {/* Library - Logged entries without dates */}
-        {entries.filter(e => e.status === 'logged' && (!filterType || e.media_type === filterType)).length > 0 && (
-          <div className="space-y-4 mt-8">
-            <h3 className="text-xl font-semibold">
-              {filterType ? `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} Library` : 'Library'}
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {entries.filter(e => e.status === 'logged' && (!filterType || e.media_type === filterType)).map((entry) => {
-                const Icon = getIcon(entry.media_type)
-                return (
-                  <div
-                    key={entry.id}
-                    onClick={() => setSelectedEntry(entry)}
-                    className="bg-gray-800/30 border border-gray-700/50 rounded-xl overflow-hidden hover:bg-gray-800/50 transition-colors cursor-pointer group"
-                  >
-                    <div className="aspect-[2/3] bg-gray-900 relative">
-                      {entry.cover_image_url ? (
-                        <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-700">
-                          <Icon className="w-8 h-8" />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <Edit2 className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                    <div className="p-3">
-                      <h4 className="text-sm font-semibold line-clamp-2 text-white mb-1">{entry.title}</h4>
-                      {entry.rating && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                          <span className="text-gray-400">{entry.rating}/5</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Edit Entry Modal */}
@@ -837,7 +806,7 @@ export default function ProfilePage() {
                     { value: 'completed', label: 'Completed' },
                     { value: 'in-progress', label: 'In Progress' },
                     { value: 'planned', label: 'Plan to Watch' },
-                    { value: 'logged', label: 'Logged' },
+                    { value: 'logged', label: 'Library' },
                   ].map((s) => (
                     <button
                       key={s.value}
