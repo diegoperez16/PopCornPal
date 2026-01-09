@@ -240,24 +240,97 @@ export default function ProfilePage() {
                   )}
                   {/* Badges */}
                   {!isEditing && selectedBadges.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
-                      {selectedBadges.map((badge) => (
-                        <span
-                          key={badge}
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            badge === 'Creator' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' :
-                            badge === 'Alpha Tester' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' :
-                            badge === 'Reader' ? 'bg-green-500/20 text-green-300 border border-green-500/40' :
-                            badge === 'Star Wars Fan' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40' :
-                            badge === 'Anime Fan' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40' :
-                            badge === 'Gamer' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' :
-                            badge === 'Cinephile' ? 'bg-red-500/20 text-red-300 border border-red-500/40' :
-                            'bg-gray-500/20 text-gray-300 border border-gray-500/40'
-                          }`}
-                        >
-                          {badge}
-                        </span>
-                      ))}
+                    <div className="flex flex-wrap gap-3 mt-3 justify-center sm:justify-start">
+                      {selectedBadges.map((badge) => {
+                        const badgeConfig = {
+                          'Creator': { 
+                            color: 'from-purple-600 via-purple-500 to-pink-500',
+                            gif: 'https://media.giphy.com/media/l0HlLtgtN7JJXBb3i/giphy.gif',
+                            glow: 'shadow-lg shadow-purple-500/50'
+                          },
+                          'Alpha Tester': { 
+                            color: 'from-blue-600 via-cyan-500 to-blue-400',
+                            gif: 'https://media.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif',
+                            glow: 'shadow-lg shadow-blue-500/50'
+                          },
+                          'Reader': { 
+                            color: 'from-green-600 via-emerald-500 to-green-400',
+                            gif: 'https://media.giphy.com/media/l0HlIO3bhuMHgMgqQ/giphy.gif',
+                            glow: 'shadow-lg shadow-green-500/50'
+                          },
+                          'Bookworm': { 
+                            color: 'from-green-600 via-emerald-500 to-green-400',
+                            gif: 'https://media.giphy.com/media/l0HlIO3bhuMHgMgqQ/giphy.gif',
+                            glow: 'shadow-lg shadow-green-500/50'
+                          },
+                          'Star Wars Fan': { 
+                            color: 'from-yellow-500 via-yellow-400 to-orange-500',
+                            gif: 'https://media.giphy.com/media/3oKIPsx0EGqLLGhZJK/giphy.gif',
+                            glow: 'shadow-lg shadow-yellow-500/50'
+                          },
+                          'Anime Fan': { 
+                            color: 'from-pink-600 via-pink-500 to-rose-500',
+                            gif: 'https://media.giphy.com/media/IwTWTsUzmIicM/giphy.gif',
+                            glow: 'shadow-lg shadow-pink-500/50'
+                          },
+                          'Gamer': { 
+                            color: 'from-indigo-600 via-purple-500 to-indigo-400',
+                            gif: 'https://media.giphy.com/media/l0HlNaQ6gWfllcjDO/giphy.gif',
+                            glow: 'shadow-lg shadow-indigo-500/50'
+                          },
+                          'Cinephile': { 
+                            color: 'from-red-600 via-red-500 to-pink-500',
+                            gif: 'https://media.giphy.com/media/l0HlMPQEO7WxuHPXi/giphy.gif',
+                            glow: 'shadow-lg shadow-red-500/50'
+                          },
+                          'Binge Watcher': { 
+                            color: 'from-red-600 via-orange-500 to-red-400',
+                            gif: 'https://media.giphy.com/media/xTiTnxpQ3ghPiB2Hp6/giphy.gif',
+                            glow: 'shadow-lg shadow-red-500/50'
+                          },
+                          'Marvel Fan': { 
+                            color: 'from-red-700 via-red-600 to-red-500',
+                            gif: 'https://media.giphy.com/media/l0HlQXlQ3nHyLMvte/giphy.gif',
+                            glow: 'shadow-lg shadow-red-600/50'
+                          },
+                          'DC Fan': { 
+                            color: 'from-blue-700 via-blue-600 to-slate-600',
+                            gif: 'https://media.giphy.com/media/TErnsRtMQyOc0/giphy.gif',
+                            glow: 'shadow-lg shadow-blue-600/50'
+                          },
+                        }[badge] || { 
+                          color: 'from-gray-600 via-gray-500 to-gray-400',
+                          gif: '',
+                          glow: 'shadow-lg shadow-gray-500/50'
+                        }
+                        
+                        return (
+                          <div
+                            key={badge}
+                            className={`relative overflow-hidden rounded-lg ${badgeConfig.glow} transform hover:scale-105 transition-transform`}
+                          >
+                            {/* Animated GIF Background */}
+                            {badgeConfig.gif && (
+                              <div className="absolute inset-0 opacity-20">
+                                <img 
+                                  src={badgeConfig.gif} 
+                                  alt="" 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            {/* Gradient Overlay */}
+                            <div className={`absolute inset-0 bg-gradient-to-br ${badgeConfig.color} opacity-80`}></div>
+                            {/* Badge Content */}
+                            <div className="relative px-3 py-1.5 flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                              <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
+                                {badge}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
