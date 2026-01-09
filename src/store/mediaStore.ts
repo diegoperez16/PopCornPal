@@ -108,6 +108,37 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
       console.log('Adding entry for user:', session.user.id)
 
+      // If status is completed or in-progress, check if library entry exists
+      if (entry.status === 'completed' || entry.status === 'in-progress') {
+        const { data: existingLibrary } = await supabase
+          .from('media_entries')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('media_type', entry.media_type)
+          .eq('title', entry.title)
+          .eq('status', 'logged')
+          .maybeSingle()
+
+        // If no library entry exists, create one first
+        if (!existingLibrary) {
+          await supabase
+            .from('media_entries')
+            .insert([{ 
+              media_type: entry.media_type,
+              title: entry.title,
+              status: 'logged',
+              rating: entry.rating,
+              notes: entry.notes,
+              genre: entry.genre,
+              year: entry.year,
+              cover_image_url: entry.cover_image_url,
+              user_id: session.user.id,
+              completed_date: null
+            }])
+        }
+      }
+
+      // Now add the main entry
       const { error } = await supabase
         .from('media_entries')
         .insert([{ ...entry, user_id: session.user.id }])
@@ -175,6 +206,44 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   updateEntry: async (id, updates) => {
     set({ loading: true, error: null })
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+
+      // Get the entry being updated
+      const currentEntry = get().entries.find(e => e.id === id)
+      if (!currentEntry) throw new Error('Entry not found')
+
+      // If changing to completed or in-progress, ensure library entry exists
+      if (updates.status && (updates.status === 'completed' || updates.status === 'in-progress')) {
+        const { data: existingLibrary } = await supabase
+          .from('media_entries')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('media_type', currentEntry.media_type)
+          .eq('title', currentEntry.title)
+          .eq('status', 'logged')
+          .maybeSingle()
+
+        // If no library entry exists, create one
+        if (!existingLibrary) {
+          await supabase
+            .from('media_entries')
+            .insert([{ 
+              media_type: currentEntry.media_type,
+              title: currentEntry.title,
+              status: 'logged',
+              rating: updates.rating ?? currentEntry.rating,
+              notes: updates.notes ?? currentEntry.notes,
+              genre: currentEntry.genre,
+              year: currentEntry.year,
+              cover_image_url: currentEntry.cover_image_url,
+              user_id: user.id,
+              completed_date: null
+            }])
+        }
+      }
+
+      // Now update the main entry
       const { error } = await supabase
         .from('media_entries')
         .update(updates)
@@ -182,11 +251,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
       if (error) throw error
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        await get().fetchEntries(user.id)
-        await get().fetchUserStats(user.id)
-      }
+      await get().fetchEntries(user.id)
+      await get().fetchUserStats(user.id)
     } catch (error) {
       set({ error: (error as Error).message })
     } finally {

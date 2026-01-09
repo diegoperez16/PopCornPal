@@ -8,6 +8,7 @@ import AddEntryPage from './pages/AddEntryPage'
 import FeedPage from './pages/FeedPage'
 import PeoplePage from './pages/PeoplePage'
 import ActivityPage from './pages/ActivityPage'
+import LibraryPage from './pages/LibraryPage'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
 import NotificationBanner from './components/NotificationBanner'
@@ -187,6 +188,7 @@ function AppContent() {
         <Route path="/feed" element={<FeedPage />} />
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/library" element={<LibraryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/add" element={<AddEntryPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
