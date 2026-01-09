@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut } from 'lucide-react'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut, Users, User } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, signOut } = useAuthStore()
@@ -29,12 +30,42 @@ export default function ProfilePage() {
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
 
+  // Social Stats State
+  const [followersCount, setFollowersCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [initialLoading, setInitialLoading] = useState(true)
+
   useEffect(() => {
     if (user) {
-      fetchEntries(user.id)
-      // Don't fetch stats separately - calculate from entries
+      Promise.all([fetchEntries(user.id), fetchFollowCounts()]).finally(() => setInitialLoading(false))
     }
   }, [user, fetchEntries])
+
+  const fetchFollowCounts = async () => {
+    if (!user) return
+    
+    try {
+      // Get followers count
+      const { count: followersCount, error: followersError } = await supabase
+        .from('follows')
+        .select('follower_id', { count: 'exact', head: true })
+        .eq('following_id', user.id)
+      
+      if (followersError) throw followersError
+      setFollowersCount(followersCount || 0)
+
+      // Get following count
+      const { count: followingCount, error: followingError } = await supabase
+        .from('follows')
+        .select('follower_id', { count: 'exact', head: true })
+        .eq('follower_id', user.id)
+      
+      if (followingError) throw followingError
+      setFollowingCount(followingCount || 0)
+    } catch (error) {
+      console.error('Error fetching follow counts:', error)
+    }
+  }
 
   useEffect(() => {
     if (profile) {
@@ -183,13 +214,59 @@ export default function ProfilePage() {
     })
   }
 
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
+        <div className="text-center">
+          {/* Animated Icons */}
+          <div className="mb-8 relative flex items-center justify-center gap-6">
+            <Users className="w-16 h-16 text-purple-500 animate-pulse" />
+            <div className="relative">
+              <User className="w-20 h-20 text-pink-500 animate-bounce" />
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-ping"></div>
+            </div>
+            <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
+          </div>
+          {/* Loading Text */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
+              Loading your profile...
+            </h2>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }}></div>
+              <div className="w-2 h-2 bg-pink-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!user || !profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="inline-block w-12 h-12 border-4 border-gray-700 border-t-red-500 rounded-full animate-spin mb-4"></div>
-          <div className="text-white text-xl mb-2">Setting up your profile...</div>
-          <p className="text-gray-400 text-sm">This will only take a moment</p>
+          {/* Animated Icons */}
+          <div className="mb-8 relative flex items-center justify-center gap-6">
+            <Users className="w-16 h-16 text-purple-500 animate-pulse" />
+            <div className="relative">
+              <User className="w-20 h-20 text-pink-500 animate-bounce" />
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-ping"></div>
+            </div>
+            <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
+          </div>
+          {/* Loading Text */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
+              Setting up your profile...
+            </h2>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }}></div>
+              <div className="w-2 h-2 bg-pink-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -530,6 +607,30 @@ export default function ProfilePage() {
               <div className="text-gray-400 text-xs sm:text-sm mt-1">{stat.label}</div>
             </button>
           ))}
+        </div>
+
+        {/* Social Stats */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <button
+            onClick={() => navigate('/people', { state: { initialTab: 'followers' } })}
+            className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 hover:border-purple-500/50 rounded-xl p-4 sm:p-6 text-center group transition-all cursor-pointer"
+          >
+            <Users className="w-6 h-6 mx-auto mb-2 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            <div className="text-2xl sm:text-3xl font-bold text-white">
+              {followersCount}
+            </div>
+            <div className="text-gray-400 text-xs sm:text-sm mt-1">Followers</div>
+          </button>
+          <button
+            onClick={() => navigate('/people', { state: { initialTab: 'following' } })}
+            className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 hover:border-blue-500/50 rounded-xl p-4 sm:p-6 text-center group transition-all cursor-pointer"
+          >
+            <Users className="w-6 h-6 mx-auto mb-2 text-blue-400 group-hover:text-blue-300 transition-colors" />
+            <div className="text-2xl sm:text-3xl font-bold text-white">
+              {followingCount}
+            </div>
+            <div className="text-gray-400 text-xs sm:text-sm mt-1">Following</div>
+          </button>
         </div>
 
         {/* View Activity Button */}
