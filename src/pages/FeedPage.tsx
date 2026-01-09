@@ -637,14 +637,15 @@ export default function FeedPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-3">
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-3">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setShowMediaSelector(!showMediaSelector)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
               >
                 <Film className="w-4 h-4" />
-                <span>Add Media</span>
+                <span className="hidden sm:inline">Add Media</span>
+                <span className="sm:hidden">Media</span>
               </button>
               <input
                 ref={fileInputRef}
@@ -659,7 +660,8 @@ export default function FeedPage() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm cursor-pointer"
               >
                 <ImageIcon className="w-4 h-4" />
-                <span>Upload Image</span>
+                <span className="hidden sm:inline">Upload Image</span>
+                <span className="sm:hidden">Upload</span>
               </label>
               <button
                 onClick={() => {
@@ -672,13 +674,14 @@ export default function FeedPage() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
               >
                 <ImageIcon className="w-4 h-4" />
-                <span>Image URL</span>
+                <span className="hidden sm:inline">Image URL</span>
+                <span className="sm:hidden">URL</span>
               </button>
             </div>
             <button
               onClick={handleCreatePost}
               disabled={!newPost.trim() || posting}
-              className="bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-6 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+              className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-6 py-2.5 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             >
               {posting ? 'Posting...' : 'Post'}
             </button>
