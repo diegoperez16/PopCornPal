@@ -21,19 +21,59 @@ export default function PeoplePage() {
   const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
   const [followers, setFollowers] = useState<ProfileWithFollowStatus[]>([])
   const [following, setFollowing] = useState<ProfileWithFollowStatus[]>([])
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState<'search' | 'followers' | 'following'>('search')
 
   // Fetch followers and following on mount
   useEffect(() => {
     if (user) {
-      Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setLoading(false))
+      Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setInitialLoading(false))
+    }
+
+    // Set up real-time subscription for follows changes
+    if (!user) return
+
+    const followsChannel = supabase
+      .channel('follows-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'follows',
+          filter: `follower_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Following change received:', payload)
+          fetchFollowing()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'follows',
+          filter: `following_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Follower change received:', payload)
+          fetchFollowers()
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(followsChannel)
     }
   }, [user])
 
   const fetchFollowers = async () => {
     if (!user) return
 
+    setRefreshing(true)
     const { data, error } = await supabase
       .from('follows')
       .select(`
@@ -69,11 +109,13 @@ export default function PeoplePage() {
         isFollowing: followingIds.has(p.id),
       }))
     )
+    setRefreshing(false)
   }
 
   const fetchFollowing = async () => {
     if (!user) return
 
+    setRefreshing(true)
     const { data, error } = await supabase
       .from('follows')
       .select(`
@@ -109,6 +151,7 @@ export default function PeoplePage() {
         isFollower: followerIds.has(p.id),
       }))
     )
+    setRefreshing(false)
   }
 
   const handleSearch = async (query: string) => {
@@ -118,8 +161,6 @@ export default function PeoplePage() {
       setSearchResults([])
       return
     }
-
-    setLoading(true)
 
     try {
       // Search profiles by username
@@ -134,7 +175,6 @@ export default function PeoplePage() {
 
       if (!profiles) {
         setSearchResults([])
-        setLoading(false)
         return
       }
 
@@ -165,8 +205,6 @@ export default function PeoplePage() {
       setSearchResults(profilesWithStatus)
     } catch (error) {
       console.error('Search error:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -290,6 +328,41 @@ export default function PeoplePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20">
+      {/* Loading Bar */}
+      {refreshing && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
+          <div className="h-full bg-gradient-to-r from-red-500 to-pink-500 animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+        </div>
+      )}
+
+      {/* Full Screen Loading Animation */}
+      {initialLoading && (
+        <div className="fixed inset-0 z-40 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            {/* Animated Icons */}
+            <div className="mb-8 relative flex items-center justify-center gap-6">
+              <UserPlus className="w-16 h-16 text-red-500 animate-pulse" />
+              <div className="relative">
+                <Search className="w-20 h-20 text-pink-500 animate-bounce" />
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-ping"></div>
+              </div>
+              <UserCheck className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
+            </div>
+            {/* Loading Text */}
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
+                Finding your people...
+              </h2>
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }}></div>
+                <div className="w-2 h-2 bg-pink-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Header */}
         <h1 className="text-3xl font-bold mb-6">People</h1>
@@ -328,14 +401,11 @@ export default function PeoplePage() {
                 placeholder="Search for people..."
                 className="w-full bg-gray-800/50 border border-gray-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-red-500 transition-colors"
               />
-              {loading && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
-              )}
             </div>
 
             {/* Search Results */}
             <div className="space-y-3">
-              {searchResults.length === 0 && searchQuery.trim().length >= 2 && !loading && (
+              {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
                 <div className="text-center py-12">
                   <p className="text-gray-400">No users found matching "{searchQuery}"</p>
                 </div>
@@ -354,7 +424,11 @@ export default function PeoplePage() {
         {/* Followers Tab */}
         {activeTab === 'followers' && (
           <div className="space-y-3">
-            {followers.length === 0 ? (
+            {initialLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+              </div>
+            ) : followers.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-400">No followers yet</p>
               </div>
@@ -367,7 +441,11 @@ export default function PeoplePage() {
         {/* Following Tab */}
         {activeTab === 'following' && (
           <div className="space-y-3">
-            {following.length === 0 ? (
+            {initialLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+              </div>
+            ) : following.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-400">Not following anyone yet</p>
               </div>

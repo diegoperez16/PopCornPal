@@ -166,7 +166,8 @@ export default function FeedPage() {
   const { entries, fetchEntries } = useMediaStore()
   const navigate = useNavigate()
   const [posts, setPosts] = useState<Post[]>([])
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [newPost, setNewPost] = useState('')
   const [posting, setPosting] = useState(false)
   const [selectedMediaEntry, setSelectedMediaEntry] = useState<string | null>(null)
@@ -186,16 +187,71 @@ export default function FeedPage() {
       navigate('/auth')
       return
     }
-    fetchFeed()
+    fetchFeed().finally(() => setInitialLoading(false))
     if (user) fetchEntries(user.id)
+
+    // Set up real-time subscriptions
+    const postsChannel = supabase
+      .channel('posts-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'posts'
+        },
+        (payload) => {
+          console.log('Posts change received:', payload)
+          fetchFeed() // Refetch feed on any post change
+        }
+      )
+      .subscribe()
+
+    const likesChannel = supabase
+      .channel('likes-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'post_likes'
+        },
+        (payload) => {
+          console.log('Like change received:', payload)
+          fetchFeed() // Refetch to update like counts
+        }
+      )
+      .subscribe()
+
+    const commentsChannel = supabase
+      .channel('comments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'post_comments'
+        },
+        (payload) => {
+          console.log('Comment change received:', payload)
+          fetchFeed() // Refetch to update comment counts
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      supabase.removeChannel(postsChannel)
+      supabase.removeChannel(likesChannel)
+      supabase.removeChannel(commentsChannel)
+    }
   }, [user, navigate, fetchEntries])
 
   const fetchFeed = async () => {
     if (!user) return
     
+    setRefreshing(true)
     try {
-      setLoading(true)
-      
       // Get list of users we follow
       const { data: followingData } = await supabase
         .from('follows')
@@ -273,7 +329,7 @@ export default function FeedPage() {
     } catch (error) {
       console.error('Error fetching feed:', error)
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -531,7 +587,42 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+      {/* Loading Bar */}
+      {refreshing && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
+          <div className="h-full bg-gradient-to-r from-red-500 to-pink-500 animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+        </div>
+      )}
+
+      {/* Full Screen Loading Animation */}
+      {initialLoading && (
+        <div className="fixed inset-0 z-40 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            {/* Animated Icons */}
+            <div className="mb-8 relative flex items-center justify-center gap-6">
+              <Film className="w-16 h-16 text-red-500 animate-[spin_3s_linear_infinite]" />
+              <div className="relative">
+                <Heart className="w-20 h-20 text-pink-500 animate-bounce" />
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-ping"></div>
+              </div>
+              <Gamepad2 className="w-16 h-16 text-red-500 animate-[spin_3s_linear_infinite_reverse]" />
+            </div>
+            {/* Loading Text */}
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
+                Loading your feed...
+              </h2>
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }}></div>
+                <div className="w-2 h-2 bg-pink-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Create Post */}
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 mb-6">
           <textarea
@@ -693,7 +784,7 @@ export default function FeedPage() {
         </div>
 
         {/* Feed */}
-        {loading ? (
+        {initialLoading ? (
           <div className="text-center py-12">
             <div className="inline-block w-8 h-8 border-4 border-gray-700 border-t-red-500 rounded-full animate-spin"></div>
           </div>
@@ -865,7 +956,7 @@ export default function FeedPage() {
             ))}
           </div>
         )}
-      </main>
+      </div>
     </div>
   )
 }
