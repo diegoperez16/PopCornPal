@@ -30,9 +30,9 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       fetchEntries(user.id)
-      fetchUserStats(user.id)
+      // Don't fetch stats separately - calculate from entries
     }
-  }, [user, fetchEntries, fetchUserStats])
+  }, [user, fetchEntries])
 
   useEffect(() => {
     if (profile) {
@@ -354,12 +354,12 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           {[
-            { label: 'Movies', count: userStats?.movies_count || 0, icon: Film },
-            { label: 'Shows', count: userStats?.shows_count || 0, icon: Tv },
-            { label: 'Games', count: userStats?.games_count || 0, icon: Gamepad2 },
-            { label: 'Books', count: userStats?.books_count || 0, icon: Book },
+            { label: 'Movies', count: entries.filter(e => e.media_type === 'movie').length, icon: Film },
+            { label: 'Shows', count: entries.filter(e => e.media_type === 'show').length, icon: Tv },
+            { label: 'Games', count: entries.filter(e => e.media_type === 'game').length, icon: Gamepad2 },
+            { label: 'Books', count: entries.filter(e => e.media_type === 'book').length, icon: Book },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -373,6 +373,15 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+
+        {/* View Activity Button */}
+        <button
+          onClick={() => navigate('/activity')}
+          className="w-full mb-8 flex items-center justify-center gap-2 px-4 py-3 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600 rounded-xl transition-all text-gray-300 hover:text-white"
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="font-medium">View Your Activity</span>
+        </button>
 
         {/* Currently Watching/Reading/Playing */}
         <div className="mb-8">

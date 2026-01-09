@@ -80,6 +80,8 @@ export default function AddEntryPage() {
         year: selectedItem.year ? parseInt(selectedItem.year) : null,
         cover_image_url: selectedItem.image || null
       })
+      // Ensure mobile nav reappears
+      setSelectedItem(null)
       navigate('/profile')
     } catch (error) {
       console.error('Error saving entry:', error)
@@ -223,7 +225,14 @@ export default function AddEntryPage() {
                     ].map((s) => (
                       <button
                         key={s.value}
-                        onClick={() => setStatus(s.value as any)}
+                        onClick={() => {
+                          setStatus(s.value as any)
+                          // Clear rating and notes if not completed
+                          if (s.value !== 'completed') {
+                            setRating(0)
+                            setNotes('')
+                          }
+                        }}
                         className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
                           status === s.value
                             ? 'bg-red-500/10 border-red-500 text-red-500'
@@ -236,43 +245,47 @@ export default function AddEntryPage() {
                   </div>
                 </div>
 
-                {/* Rating */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating</label>
-                  <div className="flex gap-1.5 sm:gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => setRating(star)}
-                        className="focus:outline-none"
-                      >
-                        <Star
-                          className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${
-                            star <= rating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'
-                          }`}
-                        />
-                      </button>
-                    ))}
+                {/* Rating - only show if completed */}
+                {status === 'completed' && (
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating</label>
+                    <div className="flex gap-1.5 sm:gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setRating(star === rating ? 0 : star)}
+                          className="focus:outline-none"
+                        >
+                          <Star
+                            className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${
+                              star <= rating ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    onBlur={() => {
-                      // Auto zoom-out on iOS when user finishes typing
-                      if (window.visualViewport) {
-                        window.scrollTo(0, 0)
-                      }
-                    }}
-                    rows={3}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-base focus:outline-none focus:border-red-500 transition-colors"
-                    placeholder="What did you think?"
-                  />
-                </div>
+                {/* Notes - only show if completed */}
+                {status === 'completed' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      onBlur={() => {
+                        // Auto zoom-out on iOS when user finishes typing
+                        if (window.visualViewport) {
+                          window.scrollTo(0, 0)
+                        }
+                      }}
+                      rows={3}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-base focus:outline-none focus:border-red-500 transition-colors"
+                      placeholder="What did you think?"
+                    />
+                  </div>
+                )}
 
                 <button
                   onClick={handleSave}

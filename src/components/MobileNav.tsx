@@ -1,4 +1,4 @@
-import { Plus, User, Users, Calendar } from 'lucide-react'
+import { Plus, User, Users, UserPlus } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 export default function MobileNav() {
@@ -7,7 +7,7 @@ export default function MobileNav() {
 
   const navItems = [
     { path: '/feed', icon: Users, label: 'Feed' },
-    { path: '/activity', icon: Calendar, label: 'Activity' },
+    { path: '/people', icon: UserPlus, label: 'People' },
     { path: '/add', icon: Plus, label: 'Add' },
     { path: '/profile', icon: User, label: 'Profile' },
   ]
