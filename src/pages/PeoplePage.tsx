@@ -21,14 +21,13 @@ export default function PeoplePage() {
   const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
   const [followers, setFollowers] = useState<ProfileWithFollowStatus[]>([])
   const [following, setFollowing] = useState<ProfileWithFollowStatus[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'search' | 'followers' | 'following'>('search')
 
   // Fetch followers and following on mount
   useEffect(() => {
     if (user) {
-      fetchFollowers()
-      fetchFollowing()
+      Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setLoading(false))
     }
   }, [user])
 

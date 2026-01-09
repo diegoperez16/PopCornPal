@@ -597,9 +597,9 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {entries.length > 0 ? (
+          {entries.filter(e => e.status !== 'logged').length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {entries.map((entry) => {
+              {entries.filter(e => e.status !== 'logged').map((entry) => {
                 const Icon = getIcon(entry.media_type)
                 return (
                   <div
@@ -682,6 +682,47 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Library - Logged entries without dates */}
+        {entries.filter(e => e.status === 'logged').length > 0 && (
+          <div className="space-y-4 mt-8">
+            <h3 className="text-xl font-semibold">Library</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {entries.filter(e => e.status === 'logged').map((entry) => {
+                const Icon = getIcon(entry.media_type)
+                return (
+                  <div
+                    key={entry.id}
+                    onClick={() => setSelectedEntry(entry)}
+                    className="bg-gray-800/30 border border-gray-700/50 rounded-xl overflow-hidden hover:bg-gray-800/50 transition-colors cursor-pointer group"
+                  >
+                    <div className="aspect-[2/3] bg-gray-900 relative">
+                      {entry.cover_image_url ? (
+                        <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-700">
+                          <Icon className="w-8 h-8" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Edit2 className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <h4 className="text-sm font-semibold line-clamp-2 text-white mb-1">{entry.title}</h4>
+                      {entry.rating && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                          <span className="text-gray-400">{entry.rating}/5</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Edit Entry Modal */}
