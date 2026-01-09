@@ -183,8 +183,8 @@ export default function FeedPage() {
       return
     }
     fetchFeed()
-    fetchEntries()
-  }, [user, navigate])
+    if (user) fetchEntries(user.id)
+  }, [user, navigate, fetchEntries])
 
   const fetchFeed = async () => {
     if (!user) return

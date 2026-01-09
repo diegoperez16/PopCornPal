@@ -52,14 +52,7 @@ export default function ProfilePage() {
     }
   }, [selectedEntry])
 
-  const handleSignOut = async () => {
-    try {
-      await signOut()
-      navigate('/auth')
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
-  }
+  // signOut is handled by DesktopNav
 
   const handleSaveProfile = async () => {
     setSavingProfile(true)

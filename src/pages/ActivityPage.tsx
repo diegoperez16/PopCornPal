@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Star, Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Star, Calendar, Clock } from 'lucide-react'
 
 interface GroupedEntries {
   [date: string]: MediaEntry[]
@@ -12,7 +12,6 @@ export default function ActivityPage() {
   const { user } = useAuthStore()
   const { entries, fetchEntries } = useMediaStore()
   const navigate = useNavigate()
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [groupedEntries, setGroupedEntries] = useState<GroupedEntries>({})
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { Plus, User, Users, Search, Calendar } from 'lucide-react'
+import { Plus, User, Users, Calendar } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 export default function MobileNav() {

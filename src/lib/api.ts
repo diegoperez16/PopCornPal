@@ -2,15 +2,13 @@ const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY;
 // Google Books API key is optional for public data but recommended
 const GOOGLE_BOOKS_API_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY;
-const MARVEL_PUBLIC_KEY = import.meta.env.VITE_MARVEL_PUBLIC_KEY;
-const MARVEL_PRIVATE_KEY = import.meta.env.VITE_MARVEL_PRIVATE_KEY;
 
 export interface SearchResult {
   id: string | number;
   title: string;
   image?: string;
   year?: string;
-  type: 'movie' | 'book' | 'game' | 'show' | 'comic';
+  type: 'movie' | 'book' | 'game' | 'show';
   description?: string;
 }
 
