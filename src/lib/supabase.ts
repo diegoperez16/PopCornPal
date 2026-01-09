@@ -25,6 +25,7 @@ export type Profile = {
   full_name: string | null
   avatar_url: string | null
   bio: string | null
+  badges: string[]
   created_at: string
   updated_at: string
 }
