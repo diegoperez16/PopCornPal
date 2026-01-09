@@ -78,7 +78,7 @@ export default function AddEntryPage() {
       // Only check for duplicates if adding to library (logged status)
       // Activity posts (completed, in-progress, planned) can have duplicates
       if (status === 'logged') {
-        const { data: existingEntry, error: checkError } = await supabase
+        const { data: existingEntry } = await supabase
           .from('media_entries')
           .select('id')
           .eq('user_id', user.id)
