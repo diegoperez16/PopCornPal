@@ -263,7 +263,7 @@ export default function AddEntryPage() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 transition-colors"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-base focus:outline-none focus:border-red-500 transition-colors"
                     placeholder="What did you think?"
                   />
                 </div>
