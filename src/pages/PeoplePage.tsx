@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, UserPlus, UserCheck, Loader2 } from 'lucide-react'
+import { Search, UserPlus, UserCheck, Loader2, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useLocation, Link } from 'react-router-dom'
@@ -35,11 +35,11 @@ export default function PeoplePage() {
       Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setInitialLoading(false))
     }
 
-    // Handle tab visibility - refetch when tab becomes visible
+    // Handle tab visibility - immediately refetch when tab becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        fetchFollowers()
-        fetchFollowing()
+        setRefreshing(true)
+        Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setRefreshing(false))
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -85,7 +85,6 @@ export default function PeoplePage() {
   const fetchFollowers = async () => {
     if (!user) return
 
-    setRefreshing(true)
     const { data, error } = await supabase
       .from('follows')
       .select(`
@@ -96,7 +95,6 @@ export default function PeoplePage() {
 
     if (error) {
       console.error('Error fetching followers:', error)
-      setRefreshing(false)
       return
     }
 
@@ -122,13 +120,11 @@ export default function PeoplePage() {
         isFollowing: followingIds.has(p.id),
       }))
     )
-    setRefreshing(false)
   }
 
   const fetchFollowing = async () => {
     if (!user) return
 
-    setRefreshing(true)
     const { data, error } = await supabase
       .from('follows')
       .select(`
@@ -139,7 +135,6 @@ export default function PeoplePage() {
 
     if (error) {
       console.error('Error fetching following:', error)
-      setRefreshing(false)
       return
     }
 
@@ -165,8 +160,6 @@ export default function PeoplePage() {
         isFollower: followerIds.has(p.id),
       }))
     )
-    console.log('PeoplePage: Following fetch complete')
-    setRefreshing(false)
   }
 
   const handleSearch = async (query: string) => {
@@ -383,7 +376,17 @@ export default function PeoplePage() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Header */}
-        <h1 className="text-3xl font-bold mb-6">People</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">People</h1>
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600 rounded-lg transition-colors"
+            title="Reload page"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="text-sm font-medium">Reload</span>
+          </button>
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-1">

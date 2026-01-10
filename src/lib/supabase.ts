@@ -13,10 +13,50 @@ export const isSupabaseConfigured = Boolean(
 )
 
 // Create a dummy client if env vars are missing (for development)
-export const supabase = createClient(
+export let supabase = createClient(
   isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
   isSupabaseConfigured ? supabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder'
 )
+
+export const resetSupabaseClient = () => {
+  console.log('Resetting Supabase client connection...')
+  supabase = createClient(
+    isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
+    isSupabaseConfigured ? supabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder'
+  )
+}
+
+// Helper for requests that might hang due to connection issues
+export const safeSupabaseRequest = async <T>(
+  promise: Promise<T>, 
+  timeout = 8000, // 8 seconds - fast but allows time for network
+  fallbackValue?: T
+): Promise<T> => {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('Supabase request timed out'))
+    }, timeout)
+  });
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timer);
+    return result;
+  } catch (error) {
+    clearTimeout(timer);
+    const err = error as Error;
+    if (err.message === 'Supabase request timed out') {
+      console.warn('Supabase request timed out - connection might be stale')
+      // Dispatch event to notify app of connection issues
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('supabase-timeout'))
+      }
+    }
+    if (fallbackValue !== undefined) return fallbackValue;
+    throw error;
+  }
+}
 
 // Types for our database tables
 export type Profile = {

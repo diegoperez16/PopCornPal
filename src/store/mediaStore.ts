@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase'
+import { supabase, safeSupabaseRequest } from '../lib/supabase'
 
 export interface MediaEntry {
   id: string
@@ -51,11 +51,14 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   fetchEntries: async (userId: string) => {
     set({ loading: true, error: null })
     try {
-      const { data, error } = await supabase
-        .from('media_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+      const { data, error } = await safeSupabaseRequest(
+        supabase
+          .from('media_entries')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false }) as any,
+        2000
+      ) as { data: MediaEntry[], error: any }
 
       if (error) throw error
       set({ entries: data as MediaEntry[] })
@@ -68,11 +71,14 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   fetchUserStats: async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('user_stats')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle()  // Use maybeSingle to handle 0 rows gracefully
+      const { data, error } = await safeSupabaseRequest(
+        supabase
+          .from('user_stats')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle() as any,  // Use maybeSingle to handle 0 rows gracefully
+        2000
+      ) as { data: UserStats | null, error: any }
 
       if (error) {
         console.error('Error fetching stats:', error)

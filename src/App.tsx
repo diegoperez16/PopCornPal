@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { isSupabaseConfigured } from './lib/supabase'
+import { isSupabaseConfigured, supabase, safeSupabaseRequest } from './lib/supabase'
 import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
 import UserProfilePage from './pages/UserProfilePage'
@@ -138,6 +138,87 @@ function HomePage() {
   )
 }
 
+function ConnectionGuardian() {
+  const { loading } = useAuthStore()
+
+  useEffect(() => {
+    const checkConnection = async () => {
+      // Only check if visible
+      if (document.visibilityState !== 'visible') return
+
+      console.log('App became visible, checking connection health...')
+      
+      try {
+        // Ping Supabase with a very short timeout
+        // We just check if we can make a simple query
+        await safeSupabaseRequest(
+          supabase.from('profiles').select('count').limit(1).maybeSingle() as any,
+          2000
+        )
+        console.log('Connection is healthy')
+      } catch (error) {
+        console.warn('Connection check failed on resume - reloading app to recover')
+        // If we are stuck loading OR if the ping failed, we reload
+        // But if we are NOT loading, maybe we shouldn't reload?
+        // The user said "if its loading then wait a few seconds and automatically refresh"
+        // But if the connection is dead, we SHOULD reload because next action will fail.
+        // However, to be safe and strictly follow "if its loading", we can check loading state.
+        
+        // But 'loading' might be false if auth finished but subsequent fetches are hanging.
+        // So a dead ping is a better indicator of "stuck" state than just the variable.
+        window.location.reload()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkConnection()
+      }
+    }
+
+    const handleTimeout = () => {
+      console.warn('Received global supabase timeout event')
+      // Only reload if we are visible (user is actively trying to use the app)
+      // and prevent multiple reloads in short succession
+      if (document.visibilityState === 'visible') {
+        const lastReload = sessionStorage.getItem('last_auto_reload')
+        const now = Date.now()
+        
+        // Prevent reload loops - only reload if it's been at least 10 seconds since the last one
+        if (!lastReload || (now - parseInt(lastReload)) > 10000) {
+          console.warn('Reloading app due to connection timeout...')
+          sessionStorage.setItem('last_auto_reload', now.toString())
+          window.location.reload()
+        } else {
+          console.log('Skipping reload - too soon since last reload')
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('supabase-timeout', handleTimeout)
+    
+    // Also run check immediately if we are stuck loading for more than 5s on mount
+    let mountTimer: any
+    if (loading) {
+       mountTimer = setTimeout(() => {
+         if (loading) {
+           console.warn('Stuck loading on mount - checking connection')
+           checkConnection()
+         }
+       }, 5000)
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('supabase-timeout', handleTimeout)
+      if (mountTimer) clearTimeout(mountTimer)
+    }
+  }, [loading])
+
+  return null
+}
+
 function App() {
   const { initialize, loading } = useAuthStore()
 
@@ -154,21 +235,22 @@ function App() {
     return <SetupMessage />
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block w-12 h-12 border-4 border-gray-700 border-t-red-500 rounded-full animate-spin mb-4"></div>
-          <div className="text-white text-xl">Loading...</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <>
+      <ConnectionGuardian />
+      {loading ? (
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block w-12 h-12 border-4 border-gray-700 border-t-red-500 rounded-full animate-spin mb-4"></div>
+            <div className="text-white text-xl">Loading...</div>
+          </div>
+        </div>
+      ) : (
+        <Router>
+          <AppContent />
+        </Router>
+      )}
+    </>
   )
 }
 

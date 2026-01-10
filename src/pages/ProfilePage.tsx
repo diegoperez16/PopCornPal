@@ -39,6 +39,19 @@ export default function ProfilePage() {
     if (user) {
       Promise.all([fetchEntries(user.id), fetchFollowCounts()]).finally(() => setInitialLoading(false))
     }
+
+    // Handle tab visibility - immediately refetch when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchEntries(user.id)
+        fetchFollowCounts()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [user, fetchEntries])
 
   const fetchFollowCounts = async () => {
