@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useNavigate, Link } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2 } from 'lucide-react'
+import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp } from 'lucide-react'
 import { supabase, safeSupabaseRequest } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
@@ -266,7 +266,12 @@ export default function FeedPage() {
   const [showReplyGifPicker, setShowReplyGifPicker] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const [pullToRefreshDistance, setPullToRefreshDistance] = useState(0)
+  const [isPulling, setIsPulling] = useState(false)
   const lastFetchRef = useRef<number>(0)
+  const touchStartY = useRef<number>(0)
+  const pullThreshold = 80 // pixels to pull before refresh
 
   useEffect(() => {
     if (!user) {
@@ -275,6 +280,46 @@ export default function FeedPage() {
     }
     fetchFeed().finally(() => setInitialLoading(false))
     if (user) fetchEntries(user.id)
+
+    // Handle scroll to show/hide scroll-to-top button
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400)
+    }
+    window.addEventListener('scroll', handleScroll)
+
+    // Pull-to-refresh functionality
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        touchStartY.current = e.touches[0].clientY
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (window.scrollY === 0 && touchStartY.current > 0) {
+        const touchY = e.touches[0].clientY
+        const pullDistance = touchY - touchStartY.current
+        
+        if (pullDistance > 0) {
+          setIsPulling(true)
+          setPullToRefreshDistance(Math.min(pullDistance, pullThreshold * 1.5))
+        }
+      }
+    }
+
+    const handleTouchEnd = async () => {
+      if (isPulling && pullToRefreshDistance >= pullThreshold) {
+        // Trigger refresh
+        await fetchFeed()
+      }
+      
+      setIsPulling(false)
+      setPullToRefreshDistance(0)
+      touchStartY.current = 0
+    }
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+    window.addEventListener('touchend', handleTouchEnd)
 
     // Handle tab visibility - immediately refetch when tab becomes visible
     const handleVisibilityChange = () => {
@@ -337,6 +382,10 @@ export default function FeedPage() {
 
     // Cleanup subscriptions on unmount
     return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('touchstart', handleTouchStart)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(postsChannel)
       supabase.removeChannel(likesChannel)
@@ -817,6 +866,25 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
+      {/* Pull to Refresh Indicator */}
+      {isPulling && (
+        <div 
+          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center transition-all duration-200"
+          style={{ 
+            height: `${pullToRefreshDistance}px`,
+            opacity: pullToRefreshDistance / pullThreshold 
+          }}
+        >
+          <div className="bg-gray-800/90 backdrop-blur-sm rounded-full p-3 shadow-lg">
+            <ArrowUp 
+              className={`w-5 h-5 text-pink-500 transition-transform duration-200 ${
+                pullToRefreshDistance >= pullThreshold ? 'rotate-180' : ''
+              }`}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Loading Bar */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
@@ -1322,6 +1390,19 @@ export default function FeedPage() {
           onClose={() => setShowReplyGifPicker(false)}
         />
       )}
+
+      {/* Scroll to Top Button */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 p-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-full shadow-lg shadow-red-500/30 z-40 hover:scale-110 transition-all duration-300 ${
+          showScrollTop 
+            ? 'opacity-100 translate-y-0 pointer-events-auto' 
+            : 'opacity-0 translate-y-16 pointer-events-none'
+        }`}
+        aria-label="Scroll to top"
+      >
+        <ArrowUp className="w-5 h-5" />
+      </button>
     </div>
   )
 }
