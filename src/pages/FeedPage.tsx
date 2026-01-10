@@ -285,7 +285,7 @@ export default function FeedPage() {
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Set up real-time subscriptions with debouncing
-    let refetchTimeout: NodeJS.Timeout
+    let refetchTimeout: ReturnType<typeof setTimeout>
     const debouncedRefetch = () => {
       clearTimeout(refetchTimeout)
       refetchTimeout = setTimeout(() => {
