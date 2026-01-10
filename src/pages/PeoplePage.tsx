@@ -285,8 +285,12 @@ export default function PeoplePage() {
           className="flex items-start gap-3 flex-1 min-w-0 group"
         >
           {/* Avatar */}
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-            {profile.username.charAt(0).toUpperCase()}
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+            ) : (
+              profile.username.charAt(0).toUpperCase()
+            )}
           </div>
 
           {/* Profile Info */}
