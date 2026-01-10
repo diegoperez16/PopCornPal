@@ -31,6 +31,7 @@ interface Comment {
   id: string
   user_id: string
   content: string
+  image_url: string | null
   created_at: string
   parent_comment_id: string | null
   profiles: {
@@ -50,6 +51,10 @@ type CommentThreadProps = {
   setReplyText: (text: string) => void
   onSubmitReply: (postId: string, parentCommentId: string) => void
   postingComment: boolean
+  replyImageUrl: string
+  setReplyImageUrl: (url: string) => void
+  onUploadReplyImage: (file: File, commentId: string) => Promise<void>
+  uploadingReplyImage: boolean
 }
 
 function CommentThread({ 
@@ -61,7 +66,11 @@ function CommentThread({
   replyText, 
   setReplyText, 
   onSubmitReply, 
-  postingComment 
+  postingComment,
+  replyImageUrl,
+  setReplyImageUrl,
+  onUploadReplyImage,
+  uploadingReplyImage
 }: CommentThreadProps) {
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString)
@@ -98,6 +107,18 @@ function CommentThread({
               @{comment.profiles.username}
             </Link>
             <p className="text-sm text-gray-300">{comment.content}</p>
+            
+            {/* Comment Image */}
+            {comment.image_url && (
+              <div className="mt-2">
+                <img 
+                  src={comment.image_url} 
+                  alt="Comment attachment" 
+                  className="max-w-full rounded-lg max-h-64 object-contain"
+                />
+              </div>
+            )}
+            
             <div className="flex items-center gap-3 mt-2">
               <p className="text-xs text-gray-500">
                 {formatTimeAgo(comment.created_at)}
@@ -115,27 +136,57 @@ function CommentThread({
 
           {/* Reply Input */}
           {replyingTo === comment.id && (
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !postingComment && replyText.trim()) {
-                    onSubmitReply(postId, comment.id)
-                  }
-                }}
-                placeholder={`Reply to @${comment.profiles.username}...`}
-                className="flex-1 px-3 py-2 text-sm bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                autoFocus
-              />
-              <button
-                onClick={() => onSubmitReply(postId, comment.id)}
-                disabled={!replyText.trim() || postingComment}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Reply
-              </button>
+            <div className="mt-2 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !postingComment && replyText.trim()) {
+                      onSubmitReply(postId, comment.id)
+                    }
+                  }}
+                  placeholder={`Reply to @${comment.profiles.username}...`}
+                  className="flex-1 px-3 py-2 text-sm bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  onClick={() => onSubmitReply(postId, comment.id)}
+                  disabled={!replyText.trim() || postingComment}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Reply
+                </button>
+              </div>
+              
+              {/* Image Upload for Reply */}
+              <div className="flex gap-2 text-sm">
+                <input
+                  type="file"
+                  accept="image/*,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) onUploadReplyImage(file, comment.id)
+                  }}
+                  className="hidden"
+                  id={`reply-image-${comment.id}`}
+                />
+                <label 
+                  htmlFor={`reply-image-${comment.id}`}
+                  className="flex items-center gap-1 px-2 py-1 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 rounded cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  {uploadingReplyImage ? 'Uploading...' : 'Image'}
+                </label>
+                <input
+                  type="url"
+                  value={replyImageUrl}
+                  onChange={(e) => setReplyImageUrl(e.target.value)}
+                  placeholder="Or paste image URL"
+                  className="flex-1 px-2 py-1 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             </div>
           )}
 
@@ -154,6 +205,10 @@ function CommentThread({
                   setReplyText={setReplyText}
                   onSubmitReply={onSubmitReply}
                   postingComment={postingComment}
+                  replyImageUrl={replyImageUrl}
+                  setReplyImageUrl={setReplyImageUrl}
+                  onUploadReplyImage={onUploadReplyImage}
+                  uploadingReplyImage={uploadingReplyImage}
                 />
               ))}
             </div>
@@ -184,6 +239,14 @@ export default function FeedPage() {
   const [replyText, setReplyText] = useState('')
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [commentImageUrl, setCommentImageUrl] = useState('')
+  const [uploadedCommentImage, setUploadedCommentImage] = useState<string | null>(null)
+  const [uploadingCommentImage, setUploadingCommentImage] = useState(false)
+  const commentImageInputRef = useRef<HTMLInputElement>(null)
+  const [replyImageUrl, setReplyImageUrl] = useState('')
+  const [uploadedReplyImage, setUploadedReplyImage] = useState<string | null>(null)
+  const [uploadingReplyImage, setUploadingReplyImage] = useState(false)
+  const replyImageInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!user) {
@@ -415,6 +478,8 @@ export default function FeedPage() {
 
   const handleComment = async (postId: string, parentCommentId: string | null = null) => {
     const text = parentCommentId ? replyText : commentText
+    const imageUrl = parentCommentId ? (uploadedReplyImage || replyImageUrl) : (uploadedCommentImage || commentImageUrl)
+    
     if (!user || !text.trim()) return
 
     try {
@@ -425,7 +490,8 @@ export default function FeedPage() {
           post_id: postId,
           user_id: user.id,
           content: text.trim(),
-          parent_comment_id: parentCommentId
+          parent_comment_id: parentCommentId,
+          image_url: imageUrl || null
         })
 
       if (error) throw error
@@ -433,15 +499,83 @@ export default function FeedPage() {
       if (parentCommentId) {
         setReplyText('')
         setReplyingTo(null)
+        setReplyImageUrl('')
+        setUploadedReplyImage(null)
       } else {
         setCommentText('')
+        setCommentImageUrl('')
+        setUploadedCommentImage(null)
       }
+      
+      // Update comment count immediately in local state
+      setPosts(prevPosts => 
+        prevPosts.map(p => 
+          p.id === postId 
+            ? { ...p, comments_count: p.comments_count + 1 }
+            : p
+        )
+      )
+      
       // Only refetch comments for this post, not entire feed
       await fetchComments(postId)
     } catch (error) {
       console.error('Error posting comment:', error)
     } finally {
       setPostingComment(false)
+    }
+  }
+
+  const handleCommentImageUpload = async (file: File) => {
+    if (!user) return
+
+    try {
+      setUploadingCommentImage(true)
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user.id}/${Math.random()}.${fileExt}`
+      
+      const { error: uploadError } = await supabase.storage
+        .from('post-images')
+        .upload(fileName, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-images')
+        .getPublicUrl(fileName)
+
+      setUploadedCommentImage(publicUrl)
+    } catch (error) {
+      console.error('Error uploading comment image:', error)
+      alert('Failed to upload image')
+    } finally {
+      setUploadingCommentImage(false)
+    }
+  }
+
+  const handleReplyImageUpload = async (file: File) => {
+    if (!user) return
+
+    try {
+      setUploadingReplyImage(true)
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user.id}/${Math.random()}.${fileExt}`
+      
+      const { error: uploadError } = await supabase.storage
+        .from('post-images')
+        .upload(fileName, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-images')
+        .getPublicUrl(fileName)
+
+      setUploadedReplyImage(publicUrl)
+    } catch (error) {
+      console.error('Error uploading reply image:', error)
+      alert('Failed to upload image')
+    } finally {
+      setUploadingReplyImage(false)
     }
   }
 
@@ -949,32 +1083,89 @@ export default function FeedPage() {
                             setReplyText={setReplyText}
                             onSubmitReply={handleComment}
                             postingComment={postingComment}
+                            replyImageUrl={replyImageUrl}
+                            setReplyImageUrl={setReplyImageUrl}
+                            onUploadReplyImage={handleReplyImageUpload}
+                            uploadingReplyImage={uploadingReplyImage}
                           />
                         ))}
                       </div>
                     )}
 
                     {/* Comment Input */}
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !postingComment) {
-                            handleComment(post.id, null)
-                          }
-                        }}
-                        placeholder="Write a comment..."
-                        className="flex-1 px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={() => handleComment(post.id, null)}
-                        disabled={!commentText.trim() || postingComment}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {postingComment ? 'Posting...' : 'Post'}
-                      </button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !postingComment) {
+                              handleComment(post.id, null)
+                            }
+                          }}
+                          placeholder="Write a comment..."
+                          className="flex-1 px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => handleComment(post.id, null)}
+                          disabled={!commentText.trim() || postingComment}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {postingComment ? 'Posting...' : 'Post'}
+                        </button>
+                      </div>
+                      
+                      {/* Image Upload for Comment */}
+                      <div className="flex gap-2 text-sm">
+                        <input
+                          ref={commentImageInputRef}
+                          type="file"
+                          accept="image/*,image/gif"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleCommentImageUpload(file)
+                          }}
+                          className="hidden"
+                        />
+                        <button
+                          onClick={() => commentImageInputRef.current?.click()}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 rounded transition-colors"
+                          disabled={uploadingCommentImage}
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          {uploadingCommentImage ? 'Uploading...' : 'Image'}
+                        </button>
+                        <input
+                          type="url"
+                          value={commentImageUrl}
+                          onChange={(e) => setCommentImageUrl(e.target.value)}
+                          placeholder="Or paste image/GIF URL"
+                          className="flex-1 px-3 py-1.5 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        {(uploadedCommentImage || commentImageUrl) && (
+                          <button
+                            onClick={() => {
+                              setUploadedCommentImage(null)
+                              setCommentImageUrl('')
+                            }}
+                            className="px-2 text-gray-400 hover:text-red-400 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Image Preview */}
+                      {(uploadedCommentImage || commentImageUrl) && (
+                        <div className="relative inline-block">
+                          <img
+                            src={uploadedCommentImage || commentImageUrl}
+                            alt="Preview"
+                            className="max-w-xs max-h-32 rounded-lg border border-gray-700"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
