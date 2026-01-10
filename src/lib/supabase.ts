@@ -65,9 +65,31 @@ export type Profile = {
   full_name: string | null
   avatar_url: string | null
   bio: string | null
-  badges: string[]
+  badges: string[] // DEPRECATED - use user_badges table instead
+  is_admin: boolean
   created_at: string
   updated_at: string
+}
+
+export type Badge = {
+  id: string
+  name: string
+  description: string | null
+  color: string
+  gif_url: string | null
+  opacity: number
+  admin_only: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type UserBadge = {
+  id: string
+  user_id: string
+  badge_id: string
+  given_by: string | null
+  given_at: string
+  badges?: Badge
 }
 
 export type MediaType = 'movie' | 'show' | 'game' | 'book'

@@ -2,8 +2,9 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut, Users, User } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut, Users, User, Sparkles } from 'lucide-react'
+import { supabase, type Badge, type UserBadge } from '../lib/supabase'
+import GifPicker from '../components/GifPicker'
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, signOut } = useAuthStore()
@@ -17,7 +18,10 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
   const [uploadedAvatar, setUploadedAvatar] = useState<string | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
-  const [selectedBadges, setSelectedBadges] = useState<string[]>(profile?.badges || [])
+  const [availableBadges, setAvailableBadges] = useState<Badge[]>([])
+  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
+  const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>([])
+  const [showAvatarGifPicker, setShowAvatarGifPicker] = useState(false)
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
 
   // Entry Management State
@@ -37,7 +41,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user) {
-      Promise.all([fetchEntries(user.id), fetchFollowCounts()]).finally(() => setInitialLoading(false))
+      Promise.all([
+        fetchEntries(user.id), 
+        fetchFollowCounts(), 
+        fetchBadges(), 
+        fetchUserBadges()
+      ]).finally(() => setInitialLoading(false))
     }
 
     // Handle tab visibility - immediately refetch when tab becomes visible
@@ -45,6 +54,7 @@ export default function ProfilePage() {
       if (document.visibilityState === 'visible' && user) {
         fetchEntries(user.id)
         fetchFollowCounts()
+        fetchUserBadges()
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -80,13 +90,38 @@ export default function ProfilePage() {
     }
   }
 
+  const fetchBadges = async () => {
+    // Fetch all available badges
+    const { data } = await supabase
+      .from('badges')
+      .select('*')
+      .order('admin_only', { ascending: true })
+      .order('name')
+    
+    if (data) setAvailableBadges(data)
+  }
+
+  const fetchUserBadges = async () => {
+    if (!user) return
+    
+    // Fetch user's current badges
+    const { data } = await supabase
+      .from('user_badges')
+      .select('*, badges(*)')
+      .eq('user_id', user.id)
+    
+    if (data) {
+      setUserBadges(data as UserBadge[])
+      setSelectedBadgeIds(data.map(ub => ub.badge_id))
+    }
+  }
+
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name || '')
       setBio(profile.bio || '')
       setAvatarUrl(profile.avatar_url || '')
       setUploadedAvatar(null)
-      setSelectedBadges(profile.badges || [])
     }
   }, [profile])
 
@@ -105,14 +140,50 @@ export default function ProfilePage() {
   }
 
   const handleSaveProfile = async () => {
+    if (!user) return
+    
     setSavingProfile(true)
     try {
+      // Update profile (no badges in profile anymore)
       await updateProfile({
         full_name: fullName.trim() || null,
         bio: bio.trim() || null,
         avatar_url: uploadedAvatar || avatarUrl.trim() || null,
-        badges: selectedBadges,
       })
+      
+      // Update user badges
+      // Get current badge IDs
+      const currentBadgeIds = userBadges.map(ub => ub.badge_id)
+      
+      // Find badges to add
+      const badgesToAdd = selectedBadgeIds.filter(id => !currentBadgeIds.includes(id))
+      
+      // Find badges to remove
+      const badgesToRemove = currentBadgeIds.filter(id => !selectedBadgeIds.includes(id))
+      
+      // Add new badges
+      if (badgesToAdd.length > 0) {
+        await supabase
+          .from('user_badges')
+          .insert(badgesToAdd.map(badge_id => ({
+            user_id: user.id,
+            badge_id,
+            given_by: user.id
+          })))
+      }
+      
+      // Remove unselected badges
+      if (badgesToRemove.length > 0) {
+        await supabase
+          .from('user_badges')
+          .delete()
+          .eq('user_id', user.id)
+          .in('badge_id', badgesToRemove)
+      }
+      
+      // Refresh user badges
+      await fetchUserBadges()
+      
       setIsEditing(false)
       setUploadedAvatar(null)
       if (avatarFileInputRef.current) {
@@ -329,93 +400,65 @@ export default function ProfilePage() {
                     <p className="text-gray-400">{profile.full_name}</p>
                   )}
                   {/* Badges */}
-                  {!isEditing && selectedBadges.length > 0 && (
+                  {!isEditing && userBadges.length > 0 && (
                     <div className="flex flex-wrap gap-3 mt-3 justify-center sm:justify-start">
-                      {selectedBadges.map((badge) => {
-                        const badgeConfig = {
-                          'Creator': { 
-                            color: 'from-purple-600 via-purple-500 to-pink-500',
-                            gif: 'https://media.giphy.com/media/l0HlLtgtN7JJXBb3i/giphy.gif',
-                            glow: 'shadow-lg shadow-purple-500/50'
-                          },
-                          'Alpha Tester': { 
-                            color: 'from-blue-600 via-cyan-500 to-blue-400',
-                            gif: 'https://media.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif',
-                            glow: 'shadow-lg shadow-blue-500/50'
-                          },
-                          'Reader': { 
-                            color: 'from-green-600 via-emerald-500 to-green-400',
-                            gif: 'https://media.giphy.com/media/l0HlIO3bhuMHgMgqQ/giphy.gif',
-                            glow: 'shadow-lg shadow-green-500/50'
-                          },
-                          'Bookworm': { 
-                            color: 'from-green-600 via-emerald-500 to-green-400',
-                            gif: 'https://media.giphy.com/media/l0HlIO3bhuMHgMgqQ/giphy.gif',
-                            glow: 'shadow-lg shadow-green-500/50'
-                          },
-                          'Star Wars Fan': { 
-                            color: 'from-yellow-500 via-yellow-400 to-orange-500',
-                            gif: 'https://media.giphy.com/media/3oKIPsx0EGqLLGhZJK/giphy.gif',
-                            glow: 'shadow-lg shadow-yellow-500/50'
-                          },
-                          'Anime Fan': { 
-                            color: 'from-pink-600 via-pink-500 to-rose-500',
-                            gif: 'https://media.giphy.com/media/IwTWTsUzmIicM/giphy.gif',
-                            glow: 'shadow-lg shadow-pink-500/50'
-                          },
-                          'Gamer': { 
-                            color: 'from-indigo-600 via-purple-500 to-indigo-400',
-                            gif: 'https://media.giphy.com/media/l0HlNaQ6gWfllcjDO/giphy.gif',
-                            glow: 'shadow-lg shadow-indigo-500/50'
-                          },
-                          'Cinephile': { 
-                            color: 'from-red-600 via-red-500 to-pink-500',
-                            gif: 'https://media.giphy.com/media/l0HlMPQEO7WxuHPXi/giphy.gif',
-                            glow: 'shadow-lg shadow-red-500/50'
-                          },
-                          'Binge Watcher': { 
-                            color: 'from-red-600 via-orange-500 to-red-400',
-                            gif: 'https://media.giphy.com/media/xTiTnxpQ3ghPiB2Hp6/giphy.gif',
-                            glow: 'shadow-lg shadow-red-500/50'
-                          },
-                          'Marvel Fan': { 
-                            color: 'from-red-700 via-red-600 to-red-500',
-                            gif: 'https://media.giphy.com/media/l0HlQXlQ3nHyLMvte/giphy.gif',
-                            glow: 'shadow-lg shadow-red-600/50'
-                          },
-                          'DC Fan': { 
-                            color: 'from-blue-700 via-blue-600 to-slate-600',
-                            gif: 'https://media.giphy.com/media/TErnsRtMQyOc0/giphy.gif',
-                            glow: 'shadow-lg shadow-blue-600/50'
-                          },
-                        }[badge] || { 
-                          color: 'from-gray-600 via-gray-500 to-gray-400',
-                          gif: '',
-                          glow: 'shadow-lg shadow-gray-500/50'
+                      {userBadges.map((userBadge) => {
+                        const badge = userBadge.badges!
+                        
+                        // Map color to gradient and glow
+                        const colorEffects: Record<string, { gradient: string, glow: string }> = {
+                          'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
+                          'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
+                          'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                          'green-600': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                          'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
+                          'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
+                          'indigo-500': { gradient: 'from-indigo-600 via-purple-500 to-indigo-400', glow: 'shadow-indigo-500/50' },
+                          'red-500': { gradient: 'from-red-600 via-red-500 to-pink-500', glow: 'shadow-red-500/50' },
+                          'red-400': { gradient: 'from-red-600 via-orange-500 to-red-400', glow: 'shadow-red-500/50' },
+                          'red-600': { gradient: 'from-red-700 via-red-600 to-red-500', glow: 'shadow-red-600/50' },
+                          'blue-600': { gradient: 'from-blue-700 via-blue-600 to-slate-600', glow: 'shadow-blue-600/50' },
+                          'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
+                          'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
+                          'lime-500': { gradient: 'from-lime-600 via-lime-500 to-green-400', glow: 'shadow-lime-500/50' },
+                          'rose-500': { gradient: 'from-rose-600 via-rose-500 to-pink-500', glow: 'shadow-rose-500/50' },
+                          'slate-500': { gradient: 'from-slate-600 via-slate-500 to-gray-500', glow: 'shadow-slate-500/50' },
+                          'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
+                          'teal-500': { gradient: 'from-teal-600 via-teal-500 to-cyan-400', glow: 'shadow-teal-500/50' },
+                          'sky-500': { gradient: 'from-sky-600 via-sky-500 to-blue-400', glow: 'shadow-sky-500/50' },
+                          'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
+                          'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
+                          'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
+                        }
+                        
+                        const effects = colorEffects[badge.color] || { 
+                          gradient: 'from-gray-600 via-gray-500 to-gray-400', 
+                          glow: 'shadow-gray-500/50' 
                         }
                         
                         return (
                           <div
-                            key={badge}
-                            className={`relative overflow-hidden rounded-lg ${badgeConfig.glow} transform hover:scale-105 transition-transform`}
+                            key={userBadge.id}
+                            className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
                           >
-                            {/* Animated GIF Background */}
-                            {badgeConfig.gif && (
-                              <div className="absolute inset-0 opacity-20">
+                            {/* Animated GIF Background (if exists, use it instead of gradient) */}
+                            {badge.gif_url ? (
+                              <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
                                 <img 
-                                  src={badgeConfig.gif} 
+                                  src={badge.gif_url} 
                                   alt="" 
                                   className="w-full h-full object-cover"
                                 />
                               </div>
+                            ) : (
+                              /* Gradient Overlay (only if no GIF) */
+                              <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
                             )}
-                            {/* Gradient Overlay */}
-                            <div className={`absolute inset-0 bg-gradient-to-br ${badgeConfig.color} opacity-80`}></div>
                             {/* Badge Content */}
                             <div className="relative px-3 py-1.5 flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                               <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
-                                {badge}
+                                {badge.name}
                               </span>
                             </div>
                           </div>
@@ -425,12 +468,23 @@ export default function ProfilePage() {
                   )}
                 </div>
                 {!isEditing && (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="mt-2 sm:mt-0 p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-white"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-2">
+                    {profile.is_admin && (
+                      <button
+                        onClick={() => navigate('/admin/badges')}
+                        className="mt-2 sm:mt-0 p-2 hover:bg-purple-600/20 rounded-full transition-colors text-purple-400 hover:text-purple-300 border border-purple-500/30"
+                        title="Admin Badge Panel"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="mt-2 sm:mt-0 p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-white"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -464,6 +518,14 @@ export default function ProfilePage() {
                       >
                         <Film className="w-4 h-4" />
                         GIF URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAvatarGifPicker(true)}
+                        className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-sm transition-colors"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Browse GIFs
                       </button>
                       {(uploadedAvatar || avatarUrl) && (
                         <button
@@ -512,55 +574,45 @@ export default function ProfilePage() {
                       Badges (Select up to 5)
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {[
-                        'Creator',
-                        'Alpha Tester',
-                        'Reader',
-                        'Star Wars Fan',
-                        'Anime Fan',
-                        'Gamer',
-                        'Cinephile',
-                        'Binge Watcher',
-                        'Bookworm',
-                        'Marvel Fan',
-                        'DC Fan',
-                      ].map((badge) => {
-                        const isSelected = selectedBadges.includes(badge)
-                        return (
-                          <button
-                            key={badge}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedBadges(selectedBadges.filter(b => b !== badge))
-                              } else if (selectedBadges.length < 5) {
-                                setSelectedBadges([...selectedBadges, badge])
-                              }
-                            }}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                              isSelected
-                                ? badge === 'Creator' ? 'bg-purple-500 text-white' :
-                                  badge === 'Alpha Tester' ? 'bg-blue-500 text-white' :
-                                  badge === 'Reader' || badge === 'Bookworm' ? 'bg-green-500 text-white' :
-                                  badge === 'Star Wars Fan' ? 'bg-yellow-500 text-white' :
-                                  badge === 'Anime Fan' ? 'bg-pink-500 text-white' :
-                                  badge === 'Gamer' ? 'bg-indigo-500 text-white' :
-                                  badge === 'Cinephile' || badge === 'Binge Watcher' ? 'bg-red-500 text-white' :
-                                  badge === 'Marvel Fan' ? 'bg-red-600 text-white' :
-                                  badge === 'DC Fan' ? 'bg-blue-600 text-white' :
-                                  'bg-gray-500 text-white'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            }`}
-                            disabled={!isSelected && selectedBadges.length >= 5}
-                          >
-                            {badge}
-                          </button>
-                        )
-                      })}
+                      {availableBadges
+                        .filter(badge => !badge.admin_only) // Only show non-admin badges
+                        .map((badge) => {
+                          const isSelected = selectedBadgeIds.includes(badge.id)
+                          return (
+                            <button
+                              key={badge.id}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedBadgeIds(selectedBadgeIds.filter(id => id !== badge.id))
+                                } else if (selectedBadgeIds.length < 5) {
+                                  setSelectedBadgeIds([...selectedBadgeIds, badge.id])
+                                }
+                              }}
+                              className={`relative px-3 py-1.5 rounded-full text-xs font-medium transition-all overflow-hidden ${
+                                isSelected ? 'ring-2 ring-white' : 'hover:scale-105'
+                              }`}
+                              disabled={!isSelected && selectedBadgeIds.length >= 5}
+                            >
+                              {/* Background Color */}
+                              <div className={`absolute inset-0 bg-${badge.color} ${isSelected ? 'opacity-100' : 'opacity-50'}`}></div>
+                              {/* Badge Name */}
+                              <span className="relative z-10 text-white">{badge.name}</span>
+                            </button>
+                          )
+                        })}
                     </div>
                     <p className="text-xs text-gray-400 mt-2">
-                      {selectedBadges.length}/5 badges selected
+                      {selectedBadgeIds.length}/5 badges selected
                     </p>
+                    {userBadges.some(ub => ub.badges?.admin_only) && (
+                      <div className="mt-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                        <p className="text-xs text-purple-300 flex items-center gap-2">
+                          <span className="text-purple-400">✨</span>
+                          You have admin-only badges that can only be managed by the creator
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -1096,6 +1148,18 @@ export default function ProfilePage() {
           <span className="font-medium">Sign Out</span>
         </button>
       </div>
+
+      {/* Avatar GIF Picker */}
+      {showAvatarGifPicker && (
+        <GifPicker
+          onSelect={(gifUrl) => {
+            setAvatarUrl(gifUrl)
+            setUploadedAvatar(null)
+            setShowAvatarGifPicker(false)
+          }}
+          onClose={() => setShowAvatarGifPicker(false)}
+        />
+      )}
     </div>
   )
 }

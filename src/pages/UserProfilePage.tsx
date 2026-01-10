@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { supabase } from '../lib/supabase'
+import { supabase, type UserBadge } from '../lib/supabase'
 import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Star, User } from 'lucide-react'
 
 type UserProfile = {
@@ -10,7 +10,6 @@ type UserProfile = {
   full_name: string | null
   bio: string | null
   avatar_url: string | null
-  badges: string[] | null
   created_at: string
 }
 
@@ -47,6 +46,7 @@ export default function UserProfilePage() {
   const navigate = useNavigate()
   
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [mediaEntries, setMediaEntries] = useState<MediaEntry[]>([])
   const [entryCounts, setEntryCounts] = useState({ movie: 0, show: 0, game: 0, book: 0 })
@@ -61,9 +61,22 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     if (username) {
-      fetchUserProfile().finally(() => setInitialLoading(false))
+      Promise.all([
+        fetchUserProfile(),
+      ]).finally(() => setInitialLoading(false))
     }
   }, [username])
+
+  const fetchUserBadges = async (userId: string) => {
+    const { data } = await supabase
+      .from('user_badges')
+      .select('*, badges(*)')
+      .eq('user_id', userId)
+    
+    if (data) {
+      setUserBadges(data as UserBadge[])
+    }
+  }
 
   const fetchUserProfile = async () => {
     if (!username) return
@@ -79,6 +92,9 @@ export default function UserProfilePage() {
 
       if (profileError) throw profileError
       setProfile(profileData)
+
+      // Fetch user's badges
+      await fetchUserBadges(profileData.id)
 
       // Fetch user's posts
       const { data: postsData, error: postsError } = await supabase
@@ -336,90 +352,65 @@ export default function UserProfilePage() {
                   )}
                   
                   {/* Badges */}
-                  {profile.badges && profile.badges.length > 0 && (
+                  {userBadges.length > 0 && (
                     <div className="flex flex-wrap gap-3 mt-3 justify-center sm:justify-start">
-                      {profile.badges.map((badge) => {
-                        const badgeConfig = {
-                          'Creator': { 
-                            color: 'from-purple-600 via-purple-500 to-pink-500',
-                            gif: 'https://media.giphy.com/media/l0HlLtgtN7JJXBb3i/giphy.gif',
-                            glow: 'shadow-lg shadow-purple-500/50'
-                          },
-                          'Alpha Tester': { 
-                            color: 'from-blue-600 via-cyan-500 to-blue-400',
-                            gif: 'https://media.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif',
-                            glow: 'shadow-lg shadow-blue-500/50'
-                          },
-                          'Reader': { 
-                            color: 'from-green-600 via-emerald-500 to-green-400',
-                            gif: 'https://media.giphy.com/media/l0HlIO3bhuMHgMgqQ/giphy.gif',
-                            glow: 'shadow-lg shadow-green-500/50'
-                          },
-                          'Bookworm': { 
-                            color: 'from-green-600 via-emerald-500 to-green-400',
-                            gif: 'https://media.giphy.com/media/l0HlIO3bhuMHgMgqQ/giphy.gif',
-                            glow: 'shadow-lg shadow-green-500/50'
-                          },
-                          'Star Wars Fan': { 
-                            color: 'from-yellow-500 via-yellow-400 to-orange-500',
-                            gif: 'https://media.giphy.com/media/3oKIPsx0EGqLLGhZJK/giphy.gif',
-                            glow: 'shadow-lg shadow-yellow-500/50'
-                          },
-                          'Anime Fan': { 
-                            color: 'from-pink-600 via-pink-500 to-rose-500',
-                            gif: 'https://media.giphy.com/media/IwTWTsUzmIicM/giphy.gif',
-                            glow: 'shadow-lg shadow-pink-500/50'
-                          },
-                          'Gamer': { 
-                            color: 'from-indigo-600 via-purple-500 to-indigo-400',
-                            gif: 'https://media.giphy.com/media/l0HlNaQ6gWfllcjDO/giphy.gif',
-                            glow: 'shadow-lg shadow-indigo-500/50'
-                          },
-                          'Cinephile': { 
-                            color: 'from-red-600 via-red-500 to-pink-500',
-                            gif: 'https://media.giphy.com/media/l0HlMPQEO7WxuHPXi/giphy.gif',
-                            glow: 'shadow-lg shadow-red-500/50'
-                          },
-                          'Binge Watcher': { 
-                            color: 'from-red-600 via-orange-500 to-red-400',
-                            gif: 'https://media.giphy.com/media/xTiTnxpQ3ghPiB2Hp6/giphy.gif',
-                            glow: 'shadow-lg shadow-red-500/50'
-                          },
-                          'Marvel Fan': { 
-                            color: 'from-red-700 via-red-600 to-red-500',
-                            gif: 'https://media.giphy.com/media/l0HlQXlQ3nHyLMvte/giphy.gif',
-                            glow: 'shadow-lg shadow-red-600/50'
-                          },
-                          'DC Fan': { 
-                            color: 'from-blue-700 via-blue-600 to-slate-600',
-                            gif: 'https://media.giphy.com/media/TErnsRtMQyOc0/giphy.gif',
-                            glow: 'shadow-lg shadow-blue-600/50'
-                          },
-                        }[badge] || { 
-                          color: 'from-gray-600 via-gray-500 to-gray-400',
-                          gif: '',
-                          glow: 'shadow-lg shadow-gray-500/50'
+                      {userBadges.map((userBadge) => {
+                        const badge = userBadge.badges!
+                        
+                        // Map color to gradient and glow
+                        const colorEffects: Record<string, { gradient: string, glow: string }> = {
+                          'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
+                          'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
+                          'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                          'green-600': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                          'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
+                          'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
+                          'indigo-500': { gradient: 'from-indigo-600 via-purple-500 to-indigo-400', glow: 'shadow-indigo-500/50' },
+                          'red-500': { gradient: 'from-red-600 via-red-500 to-pink-500', glow: 'shadow-red-500/50' },
+                          'red-400': { gradient: 'from-red-600 via-orange-500 to-red-400', glow: 'shadow-red-500/50' },
+                          'red-600': { gradient: 'from-red-700 via-red-600 to-red-500', glow: 'shadow-red-600/50' },
+                          'blue-600': { gradient: 'from-blue-700 via-blue-600 to-slate-600', glow: 'shadow-blue-600/50' },
+                          'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
+                          'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
+                          'lime-500': { gradient: 'from-lime-600 via-lime-500 to-green-400', glow: 'shadow-lime-500/50' },
+                          'rose-500': { gradient: 'from-rose-600 via-rose-500 to-pink-500', glow: 'shadow-rose-500/50' },
+                          'slate-500': { gradient: 'from-slate-600 via-slate-500 to-gray-500', glow: 'shadow-slate-500/50' },
+                          'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
+                          'teal-500': { gradient: 'from-teal-600 via-teal-500 to-cyan-400', glow: 'shadow-teal-500/50' },
+                          'sky-500': { gradient: 'from-sky-600 via-sky-500 to-blue-400', glow: 'shadow-sky-500/50' },
+                          'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
+                          'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
+                          'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
+                        }
+                        
+                        const effects = colorEffects[badge.color] || { 
+                          gradient: 'from-gray-600 via-gray-500 to-gray-400', 
+                          glow: 'shadow-gray-500/50' 
                         }
                         
                         return (
                           <div
-                            key={badge}
-                            className={`relative overflow-hidden rounded-lg ${badgeConfig.glow} transform hover:scale-105 transition-transform`}
+                            key={userBadge.id}
+                            className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
                           >
-                            {badgeConfig.gif && (
-                              <div className="absolute inset-0 opacity-20">
+                            {/* Animated GIF Background (if exists, use it instead of gradient) */}
+                            {badge.gif_url ? (
+                              <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
                                 <img 
-                                  src={badgeConfig.gif} 
+                                  src={badge.gif_url} 
                                   alt="" 
                                   className="w-full h-full object-cover"
                                 />
                               </div>
+                            ) : (
+                              /* Gradient Overlay (only if no GIF) */
+                              <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
                             )}
-                            <div className={`absolute inset-0 bg-gradient-to-br ${badgeConfig.color} opacity-80`}></div>
+                            {/* Badge Content */}
                             <div className="relative px-3 py-1.5 flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                               <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
-                                {badge}
+                                {badge.name}
                               </span>
                             </div>
                           </div>
