@@ -10,6 +10,7 @@ import FeedPage from './pages/FeedPage'
 import PeoplePage from './pages/PeoplePage'
 import ActivityPage from './pages/ActivityPage'
 import LibraryPage from './pages/LibraryPage'
+import AdminBadgePanel from './pages/AdminBadgePanel'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
 import NotificationBanner from './components/NotificationBanner'
@@ -276,6 +277,7 @@ function AppContent() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/user/:username" element={<UserProfilePage />} />
         <Route path="/add" element={<AddEntryPage />} />
+        <Route path="/admin/badges" element={<AdminBadgePanel />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showNav && <MobileNav />}

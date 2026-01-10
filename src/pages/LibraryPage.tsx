@@ -88,7 +88,42 @@ export default function LibraryPage() {
     }
   }
 
-  const libraryEntries = entries.filter(e => e.status === 'logged' && (!filterType || e.media_type === filterType))
+  // Filter and deduplicate library entries - only show the most recent entry per title+type
+  const libraryEntries = (() => {
+    const loggedEntries = entries.filter(e => e.status === 'logged' && (!filterType || e.media_type === filterType))
+    
+    // Create a map to track the most recent entry for each title+media_type combo
+    const uniqueEntries = new Map<string, MediaEntry>()
+    
+    loggedEntries.forEach(entry => {
+      const key = `${entry.media_type}-${entry.title.toLowerCase()}`
+      const existing = uniqueEntries.get(key)
+      
+      // Keep the entry with the most recent updated_at timestamp
+      if (!existing || new Date(entry.updated_at) > new Date(existing.updated_at)) {
+        uniqueEntries.set(key, entry)
+      }
+    })
+    
+    return Array.from(uniqueEntries.values())
+  })()
+
+  // Helper to get unique logged entries count by media type
+  const getUniqueLoggedCount = (mediaType: 'movie' | 'show' | 'game' | 'book') => {
+    const loggedEntries = entries.filter(e => e.media_type === mediaType && e.status === 'logged')
+    const uniqueEntries = new Map<string, MediaEntry>()
+    
+    loggedEntries.forEach(entry => {
+      const key = `${entry.media_type}-${entry.title.toLowerCase()}`
+      const existing = uniqueEntries.get(key)
+      
+      if (!existing || new Date(entry.updated_at) > new Date(existing.updated_at)) {
+        uniqueEntries.set(key, entry)
+      }
+    })
+    
+    return uniqueEntries.size
+  }
 
   if (!user) {
     return (
@@ -113,10 +148,10 @@ export default function LibraryPage() {
         {/* Stats Filter */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Movies', count: entries.filter(e => e.media_type === 'movie' && e.status === 'logged').length, icon: Film, type: 'movie' as const },
-            { label: 'Shows', count: entries.filter(e => e.media_type === 'show' && e.status === 'logged').length, icon: Tv, type: 'show' as const },
-            { label: 'Games', count: entries.filter(e => e.media_type === 'game' && e.status === 'logged').length, icon: Gamepad2, type: 'game' as const },
-            { label: 'Books', count: entries.filter(e => e.media_type === 'book' && e.status === 'logged').length, icon: Book, type: 'book' as const },
+            { label: 'Movies', count: getUniqueLoggedCount('movie'), icon: Film, type: 'movie' as const },
+            { label: 'Shows', count: getUniqueLoggedCount('show'), icon: Tv, type: 'show' as const },
+            { label: 'Games', count: getUniqueLoggedCount('game'), icon: Gamepad2, type: 'game' as const },
+            { label: 'Books', count: getUniqueLoggedCount('book'), icon: Book, type: 'book' as const },
           ].map((stat) => (
             <button
               key={stat.label}

@@ -4,6 +4,7 @@ import { useMediaStore } from '../store/mediaStore'
 import { useNavigate, Link } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2 } from 'lucide-react'
 import { supabase, safeSupabaseRequest } from '../lib/supabase'
+import GifPicker from '../components/GifPicker'
 
 interface Post {
   id: string
@@ -55,6 +56,8 @@ type CommentThreadProps = {
   setReplyImageUrl: (url: string) => void
   onUploadReplyImage: (file: File, commentId: string) => Promise<void>
   uploadingReplyImage: boolean
+  showReplyGifPicker: boolean
+  setShowReplyGifPicker: (show: boolean) => void
 }
 
 function CommentThread({ 
@@ -70,7 +73,9 @@ function CommentThread({
   replyImageUrl,
   setReplyImageUrl,
   onUploadReplyImage,
-  uploadingReplyImage
+  uploadingReplyImage,
+  showReplyGifPicker,
+  setShowReplyGifPicker
 }: CommentThreadProps) {
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString)
@@ -179,6 +184,13 @@ function CommentThread({
                   <ImageIcon className="w-4 h-4" />
                   {uploadingReplyImage ? 'Uploading...' : 'Image'}
                 </label>
+                <button
+                  onClick={() => setShowReplyGifPicker(true)}
+                  className="flex items-center gap-1 px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded transition-colors"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  GIF
+                </button>
                 <input
                   type="url"
                   value={replyImageUrl}
@@ -209,6 +221,8 @@ function CommentThread({
                   setReplyImageUrl={setReplyImageUrl}
                   onUploadReplyImage={onUploadReplyImage}
                   uploadingReplyImage={uploadingReplyImage}
+                  showReplyGifPicker={showReplyGifPicker}
+                  setShowReplyGifPicker={setShowReplyGifPicker}
                 />
               ))}
             </div>
@@ -247,6 +261,12 @@ export default function FeedPage() {
   const [uploadedReplyImage, setUploadedReplyImage] = useState<string | null>(null)
   const [uploadingReplyImage, setUploadingReplyImage] = useState(false)
   const [isLiking, setIsLiking] = useState<Record<string, boolean>>({})
+  const [showPostGifPicker, setShowPostGifPicker] = useState(false)
+  const [showCommentGifPicker, setShowCommentGifPicker] = useState(false)
+  const [showReplyGifPicker, setShowReplyGifPicker] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const lastFetchRef = useRef<number>(0)
 
   useEffect(() => {
     if (!user) {
@@ -264,7 +284,18 @@ export default function FeedPage() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Set up real-time subscriptions
+    // Set up real-time subscriptions with debouncing
+    let refetchTimeout: NodeJS.Timeout
+    const debouncedRefetch = () => {
+      clearTimeout(refetchTimeout)
+      refetchTimeout = setTimeout(() => {
+        // Only refetch if not currently loading
+        if (!refreshing && Date.now() - lastFetchRef.current > 2000) {
+          fetchFeed()
+        }
+      }, 1000) // Wait 1 second after last change
+    }
+
     const postsChannel = supabase
       .channel('posts-changes')
       .on(
@@ -274,9 +305,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'posts'
         },
-        () => {
-          fetchFeed() // Refetch feed on any post change
-        }
+        debouncedRefetch
       )
       .subscribe()
 
@@ -289,9 +318,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'post_likes'
         },
-        () => {
-          fetchFeed() // Refetch to update like counts
-        }
+        debouncedRefetch
       )
       .subscribe()
 
@@ -304,9 +331,7 @@ export default function FeedPage() {
           schema: 'public',
           table: 'post_comments'
         },
-        () => {
-          fetchFeed() // Refetch to update comment counts
-        }
+        debouncedRefetch
       )
       .subscribe()
 
@@ -319,10 +344,17 @@ export default function FeedPage() {
     }
   }, [user, navigate, fetchEntries])
 
-  const fetchFeed = async () => {
+  const fetchFeed = async (loadMore = false) => {
     if (!user) return
     
-    setRefreshing(true)
+    if (loadMore) {
+      setLoadingMore(true)
+    } else {
+      setRefreshing(true)
+    }
+
+    lastFetchRef.current = Date.now()
+    
     try {
       // Use a reasonable timeout - 8 seconds is fast but reliable
       const timeout = 8000
@@ -338,6 +370,9 @@ export default function FeedPage() {
       const followingIds = followingData?.map(f => f.following_id) || []
       
       // Get posts from followed users + own posts
+      const offset = loadMore ? posts.length : 0
+      const limit = 20 // Load 20 posts at a time
+      
       const postsQuery = supabase
         .from('posts')
         .select(`
@@ -347,7 +382,7 @@ export default function FeedPage() {
         `)
         .in('user_id', [...followingIds, user.id])
         .order('created_at', { ascending: false })
-        .limit(50)
+        .range(offset, offset + limit - 1)
 
       const { data, error } = await safeSupabaseRequest(postsQuery as any, timeout) as { data: any[], error: any }
 
@@ -408,12 +443,20 @@ export default function FeedPage() {
         }
       })
 
-      setPosts(postsWithLikes as Post[])
+      if (loadMore) {
+        setPosts(prev => [...prev, ...(postsWithLikes as Post[])])
+      } else {
+        setPosts(postsWithLikes as Post[])
+      }
+
+      // Check if there are more posts to load
+      setHasMore(data.length === 20)
     } catch (error) {
       console.error('Error fetching feed:', error)
       // Removed the manual reload here, as App.tsx now handles global connection health checks
     } finally {
       setRefreshing(false)
+      setLoadingMore(false)
     }
   }
 
@@ -946,6 +989,12 @@ export default function FeedPage() {
                 <span className="sm:hidden">Upload</span>
               </label>
               <button
+                onClick={() => setShowPostGifPicker(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
+              >
+                <span className="text-lg">GIF</span>
+              </button>
+              <button
                 onClick={() => {
                   const url = prompt('Enter image URL:')
                   if (url) {
@@ -1126,6 +1175,8 @@ export default function FeedPage() {
                             setReplyImageUrl={setReplyImageUrl}
                             onUploadReplyImage={handleReplyImageUpload}
                             uploadingReplyImage={uploadingReplyImage}
+                            showReplyGifPicker={showReplyGifPicker}
+                            setShowReplyGifPicker={setShowReplyGifPicker}
                           />
                         ))}
                       </div>
@@ -1175,6 +1226,13 @@ export default function FeedPage() {
                           <ImageIcon className="w-4 h-4" />
                           {uploadingCommentImage ? 'Uploading...' : 'Image'}
                         </button>
+                        <button
+                          onClick={() => setShowCommentGifPicker(true)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded transition-colors"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          GIF
+                        </button>
                         <input
                           type="url"
                           value={commentImageUrl}
@@ -1212,7 +1270,58 @@ export default function FeedPage() {
             ))}
           </div>
         )}
+
+        {/* Load More Button */}
+        {!initialLoading && posts.length > 0 && hasMore && (
+          <div className="text-center py-6">
+            <button
+              onClick={() => fetchFeed(true)}
+              disabled={loadingMore}
+              className="bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 text-white font-medium px-6 py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingMore ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-gray-700 border-t-red-500 rounded-full animate-spin"></div>
+                  Loading...
+                </span>
+              ) : (
+                'Load More Posts'
+              )}
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* GIF Pickers */}
+      {showPostGifPicker && (
+        <GifPicker
+          onSelect={(gifUrl) => {
+            setUploadedImage(gifUrl)
+            setImageUrl('')
+          }}
+          onClose={() => setShowPostGifPicker(false)}
+        />
+      )}
+      
+      {showCommentGifPicker && (
+        <GifPicker
+          onSelect={(gifUrl) => {
+            setUploadedCommentImage(gifUrl)
+            setCommentImageUrl('')
+          }}
+          onClose={() => setShowCommentGifPicker(false)}
+        />
+      )}
+      
+      {showReplyGifPicker && (
+        <GifPicker
+          onSelect={(gifUrl) => {
+            setUploadedReplyImage(gifUrl)
+            setReplyImageUrl('')
+          }}
+          onClose={() => setShowReplyGifPicker(false)}
+        />
+      )}
     </div>
   )
 }
