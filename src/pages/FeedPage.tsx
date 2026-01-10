@@ -267,6 +267,7 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
+  const [visiblePostsCount, setVisiblePostsCount] = useState(5)
   const lastFetchRef = useRef<number>(0)
 
   useEffect(() => {
@@ -387,7 +388,7 @@ export default function FeedPage() {
       
       // Get posts from followed users + own posts
       const offset = loadMore ? posts.length : 0
-      const limit = 20 // Load 20 posts at a time
+      const limit = loadMore ? 20 : 5 // Load 5 initially, 20 on loadMore
       
       const postsQuery = supabase
         .from('posts')
@@ -466,7 +467,12 @@ export default function FeedPage() {
       }
 
       // Check if there are more posts to load
-      setHasMore(data.length === 20)
+      if (loadMore) {
+        setHasMore(data.length === 20)
+      } else {
+        setHasMore(data.length === 5)
+        setVisiblePostsCount(5)
+      }
     } catch (error) {
       console.error('Error fetching feed:', error)
       // Removed the manual reload here, as App.tsx now handles global connection health checks
@@ -1081,7 +1087,7 @@ export default function FeedPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {posts.map((post, index) => (
+            {posts.slice(0, visiblePostsCount).map((post, index) => (
               <div 
                 key={post.id} 
                 className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 fade-in hover:border-gray-600 transition-all duration-200"
@@ -1322,24 +1328,41 @@ export default function FeedPage() {
           </div>
         )}
 
-        {/* Load More Button */}
-        {!initialLoading && posts.length > 0 && hasMore && (
-          <div className="text-center py-6">
-            <button
-              onClick={() => fetchFeed(true)}
-              disabled={loadingMore}
-              className="bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 text-white font-medium px-6 py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loadingMore ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-gray-700 border-t-red-500 rounded-full animate-spin"></div>
-                  Loading...
-                </span>
-              ) : (
-                'Load More Posts'
-              )}
-            </button>
-          </div>
+        {/* View More / Load More Buttons */}
+        {!initialLoading && posts.length > 0 && (
+          <>
+            {/* View More - Show if there are more posts already loaded but not visible */}
+            {visiblePostsCount < posts.length && (
+              <div className="text-center py-6">
+                <button
+                  onClick={() => setVisiblePostsCount(prev => prev + 10)}
+                  className="bg-gradient-to-r from-red-500/20 to-pink-500/20 hover:from-red-500/30 hover:to-pink-500/30 border border-red-500/30 hover:border-red-500/50 text-red-300 font-medium px-6 py-3 rounded-lg transition-all active:scale-95"
+                >
+                  View More Posts
+                </button>
+              </div>
+            )}
+            
+            {/* Load More - Fetch from server when all loaded posts are visible */}
+            {visiblePostsCount >= posts.length && hasMore && (
+              <div className="text-center py-6">
+                <button
+                  onClick={() => fetchFeed(true)}
+                  disabled={loadingMore}
+                  className="bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 text-white font-medium px-6 py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingMore ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-gray-700 border-t-red-500 rounded-full animate-spin"></div>
+                      Loading...
+                    </span>
+                  ) : (
+                    'Load More Posts'
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
