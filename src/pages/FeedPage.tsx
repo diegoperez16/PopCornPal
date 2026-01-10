@@ -246,6 +246,7 @@ export default function FeedPage() {
   const [replyImageUrl, setReplyImageUrl] = useState('')
   const [uploadedReplyImage, setUploadedReplyImage] = useState<string | null>(null)
   const [uploadingReplyImage, setUploadingReplyImage] = useState(false)
+  const [isLiking, setIsLiking] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (!user) {
@@ -449,13 +450,30 @@ export default function FeedPage() {
   }
 
   const handleLike = async (postId: string) => {
-    if (!user) return
+    if (!user || isLiking[postId]) return // Prevent double-clicks
     
     const post = posts.find(p => p.id === postId)
     if (!post) return
 
+    // Set liking state
+    setIsLiking(prev => ({ ...prev, [postId]: true }))
+
+    // Optimistic update - Update UI immediately
+    const wasLiked = post.is_liked
+    setPosts(prevPosts => 
+      prevPosts.map(p => 
+        p.id === postId 
+          ? { 
+              ...p, 
+              is_liked: !p.is_liked,
+              likes_count: p.is_liked ? p.likes_count - 1 : p.likes_count + 1
+            }
+          : p
+      )
+    )
+
     try {
-      if (post.is_liked) {
+      if (wasLiked) {
         // Unlike
         await supabase
           .from('post_likes')
@@ -468,10 +486,25 @@ export default function FeedPage() {
           .from('post_likes')
           .insert({ post_id: postId, user_id: user.id })
       }
-      
-      await fetchFeed()
     } catch (error) {
       console.error('Error toggling like:', error)
+      // Revert on error
+      setPosts(prevPosts => 
+        prevPosts.map(p => 
+          p.id === postId 
+            ? { 
+                ...p, 
+                is_liked: wasLiked,
+                likes_count: wasLiked ? p.likes_count + 1 : p.likes_count - 1
+              }
+            : p
+        )
+      )
+    } finally {
+      // Clear liking state after a short delay
+      setTimeout(() => {
+        setIsLiking(prev => ({ ...prev, [postId]: false }))
+      }, 300)
     }
   }
 
@@ -948,8 +981,12 @@ export default function FeedPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {posts.map((post) => (
-              <div key={post.id} className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6">
+            {posts.map((post, index) => (
+              <div 
+                key={post.id} 
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 fade-in hover:border-gray-600 transition-all duration-200"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
                 {/* Post Header */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center">
@@ -1035,12 +1072,16 @@ export default function FeedPage() {
                 <div className="flex items-center gap-6 pt-3 border-t border-gray-700">
                   <button
                     onClick={() => handleLike(post.id)}
-                    className={`flex items-center gap-2 transition-colors ${
+                    className={`flex items-center gap-2 transition-all duration-200 ${
                       post.is_liked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'
                     }`}
                   >
-                    <Heart className={`w-5 h-5 ${post.is_liked ? 'fill-current' : ''}`} />
-                    <span className="text-sm">{post.likes_count}</span>
+                    <Heart 
+                      className={`w-5 h-5 transition-all duration-200 ${
+                        post.is_liked ? 'fill-current heart-animate scale-110' : ''
+                      }`} 
+                    />
+                    <span className="text-sm font-medium">{post.likes_count}</span>
                   </button>
                   <button 
                     onClick={() => {
@@ -1066,11 +1107,10 @@ export default function FeedPage() {
 
                 {/* Comments Section */}
                 {expandedComments === post.id && (
-                  <div className="mt-4 pt-4 border-t border-gray-700 space-y-4">
+                  <div className="mt-4 pt-4 border-t border-gray-700 space-y-4 expand-down">
                     {/* Comments List */}
                     {comments[post.id] && comments[post.id].length > 0 && (
-                      <div className="space-y-3 mb-4">
-                        {comments[post.id].map((comment) => (
+                      <div className="space-y-3 mb-4 fade-in">{comments[post.id].map((comment) => (
                           <CommentThread 
                             key={comment.id} 
                             comment={comment} 
