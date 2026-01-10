@@ -246,7 +246,6 @@ export default function FeedPage() {
   const [replyImageUrl, setReplyImageUrl] = useState('')
   const [uploadedReplyImage, setUploadedReplyImage] = useState<string | null>(null)
   const [uploadingReplyImage, setUploadingReplyImage] = useState(false)
-  const replyImageInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!user) {
