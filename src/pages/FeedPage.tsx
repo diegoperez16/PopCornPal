@@ -287,72 +287,77 @@ export default function FeedPage() {
     }
     window.addEventListener('scroll', handleScroll)
 
-    // Handle tab visibility - immediately refetch when tab becomes visible
+    // Handle tab visibility - only refetch if it's been a while
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchFeed() // Immediate refresh, no conditions
+        // Only refetch if it's been more than 30 seconds since last fetch
+        if (Date.now() - lastFetchRef.current > 30000) {
+          console.log('Tab visible - refetching feed (last fetch > 30s ago)')
+          fetchFeed()
+        }
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    // DISABLED real-time subscriptions - they saturate the database
     // Set up real-time subscriptions with debouncing
-    let refetchTimeout: ReturnType<typeof setTimeout>
-    const debouncedRefetch = () => {
-      clearTimeout(refetchTimeout)
-      refetchTimeout = setTimeout(() => {
-        // Only refetch if not currently loading
-        if (!refreshing && Date.now() - lastFetchRef.current > 2000) {
-          fetchFeed()
-        }
-      }, 1000) // Wait 1 second after last change
-    }
+    // let refetchTimeout: ReturnType<typeof setTimeout>
+    // const debouncedRefetch = () => {
+    //   clearTimeout(refetchTimeout)
+    //   refetchTimeout = setTimeout(() => {
+    //     // Only refetch if not currently loading
+    //     if (!refreshing && Date.now() - lastFetchRef.current > 5000) {
+    //       fetchFeed()
+    //     }
+    //   }, 3000) // Wait 3 seconds after last change
+    // }
 
-    const postsChannel = supabase
-      .channel('posts-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'posts'
-        },
-        debouncedRefetch
-      )
-      .subscribe()
+    // const postsChannel = supabase
+    //   .channel('posts-changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*',
+    //       schema: 'public',
+    //       table: 'posts'
+    //     },
+    //     debouncedRefetch
+    //   )
+    //   .subscribe()
 
-    const likesChannel = supabase
-      .channel('likes-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'post_likes'
-        },
-        debouncedRefetch
-      )
-      .subscribe()
+    // const likesChannel = supabase
+    //   .channel('likes-changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*',
+    //       schema: 'public',
+    //       table: 'post_likes'
+    //     },
+    //     debouncedRefetch
+    //   )
+    //   .subscribe()
 
-    const commentsChannel = supabase
-      .channel('comments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'post_comments'
-        },
-        debouncedRefetch
-      )
-      .subscribe()
+    // const commentsChannel = supabase
+    //   .channel('comments-changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*',
+    //       schema: 'public',
+    //       table: 'post_comments'
+    //     },
+    //     debouncedRefetch
+    //   )
+    //   .subscribe()
 
     // Cleanup subscriptions on unmount
     return () => {
       window.removeEventListener('scroll', handleScroll)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      supabase.removeChannel(postsChannel)
-      supabase.removeChannel(likesChannel)
-      supabase.removeChannel(commentsChannel)
+      // supabase.removeChannel(postsChannel)
+      // supabase.removeChannel(likesChannel)
+      // supabase.removeChannel(commentsChannel)
     }
   }, [user, navigate, fetchEntries])
 
@@ -381,6 +386,9 @@ export default function FeedPage() {
       
       const followingIds = followingData?.map(f => f.following_id) || []
       
+      // Limit to 50 most recent follows if following too many people (performance optimization)
+      const limitedFollowingIds = followingIds.length > 50 ? followingIds.slice(0, 50) : followingIds
+      
       // Get posts from followed users + own posts
       const offset = loadMore ? posts.length : 0
       const limit = 20 // Load 20 posts at a time
@@ -392,7 +400,7 @@ export default function FeedPage() {
           profiles:user_id (username, avatar_url),
           media_entries:media_entry_id (title, media_type, rating, cover_image_url)
         `)
-        .in('user_id', [...followingIds, user.id])
+        .in('user_id', [...limitedFollowingIds, user.id])
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
