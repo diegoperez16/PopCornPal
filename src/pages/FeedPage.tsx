@@ -287,40 +287,6 @@ export default function FeedPage() {
     }
     window.addEventListener('scroll', handleScroll)
 
-    // Pull-to-refresh functionality
-    const handleTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0) {
-        touchStartY.current = e.touches[0].clientY
-      }
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (window.scrollY === 0 && touchStartY.current > 0) {
-        const touchY = e.touches[0].clientY
-        const pullDistance = touchY - touchStartY.current
-        
-        if (pullDistance > 0) {
-          setIsPulling(true)
-          setPullToRefreshDistance(Math.min(pullDistance, pullThreshold * 1.5))
-        }
-      }
-    }
-
-    const handleTouchEnd = async () => {
-      if (isPulling && pullToRefreshDistance >= pullThreshold) {
-        // Trigger refresh
-        await fetchFeed()
-      }
-      
-      setIsPulling(false)
-      setPullToRefreshDistance(0)
-      touchStartY.current = 0
-    }
-
-    window.addEventListener('touchstart', handleTouchStart, { passive: true })
-    window.addEventListener('touchmove', handleTouchMove, { passive: true })
-    window.addEventListener('touchend', handleTouchEnd)
-
     // Handle tab visibility - immediately refetch when tab becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -383,9 +349,6 @@ export default function FeedPage() {
     // Cleanup subscriptions on unmount
     return () => {
       window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('touchstart', handleTouchStart)
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', handleTouchEnd)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(postsChannel)
       supabase.removeChannel(likesChannel)
@@ -867,20 +830,18 @@ export default function FeedPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
       {/* Pull to Refresh Indicator */}
-      {isPulling && (
-        <div 
-          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center transition-all duration-200"
-          style={{ 
-            height: `${pullToRefreshDistance}px`,
-            opacity: pullToRefreshDistance / pullThreshold 
-          }}
-        >
-          <div className="bg-gray-800/90 backdrop-blur-sm rounded-full p-3 shadow-lg">
-            <ArrowUp 
-              className={`w-5 h-5 text-pink-500 transition-transform duration-200 ${
-                pullToRefreshDistance >= pullThreshold ? 'rotate-180' : ''
-              }`}
-            />
+      {(isPulling || refreshing) && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 transition-all duration-200">
+          <div className="bg-gray-800/90 backdrop-blur-sm rounded-full p-3 shadow-lg border border-gray-700">
+            {refreshing ? (
+              <div className="w-5 h-5 border-2 border-gray-600 border-t-pink-500 rounded-full animate-spin"></div>
+            ) : (
+              <ArrowUp 
+                className={`w-5 h-5 text-pink-500 transition-transform duration-200 ${
+                  pullToRefreshDistance >= pullThreshold ? 'rotate-180' : ''
+                }`}
+              />
+            )}
           </div>
         </div>
       )}
@@ -1097,7 +1058,34 @@ export default function FeedPage() {
             <p className="text-gray-400 mb-4">No posts yet. Be the first to share!</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div 
+            className="space-y-4"
+            onTouchStart={(e) => {
+              if (window.scrollY === 0) {
+                touchStartY.current = e.touches[0].clientY
+              }
+            }}
+            onTouchMove={(e) => {
+              if (window.scrollY === 0 && touchStartY.current > 0) {
+                const touchY = e.touches[0].clientY
+                const pullDistance = touchY - touchStartY.current
+                
+                if (pullDistance > 0) {
+                  setIsPulling(true)
+                  setPullToRefreshDistance(Math.min(pullDistance, pullThreshold * 1.5))
+                }
+              }
+            }}
+            onTouchEnd={async () => {
+              if (isPulling && pullToRefreshDistance >= pullThreshold) {
+                await fetchFeed()
+              }
+              
+              setIsPulling(false)
+              setPullToRefreshDistance(0)
+              touchStartY.current = 0
+            }}
+          >
             {posts.map((post, index) => (
               <div 
                 key={post.id} 
