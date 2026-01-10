@@ -20,6 +20,18 @@ export default function ActivityPage() {
       return
     }
     fetchEntries(user.id)
+
+    // Handle tab visibility - immediately refetch when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchEntries(user.id)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [user, navigate, fetchEntries])
 
   useEffect(() => {

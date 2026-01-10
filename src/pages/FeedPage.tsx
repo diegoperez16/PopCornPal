@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useNavigate, Link } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase, safeSupabaseRequest } from '../lib/supabase'
 
 interface Post {
   id: string
@@ -193,10 +193,10 @@ export default function FeedPage() {
     fetchFeed().finally(() => setInitialLoading(false))
     if (user) fetchEntries(user.id)
 
-    // Handle tab visibility - refetch when tab becomes visible
+    // Handle tab visibility - immediately refetch when tab becomes visible
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user) {
-        fetchFeed()
+      if (document.visibilityState === 'visible') {
+        fetchFeed() // Immediate refresh, no conditions
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -261,16 +261,21 @@ export default function FeedPage() {
     
     setRefreshing(true)
     try {
+      // Use a reasonable timeout - 8 seconds is fast but reliable
+      const timeout = 8000
+      
       // Get list of users we follow
-      const { data: followingData } = await supabase
+      const followingQuery = supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', user.id)
       
+      const { data: followingData } = await safeSupabaseRequest(followingQuery as any, timeout) as { data: any[] }
+      
       const followingIds = followingData?.map(f => f.following_id) || []
       
       // Get posts from followed users + own posts
-      const { data, error } = await supabase
+      const postsQuery = supabase
         .from('posts')
         .select(`
           *,
@@ -280,6 +285,8 @@ export default function FeedPage() {
         .in('user_id', [...followingIds, user.id])
         .order('created_at', { ascending: false })
         .limit(50)
+
+      const { data, error } = await safeSupabaseRequest(postsQuery as any, timeout) as { data: any[], error: any }
 
       if (error) throw error
       
@@ -291,16 +298,20 @@ export default function FeedPage() {
       const postIds = data.map(p => p.id)
       
       // Batch fetch all likes for all posts
-      const { data: allLikes } = await supabase
+      const likesQuery = supabase
         .from('post_likes')
         .select('post_id, user_id')
         .in('post_id', postIds)
+
+      const { data: allLikes } = await safeSupabaseRequest(likesQuery as any, timeout) as { data: any[] }
       
       // Batch fetch all comments counts
-      const { data: allComments } = await supabase
+      const commentsQuery = supabase
         .from('post_comments')
         .select('post_id')
         .in('post_id', postIds)
+
+      const { data: allComments } = await safeSupabaseRequest(commentsQuery as any, timeout) as { data: any[] }
       
       // Count likes and check user likes per post
       const likesMap = new Map<string, { count: number, userLiked: boolean }>()
@@ -337,6 +348,7 @@ export default function FeedPage() {
       setPosts(postsWithLikes as Post[])
     } catch (error) {
       console.error('Error fetching feed:', error)
+      // Removed the manual reload here, as App.tsx now handles global connection health checks
     } finally {
       setRefreshing(false)
     }

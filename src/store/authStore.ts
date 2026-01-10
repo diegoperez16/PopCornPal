@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase, safeSupabaseRequest, resetSupabaseClient } from '../lib/supabase'
 import type { Profile } from '../lib/supabase'
 
 interface AuthState {
@@ -29,10 +29,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       if (accessToken && refreshToken) {
         console.log('Setting session from URL tokens')
-        const { data, error } = await supabase.auth.setSession({
+        const { data, error } = await safeSupabaseRequest(supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
-        })
+        }))
         
         if (error) {
           console.error('Error setting session:', error)
@@ -41,11 +41,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: data.session.user })
           
           // Check if profile exists
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .maybeSingle()
+          const profileResponse = await safeSupabaseRequest(
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .maybeSingle() as any
+          ) as { data: Profile | null }
+          const profile = profileResponse.data
           
           if (!profile) {
             console.log('No profile found, creating one from user metadata')
@@ -55,15 +58,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                            'user_' + data.session.user.id.substring(0, 8)
             
             // Create profile automatically
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .insert({
-                id: data.session.user.id,
-                username: username.toLowerCase().trim(),
-                full_name: null,
-                avatar_url: null,
-                bio: null,
-              })
+            const profileCreationResponse = await safeSupabaseRequest(
+              supabase
+                .from('profiles')
+                .insert({
+                  id: data.session.user.id,
+                  username: username.toLowerCase().trim(),
+                  full_name: null,
+                  avatar_url: null,
+                  bio: null,
+                }) as any
+            ) as { error: any }
+            const profileError = profileCreationResponse.error
             
             if (profileError) {
               console.error('Error creating profile:', profileError)
@@ -83,13 +89,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        set({ user: session.user })
-        await get().fetchProfile(session.user.id)
-      }
-      
       // Listen for auth changes
       supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('Auth state changed:', event)
@@ -100,6 +99,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ profile: null })
         }
       })
+
+      // Use timeout for getSession to prevent hanging
+      try {
+        const { data: { session } } = await safeSupabaseRequest(
+          supabase.auth.getSession(),
+          10000, // 10 seconds
+          { data: { session: null }, error: null } as any
+        )
+        
+        if (session?.user) {
+          set({ user: session.user })
+          await get().fetchProfile(session.user.id)
+        }
+      } catch (err) {
+        console.warn('Initial session check timed out or failed, resetting client')
+        resetSupabaseClient()
+        // Try one more time with fresh client
+        const { data: { session } } = await safeSupabaseRequest(
+          supabase.auth.getSession(),
+          5000 // 5 seconds for retry
+        ).catch(() => ({ data: { session: null }, error: null }))
+        
+        if (session?.user) {
+          set({ user: session.user })
+          await get().fetchProfile(session.user.id)
+        }
+      }
     } catch (error) {
       console.error('Error initializing auth:', error)
     } finally {
