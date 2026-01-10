@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useNavigate, Link } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp } from 'lucide-react'
+import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, RefreshCw } from 'lucide-react'
 import { supabase, safeSupabaseRequest } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
@@ -267,11 +267,7 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
-  const [pullToRefreshDistance, setPullToRefreshDistance] = useState(0)
-  const [isPulling, setIsPulling] = useState(false)
   const lastFetchRef = useRef<number>(0)
-  const touchStartY = useRef<number>(0)
-  const pullThreshold = 80 // pixels to pull before refresh
 
   useEffect(() => {
     if (!user) {
@@ -837,23 +833,6 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      {/* Pull to Refresh Indicator */}
-      {(isPulling || refreshing) && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 transition-all duration-200">
-          <div className="bg-gray-800/90 backdrop-blur-sm rounded-full p-3 shadow-lg border border-gray-700">
-            {refreshing ? (
-              <div className="w-5 h-5 border-2 border-gray-600 border-t-pink-500 rounded-full animate-spin"></div>
-            ) : (
-              <ArrowUp 
-                className={`w-5 h-5 text-pink-500 transition-transform duration-200 ${
-                  pullToRefreshDistance >= pullThreshold ? 'rotate-180' : ''
-                }`}
-              />
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Loading Bar */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
@@ -1056,6 +1035,41 @@ export default function FeedPage() {
           </div>
         </div>
 
+        {/* Feed Divider with Refresh */}
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-700"></div>
+          </div>
+          <div className="relative flex justify-center">
+            <button
+              onClick={() => fetchFeed()}
+              disabled={refreshing}
+              className={`
+                group relative
+                bg-gray-800/80 backdrop-blur-sm
+                border border-gray-700
+                hover:border-red-500/50
+                px-4 py-2 rounded-full
+                transition-all duration-300
+                active:scale-95
+                disabled:opacity-50 disabled:cursor-not-allowed
+                ${refreshing ? '' : 'hover:shadow-lg hover:shadow-red-500/20'}
+              `}
+            >
+              <div className="flex items-center gap-2">
+                {refreshing ? (
+                  <span className="text-base animate-bounce">🍿</span>
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5 text-gray-400 group-hover:text-red-400 transition-colors group-hover:rotate-180 transition-transform duration-700 ease-out" />
+                )}
+                <span className="text-xs font-medium text-gray-400 group-hover:text-red-400 transition-colors">
+                  {refreshing ? 'Popping...' : 'Latest'}
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Feed */}
         {initialLoading ? (
           <div className="text-center py-12">
@@ -1066,34 +1080,7 @@ export default function FeedPage() {
             <p className="text-gray-400 mb-4">No posts yet. Be the first to share!</p>
           </div>
         ) : (
-          <div 
-            className="space-y-4"
-            onTouchStart={(e) => {
-              if (window.scrollY === 0) {
-                touchStartY.current = e.touches[0].clientY
-              }
-            }}
-            onTouchMove={(e) => {
-              if (window.scrollY === 0 && touchStartY.current > 0) {
-                const touchY = e.touches[0].clientY
-                const pullDistance = touchY - touchStartY.current
-                
-                if (pullDistance > 0) {
-                  setIsPulling(true)
-                  setPullToRefreshDistance(Math.min(pullDistance, pullThreshold * 1.5))
-                }
-              }
-            }}
-            onTouchEnd={async () => {
-              if (isPulling && pullToRefreshDistance >= pullThreshold) {
-                await fetchFeed()
-              }
-              
-              setIsPulling(false)
-              setPullToRefreshDistance(0)
-              touchStartY.current = 0
-            }}
-          >
+          <div className="space-y-4">
             {posts.map((post, index) => (
               <div 
                 key={post.id} 
