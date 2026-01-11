@@ -23,6 +23,13 @@ export default function ProfilePage() {
   const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>([])
   const [showAvatarGifPicker, setShowAvatarGifPicker] = useState(false)
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
+  // Profile Background State
+  const [profileBgUrl, setProfileBgUrl] = useState(profile?.bg_url || '')
+  const [profileBgOpacity, setProfileBgOpacity] = useState(profile?.bg_opacity ?? 80)
+  const [showBgGifPicker, setShowBgGifPicker] = useState(false)
+  const [showGifPickerModal, setShowGifPickerModal] = useState(false)
+  const [uploadedBgImage, setUploadedBgImage] = useState<string | null>(null)
+  const bgFileInputRef = useRef<HTMLInputElement>(null)
 
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
@@ -59,7 +66,6 @@ export default function ProfilePage() {
   }, [user, fetchEntries])
 
   const fetchBadges = async () => {
-    // Fetch all available badges
     const { data } = await supabase
       .from('badges')
       .select('*')
@@ -72,7 +78,6 @@ export default function ProfilePage() {
   const fetchUserBadges = async () => {
     if (!user) return
     
-    // Fetch user's current badges
     const { data } = await supabase
       .from('user_badges')
       .select('*, badges(*)')
@@ -90,10 +95,12 @@ export default function ProfilePage() {
       setBio(profile.bio || '')
       setAvatarUrl(profile.avatar_url || '')
       setUploadedAvatar(null)
+      setProfileBgUrl(profile.bg_url || '')
+      setProfileBgOpacity(profile.bg_opacity ?? 80)
+      setUploadedBgImage(null)
     }
   }, [profile])
 
-  // Initialize edit form when entry is selected
   useEffect(() => {
     if (selectedEntry) {
       setEditRating(selectedEntry.rating || 0)
@@ -109,27 +116,18 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!user) return
-    
     setSavingProfile(true)
     try {
-      // Update profile (no badges in profile anymore)
       await updateProfile({
         full_name: fullName.trim() || null,
         bio: bio.trim() || null,
         avatar_url: uploadedAvatar || avatarUrl.trim() || null,
+        bg_url: uploadedBgImage || profileBgUrl.trim() || null,
+        bg_opacity: profileBgOpacity,
       })
-      
-      // Update user badges
-      // Get current badge IDs
       const currentBadgeIds = userBadges.map(ub => ub.badge_id)
-      
-      // Find badges to add
       const badgesToAdd = selectedBadgeIds.filter(id => !currentBadgeIds.includes(id))
-      
-      // Find badges to remove
       const badgesToRemove = currentBadgeIds.filter(id => !selectedBadgeIds.includes(id))
-      
-      // Add new badges
       if (badgesToAdd.length > 0) {
         await supabase
           .from('user_badges')
@@ -139,8 +137,6 @@ export default function ProfilePage() {
             given_by: user.id
           })))
       }
-      
-      // Remove unselected badges
       if (badgesToRemove.length > 0) {
         await supabase
           .from('user_badges')
@@ -148,20 +144,63 @@ export default function ProfilePage() {
           .eq('user_id', user.id)
           .in('badge_id', badgesToRemove)
       }
-      
-      // Refresh user badges
       await fetchUserBadges()
-      
       setIsEditing(false)
       setUploadedAvatar(null)
-      if (avatarFileInputRef.current) {
-        avatarFileInputRef.current.value = ''
-      }
+      setUploadedBgImage(null)
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
+      if (bgFileInputRef.current) bgFileInputRef.current.value = ''
     } catch (error) {
       console.error('Error updating profile:', error)
     } finally {
       setSavingProfile(false)
     }
+  }
+
+  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const result = e.target?.result as string
+      setUploadedBgImage(result)
+      setProfileBgUrl('')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleBgUrl = () => {
+    const url = prompt('Enter image or GIF URL (supports Giphy, Tenor, direct image links):')
+    if (url) {
+      let processedUrl = url
+      if (url.includes('giphy.com/gifs/')) {
+        const gifId = url.split('/').pop()?.split('-').pop()
+        if (gifId) {
+          processedUrl = `https://media.giphy.com/media/${gifId}/giphy.gif`
+        }
+      } else if (url.includes('tenor.com/view/')) {
+        alert('For Tenor GIFs, please right-click the GIF and select "Copy image address" to get the direct link')
+        return
+      }
+      setProfileBgUrl(processedUrl)
+      setUploadedBgImage(null)
+    }
+  }
+
+  const handleGifPickerSelect = (gifUrl: string) => {
+    setProfileBgUrl(gifUrl)
+    setUploadedBgImage(null)
+    setShowGifPickerModal(false)
+  }
+
+  const handleRemoveBg = () => {
+    setUploadedBgImage(null)
+    setProfileBgUrl('')
+    if (bgFileInputRef.current) bgFileInputRef.current.value = ''
   }
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,7 +216,7 @@ export default function ProfilePage() {
     reader.onload = (e) => {
       const result = e.target?.result as string
       setUploadedAvatar(result)
-      setAvatarUrl('') // Clear URL input if uploading file
+      setAvatarUrl('')
     }
     reader.readAsDataURL(file)
   }
@@ -185,24 +224,21 @@ export default function ProfilePage() {
   const handleAvatarUrl = () => {
     const url = prompt('Enter image or GIF URL (supports Giphy, Tenor, direct image links):')
     if (url) {
-      // Convert Giphy/Tenor share links to direct media URLs
       let processedUrl = url
       
-      // Handle Giphy share links
       if (url.includes('giphy.com/gifs/')) {
         const gifId = url.split('/').pop()?.split('-').pop()
         if (gifId) {
           processedUrl = `https://media.giphy.com/media/${gifId}/giphy.gif`
         }
       }
-      // Handle Tenor links
       else if (url.includes('tenor.com/view/')) {
         alert('For Tenor GIFs, please right-click the GIF and select "Copy image address" to get the direct link')
         return
       }
       
       setAvatarUrl(processedUrl)
-      setUploadedAvatar(null) // Clear uploaded file if adding URL
+      setUploadedAvatar(null)
     }
   }
 
@@ -270,7 +306,6 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
         <div className="text-center">
-          {/* Animated Icons */}
           <div className="mb-8 relative flex items-center justify-center gap-6">
             <Users className="w-16 h-16 text-purple-500 animate-pulse" />
             <div className="relative">
@@ -279,7 +314,6 @@ export default function ProfilePage() {
             </div>
             <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
           </div>
-          {/* Loading Text */}
           <div className="space-y-2">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
               Loading your profile...
@@ -299,7 +333,6 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
         <div className="text-center">
-          {/* Animated Icons */}
           <div className="mb-8 relative flex items-center justify-center gap-6">
             <Users className="w-16 h-16 text-purple-500 animate-pulse" />
             <div className="relative">
@@ -308,7 +341,6 @@ export default function ProfilePage() {
             </div>
             <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
           </div>
-          {/* Loading Text */}
           <div className="space-y-2">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
               Setting up your profile...
@@ -328,8 +360,26 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Profile Header */}
-        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-5 sm:p-8 mb-6">
-          <div className="flex flex-col sm:flex-row items-start gap-6">
+        <div className="relative bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-5 sm:p-8 mb-6 overflow-hidden">
+          {(uploadedBgImage || profileBgUrl) && (
+            <div
+              className="absolute inset-0 z-0"
+              style={{
+                opacity: (profileBgOpacity ?? 80) / 100,
+                background: uploadedBgImage || profileBgUrl ? undefined : 'linear-gradient(to bottom right, #1e293b, #111827)',
+              }}
+            >
+              {(uploadedBgImage || profileBgUrl) && (
+                <img
+                  src={uploadedBgImage || profileBgUrl}
+                  alt="Profile background"
+                  className="w-full h-full object-cover"
+                  style={{ opacity: 1 }}
+                />
+              )}
+            </div>
+          )}
+          <div className="relative z-10 flex flex-col sm:flex-row items-start gap-6">
             {/* Avatar */}
             <div className="flex-shrink-0 mx-auto sm:mx-0">
               <div className="relative group">
@@ -360,257 +410,342 @@ export default function ProfilePage() {
             </div>
 
             {/* Profile Info */}
-            <div className="flex-1 w-full text-center sm:text-left">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between mb-4">
-                <div className="w-full sm:w-auto">
-                  <h2 className="text-2xl font-bold">@{profile.username}</h2>
-                  {!isEditing && profile.full_name && (
-                    <p className="text-gray-400">{profile.full_name}</p>
-                  )}
-                  {/* Badges */}
-                  {!isEditing && userBadges.length > 0 && (
-                    <div className="flex flex-wrap gap-3 mt-3 justify-center sm:justify-start">
-                      {userBadges.map((userBadge) => {
-                        const badge = userBadge.badges!
-                        
-                        // Map color to gradient and glow
-                        const colorEffects: Record<string, { gradient: string, glow: string }> = {
-                          'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
-                          'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
-                          'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
-                          'green-600': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
-                          'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
-                          'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
-                          'indigo-500': { gradient: 'from-indigo-600 via-purple-500 to-indigo-400', glow: 'shadow-indigo-500/50' },
-                          'red-500': { gradient: 'from-red-600 via-red-500 to-pink-500', glow: 'shadow-red-500/50' },
-                          'red-400': { gradient: 'from-red-600 via-orange-500 to-red-400', glow: 'shadow-red-500/50' },
-                          'red-600': { gradient: 'from-red-700 via-red-600 to-red-500', glow: 'shadow-red-600/50' },
-                          'blue-600': { gradient: 'from-blue-700 via-blue-600 to-slate-600', glow: 'shadow-blue-600/50' },
-                          'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
-                          'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
-                          'lime-500': { gradient: 'from-lime-600 via-lime-500 to-green-400', glow: 'shadow-lime-500/50' },
-                          'rose-500': { gradient: 'from-rose-600 via-rose-500 to-pink-500', glow: 'shadow-rose-500/50' },
-                          'slate-500': { gradient: 'from-slate-600 via-slate-500 to-gray-500', glow: 'shadow-slate-500/50' },
-                          'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
-                          'teal-500': { gradient: 'from-teal-600 via-teal-500 to-cyan-400', glow: 'shadow-teal-500/50' },
-                          'sky-500': { gradient: 'from-sky-600 via-sky-500 to-blue-400', glow: 'shadow-sky-500/50' },
-                          'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
-                          'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
-                          'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
-                        }
-                        
-                        const effects = colorEffects[badge.color] || { 
-                          gradient: 'from-gray-600 via-gray-500 to-gray-400', 
-                          glow: 'shadow-gray-500/50' 
-                        }
-                        
-                        return (
-                          <div
-                            key={userBadge.id}
-                            className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
-                          >
-                            {/* Animated GIF Background (if exists, use it instead of gradient) */}
-                            {badge.gif_url ? (
-                              <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
-                                <img 
-                                  src={badge.gif_url} 
-                                  alt="" 
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              /* Gradient Overlay (only if no GIF) */
-                              <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
-                            )}
-                            {/* Badge Content */}
-                            <div className="relative px-3 py-1.5 flex items-center gap-1.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
-                              <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
-                                {badge.name}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+            <div className="flex-1 w-full text-center sm:text-left flex flex-col gap-4">
+              <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 mb-2">
+                <h2 className="text-2xl font-bold mb-1">@{profile.username}</h2>
+                {!isEditing && profile.full_name && (
+                  <p className="text-gray-400 text-lg mb-1">{profile.full_name}</p>
+                )}
                 {!isEditing && (
-                  <div className="flex gap-2">
-                    {profile.is_admin && (
-                      <button
-                        onClick={() => navigate('/admin/badges')}
-                        className="mt-2 sm:mt-0 p-2 hover:bg-purple-600/20 rounded-full transition-colors text-purple-400 hover:text-purple-300 border border-purple-500/30"
-                        title="Admin Badge Panel"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                      </button>
+                  <div>
+                    {profile.bio ? (
+                      <p className="text-gray-300 text-center sm:text-left">{profile.bio}</p>
+                    ) : (
+                      <p className="text-gray-500 italic text-center sm:text-left">No bio yet.</p>
                     )}
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="mt-2 sm:mt-0 p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-white"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
                   </div>
                 )}
               </div>
 
-              {isEditing ? (
+              {/* Badges */}
+              {!isEditing && userBadges.length > 0 && (
+                <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 justify-center sm:justify-start">
+                  {userBadges.map((userBadge) => {
+                    const badge = userBadge.badges!
+                    
+                    const colorEffects: Record<string, { gradient: string, glow: string }> = {
+                      'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
+                      'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
+                      'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                      'green-600': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                      'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
+                      'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
+                      'indigo-500': { gradient: 'from-indigo-600 via-purple-500 to-indigo-400', glow: 'shadow-indigo-500/50' },
+                      'red-500': { gradient: 'from-red-600 via-red-500 to-pink-500', glow: 'shadow-red-500/50' },
+                      'red-400': { gradient: 'from-red-600 via-orange-500 to-red-400', glow: 'shadow-red-500/50' },
+                      'red-600': { gradient: 'from-red-700 via-red-600 to-red-500', glow: 'shadow-red-600/50' },
+                      'blue-600': { gradient: 'from-blue-700 via-blue-600 to-slate-600', glow: 'shadow-blue-600/50' },
+                      'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
+                      'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
+                      'lime-500': { gradient: 'from-lime-600 via-lime-500 to-green-400', glow: 'shadow-lime-500/50' },
+                      'rose-500': { gradient: 'from-rose-600 via-rose-500 to-pink-500', glow: 'shadow-rose-500/50' },
+                      'slate-500': { gradient: 'from-slate-600 via-slate-500 to-gray-500', glow: 'shadow-slate-500/50' },
+                      'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
+                      'teal-500': { gradient: 'from-teal-600 via-teal-500 to-cyan-400', glow: 'shadow-teal-500/50' },
+                      'sky-500': { gradient: 'from-sky-600 via-sky-500 to-blue-400', glow: 'shadow-sky-500/50' },
+                      'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
+                      'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
+                      'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
+                    }
+                    const effects = colorEffects[badge.color] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
+                    return (
+                      <div
+                        key={userBadge.id}
+                        className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
+                      >
+                        {badge.gif_url ? (
+                          <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
+                            <img 
+                              src={badge.gif_url} 
+                              alt="" 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
+                        )}
+                        <div className="relative px-3 py-1.5 flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                          <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
+                            {badge.name}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Actions */}
+              {!isEditing && (
+                <div className="flex gap-2">
+                  {profile.is_admin && (
+                    <button
+                      onClick={() => navigate('/admin/badges')}
+                      className="mt-2 sm:mt-0 p-2 hover:bg-purple-600/20 rounded-full transition-colors text-purple-400 hover:text-purple-300 border border-purple-500/30"
+                      title="Admin Badge Panel"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="mt-2 sm:mt-0 p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-white"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setShowBgGifPicker(true)}
+                    className="mt-2 sm:mt-0 p-2 hover:bg-pink-600/20 rounded-full transition-colors text-pink-400 hover:text-pink-300 border border-pink-500/30"
+                    title="Edit Profile Background"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {(isEditing || showBgGifPicker) && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                  {/* Avatar Upload Section */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Profile Picture
-                    </label>
-                    <input
-                      ref={avatarFileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarUpload}
-                      className="hidden"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => avatarFileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
-                      >
-                        <Camera className="w-4 h-4" />
-                        Upload Image
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAvatarUrl}
-                        className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
-                      >
-                        <Film className="w-4 h-4" />
-                        GIF URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowAvatarGifPicker(true)}
-                        className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-sm transition-colors"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        Browse GIFs
-                      </button>
-                      {(uploadedAvatar || avatarUrl) && (
+                  {showBgGifPicker && (
+                    <div className="mb-4 p-4 bg-gray-900/80 rounded-xl border border-pink-500/30">
+                      <h4 className="font-semibold text-pink-400 mb-2">Edit Profile Background</h4>
+                      <input
+                        ref={bgFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBgUpload}
+                        className="hidden"
+                      />
+                      <div className="flex flex-wrap gap-2 mb-2">
                         <button
                           type="button"
-                          onClick={handleRemoveAvatar}
-                          className="flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-colors"
+                          onClick={() => bgFileInputRef.current?.click()}
+                          className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
                         >
-                          <X className="w-4 h-4" />
-                          Remove
+                          <Camera className="w-4 h-4" />
+                          Upload Image
                         </button>
-                      )}
-                    </div>
-                    {(uploadedAvatar || avatarUrl) && (
-                      <div className="mt-2 text-xs text-gray-400">
-                        Preview updated above ↑
+                        <button
+                          type="button"
+                          onClick={handleBgUrl}
+                          className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                        >
+                          <Film className="w-4 h-4" />
+                          GIF/Image URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowGifPickerModal(true)}
+                          className="flex items-center gap-2 px-3 py-2 bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/50 rounded-lg text-sm transition-colors"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          Browse GIFs
+                        </button>
+                        {showGifPickerModal && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowGifPickerModal(false)}>
+                            <div className="max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                              <GifPicker
+                                onSelect={handleGifPickerSelect}
+                                onClose={() => setShowGifPickerModal(false)}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {(uploadedBgImage || profileBgUrl) && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveBg}
+                            className="flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                            Remove
+                          </button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      placeholder="Your full name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Bio
-                    </label>
-                    <textarea
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      rows={3}
-                      className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      placeholder="Tell us about yourself..."
-                    />
-                  </div>
-                  {/* Badges Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Badges (Select up to 5)
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {availableBadges
-                        .filter(badge => !badge.admin_only) // Only show non-admin badges
-                        .map((badge) => {
-                          const isSelected = selectedBadgeIds.includes(badge.id)
-                          return (
+                      <div className="mb-2">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Background Opacity</label>
+                        <input
+                          type="range"
+                          min={10}
+                          max={100}
+                          value={profileBgOpacity}
+                          onChange={e => setProfileBgOpacity(Number(e.target.value))}
+                          className="w-full"
+                        />
+                        <div className="text-xs text-gray-400 mt-1">{profileBgOpacity}%</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setShowBgGifPicker(false); handleSaveProfile(); }}
+                          disabled={savingProfile}
+                          className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 text-white font-semibold px-4 py-2 rounded-lg hover:from-pink-600 hover:to-red-600 transition-all disabled:opacity-50"
+                        >
+                          {savingProfile ? 'Saving...' : 'Save Background'}
+                        </button>
+                        <button
+                          onClick={() => { setShowBgGifPicker(false); setUploadedBgImage(null); setProfileBgUrl(profile?.bg_url || ''); setProfileBgOpacity(profile?.bg_opacity ?? 80); if (bgFileInputRef.current) bgFileInputRef.current.value = ''; }}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {isEditing && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Profile Picture
+                        </label>
+                        <input
+                          ref={avatarFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                          className="hidden"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => avatarFileInputRef.current?.click()}
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                          >
+                            <Camera className="w-4 h-4" />
+                            Upload Image
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAvatarUrl}
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                          >
+                            <Film className="w-4 h-4" />
+                            GIF URL
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAvatarGifPicker(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-sm transition-colors"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            Browse GIFs
+                          </button>
+                          {(uploadedAvatar || avatarUrl) && (
                             <button
-                              key={badge.id}
                               type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedBadgeIds(selectedBadgeIds.filter(id => id !== badge.id))
-                                } else if (selectedBadgeIds.length < 5) {
-                                  setSelectedBadgeIds([...selectedBadgeIds, badge.id])
-                                }
-                              }}
-                              className={`relative px-3 py-1.5 rounded-full text-xs font-medium transition-all overflow-hidden ${
-                                isSelected ? 'ring-2 ring-white' : 'hover:scale-105'
-                              }`}
-                              disabled={!isSelected && selectedBadgeIds.length >= 5}
+                              onClick={handleRemoveAvatar}
+                              className="flex items-center gap-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-colors"
                             >
-                              {/* Background Color */}
-                              <div className={`absolute inset-0 bg-${badge.color} ${isSelected ? 'opacity-100' : 'opacity-50'}`}></div>
-                              {/* Badge Name */}
-                              <span className="relative z-10 text-white">{badge.name}</span>
+                              <X className="w-4 h-4" />
+                              Remove
                             </button>
-                          )
-                        })}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {selectedBadgeIds.length}/5 badges selected
-                    </p>
-                    {userBadges.some(ub => ub.badges?.admin_only) && (
-                      <div className="mt-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                        <p className="text-xs text-purple-300 flex items-center gap-2">
-                          <span className="text-purple-400">✨</span>
-                          You have admin-only badges that can only be managed by the creator
-                        </p>
+                          )}
+                        </div>
+                        {(uploadedAvatar || avatarUrl) && (
+                          <div className="mt-2 text-xs text-gray-400">
+                            Preview updated above ↑
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSaveProfile}
-                      disabled={savingProfile}
-                      className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-4 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50"
-                    >
-                      {savingProfile ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsEditing(false)
-                        setUploadedAvatar(null)
-                        setAvatarUrl(profile?.avatar_url || '')
-                        if (avatarFileInputRef.current) {
-                          avatarFileInputRef.current.value = ''
-                        }
-                      }}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {profile.bio ? (
-                    <p className="text-gray-300 text-center sm:text-left">{profile.bio}</p>
-                  ) : (
-                    <p className="text-gray-500 italic text-center sm:text-left">No bio yet.</p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          placeholder="Your full name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Bio
+                        </label>
+                        <textarea
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          rows={3}
+                          className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          placeholder="Tell us about yourself..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Badges (Select up to 5)
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {availableBadges
+                            .filter(badge => !badge.admin_only)
+                            .map((badge) => {
+                              const isSelected = selectedBadgeIds.includes(badge.id)
+                              return (
+                                <button
+                                  key={badge.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedBadgeIds(selectedBadgeIds.filter(id => id !== badge.id))
+                                    } else if (selectedBadgeIds.length < 5) {
+                                      setSelectedBadgeIds([...selectedBadgeIds, badge.id])
+                                    }
+                                  }}
+                                  className={`relative px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                    isSelected ? 'ring-2 ring-white' : 'hover:scale-105'
+                                  }`}
+                                  disabled={!isSelected && selectedBadgeIds.length >= 5}
+                                >
+                                  <div className={`absolute inset-0 bg-${badge.color} ${isSelected ? 'opacity-100' : 'opacity-50'}`}></div>
+                                  <span className="relative z-10 text-white">{badge.name}</span>
+                                </button>
+                              )
+                            })}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">
+                          {selectedBadgeIds.length}/5 badges selected
+                        </p>
+                        {userBadges.some(ub => ub.badges?.admin_only) && (
+                          <div className="mt-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                            <p className="text-xs text-purple-300 flex items-center gap-2">
+                              <span className="text-purple-400">✨</span>
+                              You have admin-only badges that can only be managed by the creator
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveProfile}
+                          disabled={savingProfile}
+                          className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-4 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50"
+                        >
+                          {savingProfile ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsEditing(false)
+                            setUploadedAvatar(null)
+                            setAvatarUrl(profile?.avatar_url || '')
+                            if (avatarFileInputRef.current) {
+                              avatarFileInputRef.current.value = ''
+                            }
+                          }}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -785,6 +920,29 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Logout Button - Mobile only */}
+        <div className="mt-8 pb-24 md:hidden">
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 hover:border-red-500/50 text-gray-400 hover:text-red-400 rounded-xl transition-all"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Sign Out</span>
+          </button>
+        </div>
+
+        {/* Avatar GIF Picker */}
+        {showAvatarGifPicker && (
+          <GifPicker
+            onSelect={(gifUrl) => {
+              setAvatarUrl(gifUrl)
+              setUploadedAvatar(null)
+              setShowAvatarGifPicker(false)
+            }}
+            onClose={() => setShowAvatarGifPicker(false)}
+          />
+        )}
       </main>
 
       {/* Edit Entry Modal */}
@@ -802,7 +960,6 @@ export default function ProfilePage() {
             <p className="text-gray-400 text-sm mb-6 capitalize">{selectedEntry.media_type}</p>
 
             <div className="space-y-4 sm:space-y-6">
-              {/* Status */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
                 <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
@@ -827,50 +984,46 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Rating */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
-                    Rating {editRating > 0 && `(${editRating}/5)`}
-                  </label>
-                  <div className="space-y-3">
-                    {/* Star Display */}
-                    <div className="flex gap-1 items-center justify-center">
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const isFilled = editRating >= star
-                        const isHalfFilled = editRating >= star - 0.5 && editRating < star
-                        
-                        return (
-                          <div key={star} className="relative">
-                            {/* Background star */}
-                            <Star className="w-8 h-8 sm:w-9 sm:h-9 text-gray-700" />
-                            {/* Filled overlay */}
-                            {(isFilled || isHalfFilled) && (
-                              <div
-                                className="absolute inset-0 overflow-hidden pointer-events-none"
-                                style={{ width: isHalfFilled ? '50%' : '100%' }}
-                              >
-                                <Star className="w-8 h-8 sm:w-9 sm:h-9 fill-yellow-500 text-yellow-500" />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    {/* Slider */}
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      step="1"
-                      value={editRating * 2}
-                      onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)}
-                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                      style={{
-                        background: `linear-gradient(to right, #eab308 0%, #eab308 ${(editRating / 5) * 100}%, #374151 ${(editRating / 5) * 100}%, #374151 100%)`
-                      }}
-                    />
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
+                  Rating {editRating > 0 && `(${editRating}/5)`}
+                </label>
+                <div className="space-y-3">
+                  <div className="flex gap-1 items-center justify-center">
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const isFilled = editRating >= star
+                      const isHalfFilled = editRating >= star - 0.5 && editRating < star
+                      
+                      return (
+                        <div key={star} className="relative">
+                          <Star className="w-8 h-8 sm:w-9 sm:h-9 text-gray-700" />
+                          {(isFilled || isHalfFilled) && (
+                            <div
+                              className="absolute inset-0 overflow-hidden pointer-events-none"
+                              style={{ width: isHalfFilled ? '50%' : '100%' }}
+                            >
+                              <Star className="w-8 h-8 sm:w-9 sm:h-9 fill-yellow-500 text-yellow-500" />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>              {/* Notes */}
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={editRating * 2}
+                    onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                    style={{
+                      background: `linear-gradient(to right, #eab308 0%, #eab308 ${(editRating / 5) * 100}%, #374151 ${(editRating / 5) * 100}%, #374151 100%)`
+                    }}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Notes</label>
                 <textarea
@@ -901,29 +1054,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Logout Button - Mobile only */}
-      <div className="mt-8 pb-24 md:hidden">
-        <button
-          onClick={handleSignOut}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 hover:border-red-500/50 text-gray-400 hover:text-red-400 rounded-xl transition-all"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="font-medium">Sign Out</span>
-        </button>
-      </div>
-
-      {/* Avatar GIF Picker */}
-      {showAvatarGifPicker && (
-        <GifPicker
-          onSelect={(gifUrl) => {
-            setAvatarUrl(gifUrl)
-            setUploadedAvatar(null)
-            setShowAvatarGifPicker(false)
-          }}
-          onClose={() => setShowAvatarGifPicker(false)}
-        />
       )}
     </div>
   )

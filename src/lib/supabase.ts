@@ -22,7 +22,7 @@ export const resetSupabaseClient = () => {
   console.log('Resetting Supabase client connection...')
   supabase = createClient(
     isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
-    isSupabaseConfigured ? supabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder'
+    isSupabaseConfigured ? supabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9zZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder'
   )
 }
 
@@ -69,6 +69,8 @@ export type Profile = {
   is_admin: boolean
   created_at: string
   updated_at: string
+  bg_url: string | null
+  bg_opacity: number | null
 }
 
 export type Badge = {
