@@ -27,23 +27,17 @@ export default function ProfilePage() {
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [filterType, setFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
   
   // Edit Entry Form State
   const [editRating, setEditRating] = useState(0)
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
-
-  // Social Stats State
-  const [followersCount, setFollowersCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
 
   useEffect(() => {
     if (user) {
       Promise.all([
         fetchEntries(user.id), 
-        fetchFollowCounts(), 
         fetchBadges(), 
         fetchUserBadges()
       ]).finally(() => setInitialLoading(false))
@@ -53,7 +47,6 @@ export default function ProfilePage() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
         fetchEntries(user.id)
-        fetchFollowCounts()
         fetchUserBadges()
       }
     }
@@ -63,32 +56,6 @@ export default function ProfilePage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [user, fetchEntries])
-
-  const fetchFollowCounts = async () => {
-    if (!user) return
-    
-    try {
-      // Get followers count
-      const { count: followersCount, error: followersError } = await supabase
-        .from('follows')
-        .select('follower_id', { count: 'exact', head: true })
-        .eq('following_id', user.id)
-      
-      if (followersError) throw followersError
-      setFollowersCount(followersCount || 0)
-
-      // Get following count
-      const { count: followingCount, error: followingError } = await supabase
-        .from('follows')
-        .select('follower_id', { count: 'exact', head: true })
-        .eq('follower_id', user.id)
-      
-      if (followingError) throw followingError
-      setFollowingCount(followingCount || 0)
-    } catch (error) {
-      console.error('Error fetching follow counts:', error)
-    }
-  }
 
   const fetchBadges = async () => {
     // Fetch all available badges
@@ -654,7 +621,7 @@ export default function ProfilePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xl font-semibold">
-              {filterType ? `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} Activity` : 'Recent Activity'}
+              Recent Activity
             </h3>
             <button 
               onClick={() => navigate('/add')}
@@ -688,9 +655,9 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).length > 0 ? (
+          {entries.filter(e => e.status !== 'logged').length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).map((entry) => {
+              {entries.filter(e => e.status !== 'logged').map((entry) => {
                 const Icon = getIcon(entry.media_type)
                 return (
                   <div
