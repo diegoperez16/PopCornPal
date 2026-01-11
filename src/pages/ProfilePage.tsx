@@ -27,6 +27,7 @@ export default function ProfilePage() {
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in-progress' | 'planned'>('all')
   
   // Edit Entry Form State
   const [editRating, setEditRating] = useState(0)
@@ -655,9 +656,53 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {entries.filter(e => e.status !== 'logged').length > 0 ? (
+          {/* Status Filter Buttons */}
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-gradient-to-r from-red-500 to-pink-500 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setStatusFilter('completed')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+                statusFilter === 'completed'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              Completed
+            </button>
+            <button
+              onClick={() => setStatusFilter('in-progress')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+                statusFilter === 'in-progress'
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              In Progress
+            </button>
+            <button
+              onClick={() => setStatusFilter('planned')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+                statusFilter === 'planned'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              Planned
+            </button>
+          </div>
+
+          {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {entries.filter(e => e.status !== 'logged').map((entry) => {
+              {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).map((entry) => {
                 const Icon = getIcon(entry.media_type)
                 return (
                   <div
