@@ -248,7 +248,6 @@ export default function ProfilePage() {
 
   const handleUpdateEntry = async () => {
     if (!selectedEntry) return
-    setIsUpdating(true)
     try {
       await updateEntry(selectedEntry.id, {
         rating: editRating || null,
@@ -261,21 +260,16 @@ export default function ProfilePage() {
       setSelectedEntry(null)
     } catch (error) {
       console.error('Error updating entry:', error)
-    } finally {
-      setIsUpdating(false)
     }
   }
 
   const handleDeleteEntry = async () => {
     if (!selectedEntry || !confirm('Are you sure you want to delete this entry?')) return
-    setIsUpdating(true)
     try {
       await deleteEntry(selectedEntry.id)
       setSelectedEntry(null)
     } catch (error) {
       console.error('Error deleting entry:', error)
-    } finally {
-      setIsUpdating(false)
     }
   }
 
