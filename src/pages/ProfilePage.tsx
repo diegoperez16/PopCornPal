@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut, Users, User, Sparkles } from 'lucide-react'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker } from 'lucide-react'
 import { supabase, type Badge, type UserBadge } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
@@ -23,11 +23,12 @@ export default function ProfilePage() {
   const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>([])
   const [showAvatarGifPicker, setShowAvatarGifPicker] = useState(false)
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
+  
   // Profile Background State
   const [profileBgUrl, setProfileBgUrl] = useState(profile?.bg_url || '')
   const [profileBgOpacity, setProfileBgOpacity] = useState(profile?.bg_opacity ?? 80)
-  const [showBgGifPicker, setShowBgGifPicker] = useState(false)
-  const [showGifPickerModal, setShowGifPickerModal] = useState(false)
+  const [showBgGifPicker, setShowBgGifPicker] = useState(false) 
+  const [showGifPickerModal, setShowGifPickerModal] = useState(false) 
   const [uploadedBgImage, setUploadedBgImage] = useState<string | null>(null)
   const bgFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -51,7 +52,6 @@ export default function ProfilePage() {
       ]).finally(() => setInitialLoading(false))
     }
 
-    // Handle tab visibility - immediately refetch when tab becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
         fetchEntries(user.id)
@@ -206,12 +206,10 @@ export default function ProfilePage() {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file')
       return
     }
-
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
@@ -225,7 +223,6 @@ export default function ProfilePage() {
     const url = prompt('Enter image or GIF URL (supports Giphy, Tenor, direct image links):')
     if (url) {
       let processedUrl = url
-      
       if (url.includes('giphy.com/gifs/')) {
         const gifId = url.split('/').pop()?.split('-').pop()
         if (gifId) {
@@ -236,7 +233,6 @@ export default function ProfilePage() {
         alert('For Tenor GIFs, please right-click the GIF and select "Copy image address" to get the direct link')
         return
       }
-      
       setAvatarUrl(processedUrl)
       setUploadedAvatar(null)
     }
@@ -302,6 +298,16 @@ export default function ProfilePage() {
     })
   }
 
+  // --- LOGIC TO SPLIT BADGES ---
+  const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
+  const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')
+  
+  // Filter out special badges from the regular list so they don't show twice
+  const regularBadges = userBadges.filter(ub => {
+    const name = ub.badges?.name.toLowerCase()
+    return name !== 'creator' && name !== 'alpha tester'
+  })
+
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
@@ -329,32 +335,7 @@ export default function ProfilePage() {
     )
   }
 
-  if (!user || !profile) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="mb-8 relative flex items-center justify-center gap-6">
-            <Users className="w-16 h-16 text-purple-500 animate-pulse" />
-            <div className="relative">
-              <User className="w-20 h-20 text-pink-500 animate-bounce" />
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-ping"></div>
-            </div>
-            <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
-              Setting up your profile...
-            </h2>
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }}></div>
-              <div className="w-2 h-2 bg-pink-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }}></div>
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }}></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  if (!user || !profile) return null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
@@ -427,62 +408,116 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Badges */}
+              {/* === BADGES SECTION === */}
               {!isEditing && userBadges.length > 0 && (
-                <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 justify-center sm:justify-start">
-                  {userBadges.map((userBadge) => {
-                    const badge = userBadge.badges!
-                    
-                    const colorEffects: Record<string, { gradient: string, glow: string }> = {
-                      'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
-                      'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
-                      'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
-                      'green-600': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
-                      'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
-                      'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
-                      'indigo-500': { gradient: 'from-indigo-600 via-purple-500 to-indigo-400', glow: 'shadow-indigo-500/50' },
-                      'red-500': { gradient: 'from-red-600 via-red-500 to-pink-500', glow: 'shadow-red-500/50' },
-                      'red-400': { gradient: 'from-red-600 via-orange-500 to-red-400', glow: 'shadow-red-500/50' },
-                      'red-600': { gradient: 'from-red-700 via-red-600 to-red-500', glow: 'shadow-red-600/50' },
-                      'blue-600': { gradient: 'from-blue-700 via-blue-600 to-slate-600', glow: 'shadow-blue-600/50' },
-                      'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
-                      'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
-                      'lime-500': { gradient: 'from-lime-600 via-lime-500 to-green-400', glow: 'shadow-lime-500/50' },
-                      'rose-500': { gradient: 'from-rose-600 via-rose-500 to-pink-500', glow: 'shadow-rose-500/50' },
-                      'slate-500': { gradient: 'from-slate-600 via-slate-500 to-gray-500', glow: 'shadow-slate-500/50' },
-                      'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
-                      'teal-500': { gradient: 'from-teal-600 via-teal-500 to-cyan-400', glow: 'shadow-teal-500/50' },
-                      'sky-500': { gradient: 'from-sky-600 via-sky-500 to-blue-400', glow: 'shadow-sky-500/50' },
-                      'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
-                      'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
-                      'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
-                    }
-                    const effects = colorEffects[badge.color] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
-                    return (
-                      <div
-                        key={userBadge.id}
-                        className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
-                      >
-                        {badge.gif_url ? (
-                          <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
-                            <img 
-                              src={badge.gif_url} 
-                              alt="" 
-                              className="w-full h-full object-cover"
-                            />
+                <div className="space-y-4">
+                  
+                  {/* 1. CREATOR BADGE SUB-SECTION */}
+                  {creatorBadge && (
+                    <div className="bg-gradient-to-r from-gray-900/90 to-purple-900/20 border border-purple-500/30 rounded-xl p-3 flex items-center justify-between sm:justify-start gap-4">
+                      <div className="flex items-center gap-2 text-purple-300 font-semibold text-sm uppercase tracking-wider">
+                        <Crown className="w-4 h-4 text-yellow-400" />
+                        <span>Creator Status</span>
+                      </div>
+                      
+                      {/* High-Impact Creator Badge */}
+                      <div className="relative overflow-hidden rounded-lg shadow-[0_0_30px_rgba(236,72,153,0.8)] ring-4 ring-pink-500/50 animate-[pulse_2s_infinite] scale-110 z-10 brightness-110 w-32 h-10 flex-shrink-0">
+                        {creatorBadge.badges?.gif_url ? (
+                          <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}>
+                            <img src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/>
                           </div>
                         ) : (
-                          <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500"></div>
                         )}
-                        <div className="relative px-3 py-1.5 flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
-                          <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
-                            {badge.name}
-                          </span>
+                        <div className="relative h-full flex items-center justify-center gap-1.5">
+                          <span className="text-sm font-black text-white uppercase tracking-widest drop-shadow-md">CREATOR</span>
                         </div>
                       </div>
-                    )
-                  })}
+                    </div>
+                  )}
+
+                  {/* 2. ALPHA TESTER SUB-SECTION */}
+                  {alphaBadge && (
+                    <div className="bg-gradient-to-r from-gray-900/90 to-cyan-900/20 border border-cyan-500/30 rounded-xl p-3 flex items-center justify-between sm:justify-start gap-4">
+                      <div className="flex items-center gap-2 text-cyan-300 font-semibold text-sm uppercase tracking-wider">
+                        <Beaker className="w-4 h-4 text-cyan-400" />
+                        <span>Alpha Status</span>
+                      </div>
+                      
+                      {/* High-Impact Alpha Badge */}
+                      <div className="relative overflow-hidden rounded-lg shadow-[0_0_30px_rgba(34,211,238,0.8)] ring-4 ring-cyan-500/50 animate-[pulse_3s_infinite] scale-105 z-10 brightness-110 w-36 h-10 flex-shrink-0">
+                        {alphaBadge.badges?.gif_url ? (
+                          <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}>
+                            <img src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/>
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500"></div>
+                        )}
+                        <div className="relative h-full flex items-center justify-center gap-1.5">
+                          <span className="text-sm font-black text-white uppercase tracking-widest drop-shadow-md">ALPHA TESTER</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. REGULAR BADGES LIST */}
+                  {regularBadges.length > 0 && (
+                    <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 justify-center sm:justify-start">
+                      {regularBadges.map((userBadge) => {
+                        const badge = userBadge.badges!
+                        
+                        const colorEffects: Record<string, { gradient: string, glow: string }> = {
+                          'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
+                          'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
+                          'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                          'green-600': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
+                          'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
+                          'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
+                          'indigo-500': { gradient: 'from-indigo-600 via-purple-500 to-indigo-400', glow: 'shadow-indigo-500/50' },
+                          'red-500': { gradient: 'from-red-600 via-red-500 to-pink-500', glow: 'shadow-red-500/50' },
+                          'red-400': { gradient: 'from-red-600 via-orange-500 to-red-400', glow: 'shadow-red-500/50' },
+                          'red-600': { gradient: 'from-red-700 via-red-600 to-red-500', glow: 'shadow-red-600/50' },
+                          'blue-600': { gradient: 'from-blue-700 via-blue-600 to-slate-600', glow: 'shadow-blue-600/50' },
+                          'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
+                          'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
+                          'lime-500': { gradient: 'from-lime-600 via-lime-500 to-green-400', glow: 'shadow-lime-500/50' },
+                          'rose-500': { gradient: 'from-rose-600 via-rose-500 to-pink-500', glow: 'shadow-rose-500/50' },
+                          'slate-500': { gradient: 'from-slate-600 via-slate-500 to-gray-500', glow: 'shadow-slate-500/50' },
+                          'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
+                          'teal-500': { gradient: 'from-teal-600 via-teal-500 to-cyan-400', glow: 'shadow-teal-500/50' },
+                          'sky-500': { gradient: 'from-sky-600 via-sky-500 to-blue-400', glow: 'shadow-sky-500/50' },
+                          'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
+                          'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
+                          'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
+                        }
+                        const effects = colorEffects[badge.color] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
+                        return (
+                          <div
+                            key={userBadge.id}
+                            className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
+                          >
+                            {badge.gif_url ? (
+                              <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
+                                <img 
+                                  src={badge.gif_url} 
+                                  alt="" 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
+                            )}
+                            <div className="relative px-3 py-1.5 flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                              <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
+                                {badge.name}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -551,16 +586,6 @@ export default function ProfilePage() {
                           <Sparkles className="w-4 h-4" />
                           Browse GIFs
                         </button>
-                        {showGifPickerModal && (
-                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowGifPickerModal(false)}>
-                            <div className="max-w-lg w-full" onClick={e => e.stopPropagation()}>
-                              <GifPicker
-                                onSelect={handleGifPickerSelect}
-                                onClose={() => setShowGifPickerModal(false)}
-                              />
-                            </div>
-                          </div>
-                        )}
                         {(uploadedBgImage || profileBgUrl) && (
                           <button
                             type="button"
@@ -650,11 +675,6 @@ export default function ProfilePage() {
                             </button>
                           )}
                         </div>
-                        {(uploadedAvatar || avatarUrl) && (
-                          <div className="mt-2 text-xs text-gray-400">
-                            Preview updated above ↑
-                          </div>
-                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -791,119 +811,65 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* Status Filter Buttons */}
+          {/* Filter Buttons */}
           <div className="flex gap-2 overflow-x-auto pb-2">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
-                statusFilter === 'all'
-                  ? 'bg-gradient-to-r from-red-500 to-pink-500 text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter('completed')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
-                statusFilter === 'completed'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              Completed
-            </button>
-            <button
-              onClick={() => setStatusFilter('in-progress')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
-                statusFilter === 'in-progress'
-                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              In Progress
-            </button>
-            <button
-              onClick={() => setStatusFilter('planned')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
-                statusFilter === 'planned'
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              Planned
-            </button>
+            <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'all' ? 'bg-gradient-to-r from-red-500 to-pink-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>All</button>
+            <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Completed</button>
+            <button onClick={() => setStatusFilter('in-progress')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'in-progress' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>In Progress</button>
+            <button onClick={() => setStatusFilter('planned')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'planned' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Planned</button>
           </div>
 
+          {/* Entries Grid */}
           {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).length > 0 ? (
-            <div className="grid grid-cols-1 gap-4">
-              {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).map((entry) => {
-                const Icon = getIcon(entry.media_type)
-                return (
-                  <div
-                    key={entry.id}
-                    onClick={() => setSelectedEntry(entry)}
-                    className="bg-gray-800/30 border border-gray-700/50 rounded-xl p-4 hover:bg-gray-800/50 transition-colors flex gap-4 cursor-pointer group"
-                  >
-                    <div className="flex-shrink-0 w-16 h-24 bg-gray-900 rounded-lg overflow-hidden relative">
-                      {entry.cover_image_url ? (
-                        <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-700">
-                          <Icon className="w-6 h-6" />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <Edit2 className="w-6 h-6 text-white" />
+             <div className="grid grid-cols-1 gap-4">
+               {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).map((entry) => {
+                 const Icon = getIcon(entry.media_type)
+                 return (
+                    <div key={entry.id} onClick={() => setSelectedEntry(entry)} className="bg-gray-800/30 border border-gray-700/50 rounded-xl p-4 hover:bg-gray-800/50 transition-colors flex gap-4 cursor-pointer group">
+                      <div className="flex-shrink-0 w-16 h-24 bg-gray-900 rounded-lg overflow-hidden relative">
+                         {entry.cover_image_url ? (
+                           <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover" />
+                         ) : (
+                           <div className="w-full h-full flex items-center justify-center text-gray-700"><Icon className="w-6 h-6" /></div>
+                         )}
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Edit2 className="w-6 h-6 text-white" />
+                         </div>
                       </div>
-                    </div>
-                    <div className="flex-1 min-w-0 py-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-lg font-semibold truncate text-white">{entry.title}</h4>
-                        <div className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
-                          entry.status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                          entry.status === 'in-progress' ? 'bg-blue-500/10 text-blue-500' :
-                          'bg-yellow-500/10 text-yellow-500'
-                        }`}>
-                          {entry.status.replace('-', ' ')}
+                      <div className="flex-1 min-w-0 py-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-lg font-semibold truncate text-white">{entry.title}</h4>
+                          <div className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
+                            entry.status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                            entry.status === 'in-progress' ? 'bg-blue-500/10 text-blue-500' :
+                            'bg-yellow-500/10 text-yellow-500'
+                          }`}>
+                            {entry.status.replace('-', ' ')}
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <Icon className="w-3 h-3" />
-                          {entry.media_type}
-                        </span>
-                        {entry.year && <span>{entry.year}</span>}
-                        {entry.completed_date && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {formatDate(entry.completed_date)}
-                          </span>
+                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
+                           <span className="flex items-center gap-1"><Icon className="w-3 h-3" /> {entry.media_type}</span>
+                           {entry.year && <span>· {entry.year}</span>}
+                           {entry.completed_date && (
+                             <span className="flex items-center gap-1">
+                               <Calendar className="w-3 h-3" />
+                               {formatDate(entry.completed_date)}
+                             </span>
+                           )}
+                        </div>
+                        {entry.rating && (
+                          <div className="flex items-center gap-1 mt-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star key={star} className={`w-4 h-4 ${star <= entry.rating! ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}`} />
+                            ))}
+                          </div>
                         )}
+                        {entry.notes && <p className="text-gray-500 text-sm mt-2 line-clamp-2 italic">"{entry.notes}"</p>}
                       </div>
-
-                      {entry.rating && (
-                        <div className="flex items-center gap-1 mt-2">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`w-4 h-4 ${
-                                star <= entry.rating! ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      
-                      {entry.notes && (
-                        <p className="text-gray-500 text-sm mt-2 line-clamp-2 italic">"{entry.notes}"</p>
-                      )}
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                 )
+               })}
+             </div>
           ) : (
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-12 text-center">
               <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
@@ -921,138 +887,84 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Logout Button - Mobile only */}
+        {/* Logout */}
         <div className="mt-8 pb-24 md:hidden">
-          <button
-            onClick={handleSignOut}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 hover:border-red-500/50 text-gray-400 hover:text-red-400 rounded-xl transition-all"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Sign Out</span>
+          <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 text-gray-400 rounded-xl transition-all">
+            <LogOut className="w-5 h-5" /> <span className="font-medium">Sign Out</span>
           </button>
         </div>
-
-        {/* Avatar GIF Picker */}
-        {showAvatarGifPicker && (
-          <GifPicker
-            onSelect={(gifUrl) => {
-              setAvatarUrl(gifUrl)
-              setUploadedAvatar(null)
-              setShowAvatarGifPicker(false)
-            }}
-            onClose={() => setShowAvatarGifPicker(false)}
-          />
-        )}
       </main>
+
+      {/* --- MOVED: Background GIF Picker Modal to Root Level --- */}
+      {showGifPickerModal && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" 
+          onClick={() => setShowGifPickerModal(false)}
+        >
+          <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <GifPicker
+              onSelect={handleGifPickerSelect}
+              onClose={() => setShowGifPickerModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* --- MOVED: Avatar GIF Picker Modal to Root Level --- */}
+      {showAvatarGifPicker && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" 
+          onClick={() => setShowAvatarGifPicker(false)}
+        >
+          <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <GifPicker
+              onSelect={(gifUrl) => {
+                setAvatarUrl(gifUrl)
+                setUploadedAvatar(null)
+                setShowAvatarGifPicker(false)
+              }}
+              onClose={() => setShowAvatarGifPicker(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Edit Entry Modal */}
       {selectedEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative shadow-2xl">
-            <button
-              onClick={() => setSelectedEntry(null)}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="text-xl font-bold mb-1 pr-8 leading-tight">{selectedEntry.title}</h2>
-            <p className="text-gray-400 text-sm mb-6 capitalize">{selectedEntry.media_type}</p>
-
-            <div className="space-y-4 sm:space-y-6">
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
-                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  {[
-                    { value: 'completed', label: 'Completed' },
-                    { value: 'in-progress', label: 'In Progress' },
-                    { value: 'planned', label: 'Plan to Watch' },
-                    { value: 'logged', label: 'Library' },
-                  ].map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => setEditStatus(s.value as any)}
-                      className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
-                        editStatus === s.value
-                          ? 'bg-red-500/10 border-red-500 text-red-500'
-                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
-                  Rating {editRating > 0 && `(${editRating}/5)`}
-                </label>
-                <div className="space-y-3">
-                  <div className="flex gap-1 items-center justify-center">
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const isFilled = editRating >= star
-                      const isHalfFilled = editRating >= star - 0.5 && editRating < star
-                      
-                      return (
-                        <div key={star} className="relative">
-                          <Star className="w-8 h-8 sm:w-9 sm:h-9 text-gray-700" />
-                          {(isFilled || isHalfFilled) && (
-                            <div
-                              className="absolute inset-0 overflow-hidden pointer-events-none"
-                              style={{ width: isHalfFilled ? '50%' : '100%' }}
-                            >
-                              <Star className="w-8 h-8 sm:w-9 sm:h-9 fill-yellow-500 text-yellow-500" />
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
+           {/* ... (Existing Edit Entry Modal Content) ... */}
+           <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative shadow-2xl">
+             <button onClick={() => setSelectedEntry(null)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+             <h2 className="text-xl font-bold mb-1 pr-8 leading-tight">{selectedEntry.title}</h2>
+             <p className="text-gray-400 text-sm mb-6 capitalize">{selectedEntry.media_type}</p>
+             <div className="space-y-4">
+                {/* Status */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                    {[{ value: 'completed', label: 'Completed' }, { value: 'in-progress', label: 'In Progress' }, { value: 'planned', label: 'Plan to Watch' }, { value: 'logged', label: 'Library' }].map((s) => (
+                      <button key={s.value} onClick={() => setEditStatus(s.value as any)} className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${editStatus === s.value ? 'bg-red-500/10 border-red-500 text-red-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>{s.label}</button>
+                    ))}
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="10"
-                    step="1"
-                    value={editRating * 2}
-                    onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                    style={{
-                      background: `linear-gradient(to right, #eab308 0%, #eab308 ${(editRating / 5) * 100}%, #374151 ${(editRating / 5) * 100}%, #374151 100%)`
-                    }}
-                  />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Notes</label>
-                <textarea
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  rows={3}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 transition-colors text-white"
-                  placeholder="What did you think?"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleDeleteEntry}
-                  disabled={isUpdating}
-                  className="px-4 py-3 rounded-xl border border-gray-700 text-gray-400 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-colors flex items-center justify-center gap-2"
-                >
-                  {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={handleUpdateEntry}
-                  disabled={isUpdating}
-                  className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50"
-                >
-                  {isUpdating ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
-          </div>
+                {/* Rating */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating {editRating > 0 && `(${editRating}/5)`}</label>
+                  <div className="flex gap-1 items-center justify-center mb-2">{[1, 2, 3, 4, 5].map((star) => (<Star key={star} className={`w-8 h-8 ${editRating >= star ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}`} />))}</div>
+                  <input type="range" min="0" max="10" step="1" value={editRating * 2} onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                </div>
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Notes</label>
+                  <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={3} className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 text-white" placeholder="What did you think?" />
+                </div>
+                {/* Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button onClick={handleDeleteEntry} className="px-4 py-3 rounded-xl border border-gray-700 text-gray-400 hover:bg-red-500/10 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
+                  <button onClick={handleUpdateEntry} className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3 rounded-xl">Save Changes</button>
+                </div>
+             </div>
+           </div>
         </div>
       )}
     </div>
