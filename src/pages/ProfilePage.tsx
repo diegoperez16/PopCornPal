@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Loader2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker } from 'lucide-react'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker } from 'lucide-react'
 import { supabase, type Badge, type UserBadge } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
@@ -34,7 +34,7 @@ export default function ProfilePage() {
 
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
-  const [isUpdating, setIsUpdating] = useState(false)
+  // Removed unused isUpdating state
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in-progress' | 'planned'>('all')
   
   // Edit Entry Form State
