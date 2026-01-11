@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { supabase, type UserBadge } from '../lib/supabase'
-import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Star, User } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, User, Crown, Beaker } from 'lucide-react'
 
 type UserProfile = {
   id: string
@@ -10,18 +10,9 @@ type UserProfile = {
   full_name: string | null
   bio: string | null
   avatar_url: string | null
+  bg_url: string | null
+  bg_opacity: number | null
   created_at: string
-}
-
-type MediaEntry = {
-  id: string
-  title: string
-  media_type: 'movie' | 'show' | 'game' | 'book'
-  status: 'completed' | 'in-progress' | 'planned' | 'logged'
-  rating: number | null
-  cover_image_url: string | null
-  created_at: string
-  completed_date: string | null
 }
 
 type Post = {
@@ -48,42 +39,27 @@ export default function UserProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
-  const [mediaEntries, setMediaEntries] = useState<MediaEntry[]>([])
-  const [entryCounts, setEntryCounts] = useState({ movie: 0, show: 0, game: 0, book: 0 })
+  
   const [followersCount, setFollowersCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [isFollowing, setIsFollowing] = useState(false)
+  
   const [initialLoading, setInitialLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
-  const [filterType, setFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
-  const [showLibrary, setShowLibrary] = useState(false)
 
   useEffect(() => {
     if (username) {
-      Promise.all([
-        fetchUserProfile(),
-      ]).finally(() => setInitialLoading(false))
+      fetchUserProfile().finally(() => setInitialLoading(false))
     }
   }, [username])
-
-  const fetchUserBadges = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_badges')
-      .select('*, badges(*)')
-      .eq('user_id', userId)
-    
-    if (data) {
-      setUserBadges(data as UserBadge[])
-    }
-  }
 
   const fetchUserProfile = async () => {
     if (!username) return
     setLoading(true)
 
     try {
-      // Fetch user profile
+      // 1. Fetch Profile First
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -93,81 +69,84 @@ export default function UserProfilePage() {
       if (profileError) throw profileError
       setProfile(profileData)
 
-      // Fetch user's badges
-      await fetchUserBadges(profileData.id)
+      // 2. Parallelize all other independent queries
+      const [
+        badgesResult,
+        postsResult,
+        followersResult,
+        followingResult,
+        currentUserFollowResult
+      ] = await Promise.all([
+        // A. Fetch Badges
+        supabase
+          .from('user_badges')
+          .select('*, badges(*)')
+          .eq('user_id', profileData.id),
 
-      // Fetch user's posts
-      const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select(`
-          *,
-          profiles:user_id (username, avatar_url),
-          media_entries:media_entry_id (title, media_type, rating, cover_image_url)
-        `)
-        .eq('user_id', profileData.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
+        // B. Fetch Posts
+        supabase
+          .from('posts')
+          .select(`
+            *,
+            profiles:user_id (username, avatar_url),
+            media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+            likes:post_likes(count),
+            comments:post_comments(count)
+          `)
+          .eq('user_id', profileData.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
 
-      if (postsError) throw postsError
+        // C. Fetch Followers Count
+        supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileData.id),
 
-      // Fetch likes and comments counts for each post
-      const postsWithCounts = await Promise.all(
-        (postsData || []).map(async (post) => {
-          const [{ count: likesCount }, { count: commentsCount }, { data: userLike }] = await Promise.all([
-            supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('post_comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            currentUser ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', currentUser.id).single() : { data: null }
-          ])
+        // D. Fetch Following Count
+        supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profileData.id),
 
-          return {
-            ...post,
-            likes_count: likesCount || 0,
-            comments_count: commentsCount || 0,
-            user_liked: !!userLike
-          }
-        })
-      )
-
-      setPosts(postsWithCounts)
-
-      // Fetch media entries - only logged items for library
-      const { data: entries, error: entriesError } = await supabase
-        .from('media_entries')
-        .select('*')
-        .eq('user_id', profileData.id)
-        .eq('status', 'logged')
-        .order('created_at', { ascending: false })
-
-      if (entriesError) throw entriesError
-      setMediaEntries(entries || [])
-
-      // Calculate entry counts - only logged items
-      const counts = { movie: 0, show: 0, game: 0, book: 0 }
-      entries?.forEach(entry => {
-        counts[entry.media_type as keyof typeof counts]++
-      })
-      setEntryCounts(counts)
-
-      // Fetch follow counts
-      const [{ count: followersCount }, { count: followingCount }] = await Promise.all([
-        supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileData.id),
-        supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', profileData.id)
+        // E. Check if WE follow THEM
+        currentUser && currentUser.id !== profileData.id
+          ? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id).eq('following_id', profileData.id)
+          : Promise.resolve({ count: 0, error: null })
       ])
 
-      setFollowersCount(followersCount || 0)
-      setFollowingCount(followingCount || 0)
-
-      // Check if current user is following this profile
-      if (currentUser && currentUser.id !== profileData.id) {
-        const { count, error: followCheckError } = await supabase
-          .from('follows')
-          .select('follower_id', { count: 'exact', head: true })
-          .eq('follower_id', currentUser.id)
-          .eq('following_id', profileData.id)
-        
-        // Set to true if we found a follow record (count > 0)
-        setIsFollowing(!followCheckError && (count || 0) > 0)
+      // 3. Process Badges
+      if (badgesResult.data) {
+        setUserBadges(badgesResult.data as UserBadge[])
       }
+
+      // 4. Process Follow Counts
+      setFollowersCount(followersResult.count || 0)
+      setFollowingCount(followingResult.count || 0)
+      setIsFollowing((currentUserFollowResult.count || 0) > 0)
+
+      // 5. Process Posts
+      if (postsResult.data) {
+        const rawPosts = postsResult.data
+        const postIds = rawPosts.map(p => p.id)
+        let likedPostIds = new Set<string>()
+
+        if (currentUser && postIds.length > 0) {
+          const { data: userLikes } = await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', currentUser.id)
+            .in('post_id', postIds)
+          
+          if (userLikes) {
+            userLikes.forEach(like => likedPostIds.add(like.post_id))
+          }
+        }
+
+        const formattedPosts: Post[] = rawPosts.map((post: any) => ({
+          ...post,
+          likes_count: post.likes?.[0]?.count || 0,
+          comments_count: post.comments?.[0]?.count || 0,
+          user_liked: likedPostIds.has(post.id)
+        }))
+
+        setPosts(formattedPosts)
+      }
+
     } catch (error) {
       console.error('Error fetching user profile:', error)
     } finally {
@@ -181,7 +160,6 @@ export default function UserProfilePage() {
 
     try {
       if (isFollowing) {
-        // Unfollow
         const { error } = await supabase
           .from('follows')
           .delete()
@@ -192,7 +170,6 @@ export default function UserProfilePage() {
         setIsFollowing(false)
         setFollowersCount(prev => prev - 1)
       } else {
-        // Follow
         const { error } = await supabase
           .from('follows')
           .insert({
@@ -219,7 +196,6 @@ export default function UserProfilePage() {
 
     try {
       if (post.user_liked) {
-        // Unlike
         await supabase
           .from('post_likes')
           .delete()
@@ -228,7 +204,6 @@ export default function UserProfilePage() {
 
         setPosts(posts.map(p => p.id === postId ? { ...p, likes_count: p.likes_count - 1, user_liked: false } : p))
       } else {
-        // Like
         await supabase
           .from('post_likes')
           .insert({
@@ -253,11 +228,20 @@ export default function UserProfilePage() {
     }
   }
 
+  // --- LOGIC TO SPLIT BADGES ---
+  const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
+  const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')
+  
+  // Filter out special badges from the regular list so they don't show twice
+  const regularBadges = userBadges.filter(ub => {
+    const name = ub.badges?.name.toLowerCase()
+    return name !== 'creator' && name !== 'alpha tester'
+  })
+
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         <div className="text-center">
-          {/* Animated Icons */}
           <div className="mb-8 relative flex items-center justify-center gap-6">
             <Users className="w-16 h-16 text-purple-500 animate-pulse" />
             <div className="relative">
@@ -266,7 +250,6 @@ export default function UserProfilePage() {
             </div>
             <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
           </div>
-          {/* Loading Text */}
           <div className="space-y-2">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
               Loading profile...
@@ -303,7 +286,6 @@ export default function UserProfilePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      {/* Loading Bar */}
       {loading && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
           <div className="h-full bg-gradient-to-r from-red-500 to-pink-500 animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
@@ -321,43 +303,119 @@ export default function UserProfilePage() {
         </button>
 
         {/* Profile Header */}
-        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 sm:p-8 mb-6">
-          <div className="flex flex-col sm:flex-row items-start gap-6">
+        <div className="relative bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-5 sm:p-8 mb-6 overflow-hidden">
+          {/* Background Image */}
+          {profile.bg_url && (
+            <div
+              className="absolute inset-0 z-0"
+              style={{
+                opacity: (profile.bg_opacity || 80) / 100,
+              }}
+            >
+              <img
+                src={profile.bg_url}
+                alt="Profile background"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          
+          <div className="relative z-10 flex flex-col sm:flex-row items-start gap-6">
             {/* Avatar */}
             <div className="flex-shrink-0 mx-auto sm:mx-0">
-              <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-4xl font-bold shadow-lg shadow-red-500/20">
-                {profile.avatar_url ? (
-                  <img 
-                    src={profile.avatar_url} 
-                    alt={profile.username} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                      e.currentTarget.parentElement!.innerHTML = profile.username.charAt(0).toUpperCase()
-                    }}
-                  />
-                ) : (
-                  profile.username.charAt(0).toUpperCase()
-                )}
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-4xl font-bold shadow-lg shadow-red-500/20">
+                  {profile.avatar_url ? (
+                    <img 
+                      src={profile.avatar_url} 
+                      alt={profile.username} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                        e.currentTarget.parentElement!.innerHTML = profile.username.charAt(0).toUpperCase()
+                      }}
+                    />
+                  ) : (
+                    profile.username.charAt(0).toUpperCase()
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Profile Info */}
-            <div className="flex-1 w-full text-center sm:text-left">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between mb-4">
+            <div className="flex-1 w-full text-center sm:text-left flex flex-col gap-4">
+              <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 mb-2">
+                <h2 className="text-2xl font-bold mb-1">@{profile.username}</h2>
+                {profile.full_name && (
+                  <p className="text-gray-400 text-lg mb-1">{profile.full_name}</p>
+                )}
                 <div>
-                  <h2 className="text-2xl font-bold">@{profile.username}</h2>
-                  {profile.full_name && (
-                    <p className="text-gray-400">{profile.full_name}</p>
+                  {profile.bio ? (
+                    <p className="text-gray-300 text-center sm:text-left">{profile.bio}</p>
+                  ) : (
+                    <p className="text-gray-500 italic text-center sm:text-left">No bio yet.</p>
                   )}
+                </div>
+              </div>
+
+              {/* === BADGES SECTION === */}
+              {userBadges.length > 0 && (
+                <div className="space-y-4">
                   
-                  {/* Badges */}
-                  {userBadges.length > 0 && (
-                    <div className="flex flex-wrap gap-3 mt-3 justify-center sm:justify-start">
-                      {userBadges.map((userBadge) => {
+                  {/* 1. CREATOR BADGE SUB-SECTION */}
+                  {creatorBadge && (
+                    <div className="bg-gradient-to-r from-gray-900/90 to-purple-900/20 border border-purple-500/30 rounded-xl p-3 flex items-center justify-between sm:justify-start gap-4">
+                      <div className="flex items-center gap-2 text-purple-300 font-semibold text-sm uppercase tracking-wider">
+                        <Crown className="w-4 h-4 text-yellow-400" />
+                        <span>Creator Status</span>
+                      </div>
+                      
+                      {/* High-Impact Creator Badge */}
+                      <div className="relative overflow-hidden rounded-lg shadow-[0_0_30px_rgba(236,72,153,0.8)] ring-4 ring-pink-500/50 animate-[pulse_2s_infinite] scale-110 z-10 brightness-110 w-32 h-10 flex-shrink-0">
+                        {creatorBadge.badges?.gif_url ? (
+                          <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}>
+                            <img src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/>
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500"></div>
+                        )}
+                        <div className="relative h-full flex items-center justify-center gap-1.5">
+                          <span className="text-sm font-black text-white uppercase tracking-widest drop-shadow-md">CREATOR</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. ALPHA TESTER SUB-SECTION */}
+                  {alphaBadge && (
+                    <div className="bg-gradient-to-r from-gray-900/90 to-cyan-900/20 border border-cyan-500/30 rounded-xl p-3 flex items-center justify-between sm:justify-start gap-4">
+                      <div className="flex items-center gap-2 text-cyan-300 font-semibold text-sm uppercase tracking-wider">
+                        <Beaker className="w-4 h-4 text-cyan-400" />
+                        <span>Alpha Status</span>
+                      </div>
+                      
+                      {/* High-Impact Alpha Badge */}
+                      <div className="relative overflow-hidden rounded-lg shadow-[0_0_30px_rgba(34,211,238,0.8)] ring-4 ring-cyan-500/50 animate-[pulse_3s_infinite] scale-105 z-10 brightness-110 w-36 h-10 flex-shrink-0">
+                        {alphaBadge.badges?.gif_url ? (
+                          <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}>
+                            <img src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/>
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500"></div>
+                        )}
+                        <div className="relative h-full flex items-center justify-center gap-1.5">
+                          <span className="text-sm font-black text-white uppercase tracking-widest drop-shadow-md">ALPHA TESTER</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. REGULAR BADGES LIST */}
+                  {regularBadges.length > 0 && (
+                    <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 justify-center sm:justify-start">
+                      {regularBadges.map((userBadge) => {
                         const badge = userBadge.badges!
                         
-                        // Map color to gradient and glow
                         const colorEffects: Record<string, { gradient: string, glow: string }> = {
                           'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
                           'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
@@ -382,18 +440,12 @@ export default function UserProfilePage() {
                           'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
                           'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
                         }
-                        
-                        const effects = colorEffects[badge.color] || { 
-                          gradient: 'from-gray-600 via-gray-500 to-gray-400', 
-                          glow: 'shadow-gray-500/50' 
-                        }
-                        
+                        const effects = colorEffects[badge.color] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
                         return (
                           <div
                             key={userBadge.id}
                             className={`relative overflow-hidden rounded-lg shadow-lg ${effects.glow} transform hover:scale-105 transition-transform`}
                           >
-                            {/* Animated GIF Background (if exists, use it instead of gradient) */}
                             {badge.gif_url ? (
                               <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
                                 <img 
@@ -403,10 +455,8 @@ export default function UserProfilePage() {
                                 />
                               </div>
                             ) : (
-                              /* Gradient Overlay (only if no GIF) */
                               <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}></div>
                             )}
-                            {/* Badge Content */}
                             <div className="relative px-3 py-1.5 flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                               <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">
@@ -419,13 +469,15 @@ export default function UserProfilePage() {
                     </div>
                   )}
                 </div>
+              )}
 
-                {/* Follow Button */}
-                {!isOwnProfile && currentUser && (
+              {/* Actions Area */}
+              {!isOwnProfile && currentUser && (
+                <div className="flex gap-2 justify-center sm:justify-start">
                   <button
                     onClick={handleFollow}
                     disabled={followLoading}
-                    className={`mt-4 sm:mt-0 flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                       isFollowing
                         ? 'bg-gray-700 hover:bg-gray-600 text-white'
                         : 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white'
@@ -445,41 +497,10 @@ export default function UserProfilePage() {
                       </>
                     )}
                   </button>
-                )}
-              </div>
-
-              {/* Bio */}
-              {profile.bio ? (
-                <p className="text-gray-300 text-center sm:text-left">{profile.bio}</p>
-              ) : (
-                <p className="text-gray-500 italic text-center sm:text-left">No bio yet.</p>
+                </div>
               )}
             </div>
           </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          {[
-            { label: 'Movies', count: entryCounts.movie, icon: Film, type: 'movie' as const },
-            { label: 'Shows', count: entryCounts.show, icon: Tv, type: 'show' as const },
-            { label: 'Games', count: entryCounts.game, icon: Gamepad2, type: 'game' as const },
-            { label: 'Books', count: entryCounts.book, icon: Book, type: 'book' as const },
-          ].map((stat) => (
-            <button
-              key={stat.label}
-              onClick={() => setFilterType(filterType === stat.type ? null : stat.type)}
-              className={`bg-gray-800/50 backdrop-blur-sm border rounded-xl p-4 sm:p-6 text-center group hover:border-gray-600 transition-all cursor-pointer ${
-                filterType === stat.type ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-700'
-              }`}
-            >
-              <stat.icon className="w-6 h-6 mx-auto mb-2 text-gray-500 group-hover:text-white transition-colors" />
-              <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
-                {stat.count}
-              </div>
-              <div className="text-gray-400 text-xs sm:text-sm mt-1">{stat.label}</div>
-            </button>
-          ))}
         </div>
 
         {/* Social Stats */}
@@ -505,20 +526,6 @@ export default function UserProfilePage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-semibold">Posts ({posts.length})</h3>
           </div>
-
-          {/* View Library Button */}
-          <button
-            onClick={() => setShowLibrary(!showLibrary)}
-            className="w-full mb-4 bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-3">
-              <Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-              <span className="text-gray-300 group-hover:text-white font-medium transition-colors">
-                {showLibrary ? 'Hide' : 'View'} {profile.username}'s Library
-              </span>
-            </div>
-            <span className="text-gray-500 group-hover:text-gray-300 transition-colors">{showLibrary ? '↓' : '→'}</span>
-          </button>
           
           {posts.length === 0 ? (
             <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-8 text-center">
@@ -609,56 +616,6 @@ export default function UserProfilePage() {
             </div>
           )}
         </div>
-
-        {/* Library Section - Expandable */}
-        {showLibrary && mediaEntries.length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-xl font-semibold mb-4">
-              {profile.username}'s Library ({filterType ? mediaEntries.filter(e => e.media_type === filterType).length : mediaEntries.length})
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {(filterType ? mediaEntries.filter(e => e.media_type === filterType) : mediaEntries).map((entry) => {
-                const Icon = getMediaIcon(entry.media_type)
-                return (
-                  <div
-                    key={entry.id}
-                    className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all group"
-                  >
-                    {/* Cover Image or Icon */}
-                    <div className="aspect-[2/3] bg-gray-900/50 flex items-center justify-center relative overflow-hidden">
-                      {entry.cover_image_url ? (
-                        <img
-                          src={entry.cover_image_url}
-                          alt={entry.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
-                          }}
-                        />
-                      ) : (
-                        <Icon className="w-12 h-12 text-gray-600" />
-                      )}
-                      {/* Rating Badge */}
-                      {entry.rating && (
-                        <div className="absolute top-2 right-2 bg-black/80 backdrop-blur-sm rounded-full px-2 py-1 flex items-center gap-1">
-                          <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                          <span className="text-xs font-semibold text-white">{entry.rating}</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Title */}
-                    <div className="p-3">
-                      <p className="font-semibold text-sm text-white line-clamp-2 group-hover:text-red-400 transition-colors">
-                        {entry.title}
-                      </p>
-                      <p className="text-xs text-gray-400 capitalize mt-1">{entry.media_type}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
