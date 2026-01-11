@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      supabase.auth.onAuthStateChange(async (event, session) => {
+      supabase.auth.onAuthStateChange(async (_event, session) => {
         // Only update state if it actually changed
         const currentUser = get().user
         if (session?.user?.id !== currentUser?.id) {
