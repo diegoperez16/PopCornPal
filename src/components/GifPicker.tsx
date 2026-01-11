@@ -51,8 +51,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] sm:max-h-[80vh] overflow-hidden border border-gray-700 flex flex-col">
+    <div className="bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] sm:max-h-[80vh] overflow-hidden border border-gray-700 flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700 flex-shrink-0">
           <h3 className="text-base sm:text-lg font-semibold text-white">Choose a GIF</h3>
@@ -98,6 +97,5 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
           )}
         </div>
       </div>
-    </div>
   )
 }

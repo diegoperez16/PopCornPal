@@ -56,7 +56,6 @@ type CommentThreadProps = {
   setReplyImageUrl: (url: string) => void
   onUploadReplyImage: (file: File, commentId: string) => Promise<void>
   uploadingReplyImage: boolean
-  showReplyGifPicker: boolean
   setShowReplyGifPicker: (show: boolean) => void
 }
 
@@ -74,7 +73,6 @@ function CommentThread({
   setReplyImageUrl,
   onUploadReplyImage,
   uploadingReplyImage,
-  showReplyGifPicker,
   setShowReplyGifPicker
 }: CommentThreadProps) {
   const formatTimeAgo = (dateString: string) => {
@@ -89,10 +87,10 @@ function CommentThread({
     return date.toLocaleDateString()
   }
 
-  const maxDepth = 5 // Limit nesting depth
+  const hasReplies = comment.replies && comment.replies.length > 0
 
   return (
-    <div className={`${depth > 0 ? 'ml-8 mt-3' : ''}`}>
+    <div className={`${depth > 0 ? 'ml-6 mt-3' : ''}`}>
       <div className="flex gap-3">
         <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
           {comment.profiles.avatar_url ? (
@@ -128,12 +126,23 @@ function CommentThread({
               <p className="text-xs text-gray-500">
                 {formatTimeAgo(comment.created_at)}
               </p>
-              {depth < maxDepth && (
+              <button
+                onClick={() => onReply(comment.id)}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Reply
+              </button>
+              {hasReplies && depth === 0 && (
                 <button
-                  onClick={() => onReply(comment.id)}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  onClick={() => {
+                    // This will be handled by parent component
+                    const event = new CustomEvent('openThread', { detail: { comment, postId } })
+                    window.dispatchEvent(event)
+                  }}
+                  className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
                 >
-                  Reply
+                  <MessageCircle className="w-3 h-3" />
+                  {comment.replies!.length} {comment.replies!.length === 1 ? 'reply' : 'replies'}
                 </button>
               )}
             </div>
@@ -195,37 +204,16 @@ function CommentThread({
                   type="url"
                   value={replyImageUrl}
                   onChange={(e) => setReplyImageUrl(e.target.value)}
-                  placeholder="Or paste image URL"
+                  placeholder="Or paste image/GIF URL"
                   className="flex-1 px-2 py-1 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
           )}
 
-          {/* Nested Replies */}
-          {comment.replies && comment.replies.length > 0 && (
-            <div className="mt-2">
-              {comment.replies.map((reply) => (
-                <CommentThread
-                  key={reply.id}
-                  comment={reply}
-                  postId={postId}
-                  depth={depth + 1}
-                  onReply={onReply}
-                  replyingTo={replyingTo}
-                  replyText={replyText}
-                  setReplyText={setReplyText}
-                  onSubmitReply={onSubmitReply}
-                  postingComment={postingComment}
-                  replyImageUrl={replyImageUrl}
-                  setReplyImageUrl={setReplyImageUrl}
-                  onUploadReplyImage={onUploadReplyImage}
-                  uploadingReplyImage={uploadingReplyImage}
-                  showReplyGifPicker={showReplyGifPicker}
-                  setShowReplyGifPicker={setShowReplyGifPicker}
-                />
-              ))}
-            </div>
+          {/* Show first-level replies only (depth 0), hide deeper nesting */}
+          {comment.replies && comment.replies.length > 0 && depth === 0 && (
+            <div></div>
           )}
         </div>
       </div>
@@ -268,6 +256,9 @@ export default function FeedPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [visiblePostsCount, setVisiblePostsCount] = useState(5)
+  const [threadModalComment, setThreadModalComment] = useState<Comment | null>(null)
+  const [threadModalPostId, setThreadModalPostId] = useState<string | null>(null)
+  const [showModalReplyGifPicker, setShowModalReplyGifPicker] = useState(false)
   const lastFetchRef = useRef<number>(0)
 
   useEffect(() => {
@@ -295,6 +286,23 @@ export default function FeedPage() {
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Handle thread modal opening
+    const handleOpenThread = async (event: any) => {
+      const { comment, postId } = event.detail
+      setThreadModalComment(comment)
+      setThreadModalPostId(postId)
+      
+      // Fetch fresh comments to build parent chain
+      const result = await fetchComments(postId)
+      if (result && result.commentsMap) {
+        const freshComment = result.commentsMap.get(comment.id)
+        if (freshComment) {
+          setThreadModalComment(freshComment)
+        }
+      }
+    }
+    window.addEventListener('openThread', handleOpenThread as EventListener)
 
     // DISABLED real-time subscriptions - they saturate the database
     // Set up real-time subscriptions with debouncing
@@ -352,6 +360,7 @@ export default function FeedPage() {
     return () => {
       window.removeEventListener('scroll', handleScroll)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('openThread', handleOpenThread as EventListener)
       // supabase.removeChannel(postsChannel)
       // supabase.removeChannel(likesChannel)
       // supabase.removeChannel(commentsChannel)
@@ -716,8 +725,11 @@ export default function FeedPage() {
         ...prev,
         [postId]: rootComments
       }))
+      
+      return { rootComments, commentsMap }
     } catch (error) {
       console.error('Error fetching comments:', error)
+      return { rootComments: [], commentsMap: new Map() }
     }
   }
 
@@ -1232,7 +1244,6 @@ export default function FeedPage() {
                             setReplyImageUrl={setReplyImageUrl}
                             onUploadReplyImage={handleReplyImageUpload}
                             uploadingReplyImage={uploadingReplyImage}
-                            showReplyGifPicker={showReplyGifPicker}
                             setShowReplyGifPicker={setShowReplyGifPicker}
                           />
                         ))}
@@ -1368,33 +1379,55 @@ export default function FeedPage() {
 
       {/* GIF Pickers */}
       {showPostGifPicker && (
-        <GifPicker
-          onSelect={(gifUrl) => {
-            setUploadedImage(gifUrl)
-            setImageUrl('')
-          }}
-          onClose={() => setShowPostGifPicker(false)}
-        />
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowPostGifPicker(false)}>
+          <GifPicker
+            onSelect={(gifUrl) => {
+              setUploadedImage(gifUrl)
+              setImageUrl('')
+              setShowPostGifPicker(false)
+            }}
+            onClose={() => setShowPostGifPicker(false)}
+          />
+        </div>
       )}
       
       {showCommentGifPicker && (
-        <GifPicker
-          onSelect={(gifUrl) => {
-            setUploadedCommentImage(gifUrl)
-            setCommentImageUrl('')
-          }}
-          onClose={() => setShowCommentGifPicker(false)}
-        />
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowCommentGifPicker(false)}>
+          <GifPicker
+            onSelect={(gifUrl) => {
+              setUploadedCommentImage(gifUrl)
+              setCommentImageUrl('')
+              setShowCommentGifPicker(false)
+            }}
+            onClose={() => setShowCommentGifPicker(false)}
+          />
+        </div>
       )}
       
       {showReplyGifPicker && (
-        <GifPicker
-          onSelect={(gifUrl) => {
-            setUploadedReplyImage(gifUrl)
-            setReplyImageUrl('')
-          }}
-          onClose={() => setShowReplyGifPicker(false)}
-        />
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowReplyGifPicker(false)}>
+          <GifPicker
+            onSelect={(gifUrl) => {
+              setUploadedReplyImage(gifUrl)
+              setReplyImageUrl('')
+              setShowReplyGifPicker(false)
+            }}
+            onClose={() => setShowReplyGifPicker(false)}
+          />
+        </div>
+      )}
+
+      {/* Modal Reply GIF Picker */}
+      {showModalReplyGifPicker && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowModalReplyGifPicker(false)}>
+          <GifPicker
+            onSelect={(gifUrl) => {
+              setReplyImageUrl(gifUrl)
+              setShowModalReplyGifPicker(false)
+            }}
+            onClose={() => setShowModalReplyGifPicker(false)}
+          />
+        </div>
       )}
 
       {/* Scroll to Top Button */}
@@ -1409,6 +1442,384 @@ export default function FeedPage() {
       >
         <ArrowUp className="w-5 h-5" />
       </button>
+
+      {/* Thread Modal */}
+      {threadModalComment && threadModalPostId && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => {
+          setThreadModalComment(null)
+          setThreadModalPostId(null)
+        }}>
+          <div 
+            className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[75vh] md:max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4 flex items-center justify-between z-10">
+              <h3 className="text-lg font-semibold text-white">Thread</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    const result = await fetchComments(threadModalPostId!)
+                    // Update the modal comment with fresh data from the map
+                    if (result && result.commentsMap) {
+                      const freshComment = result.commentsMap.get(threadModalComment.id)
+                      if (freshComment) {
+                        setThreadModalComment(freshComment)
+                      }
+                    }
+                  }}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
+                  title="Refresh thread"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setThreadModalComment(null)
+                    setThreadModalPostId(null)
+                    setReplyingTo(null)
+                    setReplyText('')
+                    setReplyImageUrl('')
+                  }}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - Full Thread */}
+            <div className="p-4 space-y-4">
+              {/* Parent Chain - Show all parent comments leading to this one */}
+              {(() => {
+                const parentChain: Comment[] = []
+                let current = threadModalComment
+                const allComments = comments[threadModalPostId!] || []
+                const commentsMap = new Map<string, Comment>()
+                
+                // Build a map of all comments
+                const buildMap = (comments: Comment[]) => {
+                  comments.forEach(c => {
+                    commentsMap.set(c.id, c)
+                    if (c.replies) buildMap(c.replies)
+                  })
+                }
+                buildMap(allComments)
+                
+                // Build parent chain
+                while (current.parent_comment_id) {
+                  const parent = commentsMap.get(current.parent_comment_id)
+                  if (parent) {
+                    parentChain.unshift(parent)
+                    current = parent
+                  } else {
+                    break
+                  }
+                }
+                
+                return parentChain.map((parentComment) => (
+                  <div key={parentComment.id} className="flex gap-3 opacity-60">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {parentComment.profiles.avatar_url ? (
+                        <img src={parentComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white text-xs font-bold">
+                          {parentComment.profiles.username.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="bg-gray-800/30 rounded-lg p-3">
+                        <Link 
+                          to={`/user/${parentComment.profiles.username}`}
+                          className="text-sm font-semibold text-gray-300 hover:text-red-400 transition-colors inline-block mb-1"
+                          onClick={() => {
+                            setThreadModalComment(null)
+                            setThreadModalPostId(null)
+                          }}
+                        >
+                          @{parentComment.profiles.username}
+                        </Link>
+                        <p className="text-sm text-gray-400">{parentComment.content}</p>
+                        {parentComment.image_url && (
+                          <div className="mt-2">
+                            <img 
+                              src={parentComment.image_url} 
+                              alt="Parent comment" 
+                              className="max-w-full rounded-lg max-h-48 object-contain"
+                            />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            // Navigate to this parent comment
+                            setThreadModalComment(parentComment)
+                          }}
+                          className="text-xs text-blue-400 hover:text-blue-300 mt-2"
+                        >
+                          View this thread
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              })()}
+
+              {/* Focused Comment (the one user clicked on) */}
+              <div className="flex gap-3 border-l-2 border-red-500 pl-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {threadModalComment.profiles.avatar_url ? (
+                    <img src={threadModalComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-white text-sm font-bold">
+                      {threadModalComment.profiles.username.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="bg-gray-800/50 rounded-lg p-4">
+                    <Link 
+                      to={`/user/${threadModalComment.profiles.username}`}
+                      className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
+                      onClick={() => {
+                        setThreadModalComment(null)
+                        setThreadModalPostId(null)
+                        setReplyingTo(null)
+                        setReplyText('')
+                        setReplyImageUrl('')
+                      }}
+                    >
+                      @{threadModalComment.profiles.username}
+                    </Link>
+                    <p className="text-sm text-gray-300">{threadModalComment.content}</p>
+                    
+                    {threadModalComment.image_url && (
+                      <div className="mt-3">
+                        <img 
+                          src={threadModalComment.image_url} 
+                          alt="Comment attachment" 
+                          className="max-w-full rounded-lg max-h-96 object-contain"
+                        />
+                      </div>
+                    )}
+                    
+                    <p className="text-xs text-gray-500 mt-2">
+                      {(() => {
+                        const date = new Date(threadModalComment.created_at)
+                        const now = new Date()
+                        const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+                        
+                        if (seconds < 60) return 'just now'
+                        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+                        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+                        if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+                        return date.toLocaleDateString()
+                      })()}
+                    </p>
+                  </div>
+
+                  {/* Reply to Original Comment */}
+                  {replyingTo === threadModalComment.id ? (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !postingComment && replyText.trim()) {
+                              handleComment(threadModalPostId!, threadModalComment.id)
+                            }
+                          }}
+                          placeholder={`Reply to @${threadModalComment.profiles.username}...`}
+                          className="flex-1 px-3 py-2 text-sm bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={async () => {
+                            await handleComment(threadModalPostId!, threadModalComment.id)
+                            // Refresh the thread
+                            setTimeout(async () => {
+                              const result = await fetchComments(threadModalPostId!)
+                              if (result && result.commentsMap) {
+                                const freshComment = result.commentsMap.get(threadModalComment.id)
+                                if (freshComment) {
+                                  setThreadModalComment(freshComment)
+                                }
+                              }
+                            }, 500)
+                          }}
+                          disabled={!replyText.trim() || postingComment}
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {postingComment ? 'Posting...' : 'Reply'}
+                        </button>
+                      </div>
+                      <div className="flex gap-2 text-sm">
+                        <button
+                          onClick={() => setShowModalReplyGifPicker(true)}
+                          className="flex items-center gap-1 px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded transition-colors"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          GIF
+                        </button>
+                        <input
+                          type="url"
+                          value={replyImageUrl}
+                          onChange={(e) => setReplyImageUrl(e.target.value)}
+                          placeholder="Paste image/GIF URL (optional)"
+                          className="flex-1 px-2 py-1 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setReplyingTo(threadModalComment.id)}
+                      className="mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      Reply to @{threadModalComment.profiles.username}
+                    </button>
+                  )}
+
+                  {/* All Replies in Modal */}
+                  {threadModalComment.replies && threadModalComment.replies.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {threadModalComment.replies.map((reply) => (
+                        <div key={reply.id} className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {reply.profiles.avatar_url ? (
+                              <img src={reply.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-white text-xs font-bold">
+                                {reply.profiles.username.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="bg-gray-800/30 rounded-lg p-3">
+                              <Link 
+                                to={`/user/${reply.profiles.username}`}
+                                className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
+                                onClick={() => {
+                                  setThreadModalComment(null)
+                                  setThreadModalPostId(null)
+                                }}
+                              >
+                                @{reply.profiles.username}
+                              </Link>
+                              <p className="text-sm text-gray-300">{reply.content}</p>
+                              
+                              {reply.image_url && (
+                                <div className="mt-2">
+                                  <img 
+                                    src={reply.image_url} 
+                                    alt="Reply attachment" 
+                                    className="max-w-full rounded-lg max-h-64 object-contain"
+                                  />
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center gap-3 mt-2">
+                                <p className="text-xs text-gray-500">
+                                  {(() => {
+                                    const date = new Date(reply.created_at)
+                                    const now = new Date()
+                                    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+                                    
+                                    if (seconds < 60) return 'just now'
+                                    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+                                    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+                                    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+                                    return date.toLocaleDateString()
+                                  })()}
+                                </p>
+                                <button
+                                  onClick={() => setReplyingTo(reply.id)}
+                                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                >
+                                  Reply
+                                </button>
+                                {reply.replies && reply.replies.length > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setThreadModalComment(reply)
+                                    }}
+                                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                                  >
+                                    <MessageCircle className="w-3 h-3" />
+                                    {reply.replies.length} {reply.replies.length === 1 ? 'reply' : 'replies'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Reply Input for This Reply */}
+                            {replyingTo === reply.id && (
+                              <div className="mt-2 space-y-2">
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                    onKeyPress={(e) => {
+                                      if (e.key === 'Enter' && !postingComment && replyText.trim()) {
+                                        handleComment(threadModalPostId!, reply.id)
+                                      }
+                                    }}
+                                    placeholder={`Reply to @${reply.profiles.username}...`}
+                                    className="flex-1 px-3 py-2 text-sm bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={async () => {
+                                      await handleComment(threadModalPostId!, reply.id)
+                                      // Refresh the thread
+                                      setTimeout(async () => {
+                                        const result = await fetchComments(threadModalPostId!)
+                                        if (result && result.commentsMap) {
+                                          const freshComment = result.commentsMap.get(threadModalComment.id)
+                                          if (freshComment) {
+                                            setThreadModalComment(freshComment)
+                                          }
+                                        }
+                                      }, 500)
+                                    }}
+                                    disabled={!replyText.trim() || postingComment}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {postingComment ? 'Posting...' : 'Reply'}
+                                  </button>
+                                </div>
+                                <div className="flex gap-2 text-sm">
+                                  <button
+                                    onClick={() => setShowModalReplyGifPicker(true)}
+                                    className="flex items-center gap-1 px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded transition-colors"
+                                  >
+                                    <ImageIcon className="w-4 h-4" />
+                                    GIF
+                                  </button>
+                                  <input
+                                    type="url"
+                                    value={replyImageUrl}
+                                    onChange={(e) => setReplyImageUrl(e.target.value)}
+                                    placeholder="Paste image/GIF URL (optional)"
+                                    className="flex-1 px-2 py-1 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
