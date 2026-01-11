@@ -27,23 +27,17 @@ export default function ProfilePage() {
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [filterType, setFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
   
   // Edit Entry Form State
   const [editRating, setEditRating] = useState(0)
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
-
-  // Social Stats State
-  const [followersCount, setFollowersCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
 
   useEffect(() => {
     if (user) {
       Promise.all([
         fetchEntries(user.id), 
-        fetchFollowCounts(), 
         fetchBadges(), 
         fetchUserBadges()
       ]).finally(() => setInitialLoading(false))
@@ -53,7 +47,6 @@ export default function ProfilePage() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
         fetchEntries(user.id)
-        fetchFollowCounts()
         fetchUserBadges()
       }
     }
@@ -63,32 +56,6 @@ export default function ProfilePage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [user, fetchEntries])
-
-  const fetchFollowCounts = async () => {
-    if (!user) return
-    
-    try {
-      // Get followers count
-      const { count: followersCount, error: followersError } = await supabase
-        .from('follows')
-        .select('follower_id', { count: 'exact', head: true })
-        .eq('following_id', user.id)
-      
-      if (followersError) throw followersError
-      setFollowersCount(followersCount || 0)
-
-      // Get following count
-      const { count: followingCount, error: followingError } = await supabase
-        .from('follows')
-        .select('follower_id', { count: 'exact', head: true })
-        .eq('follower_id', user.id)
-      
-      if (followingError) throw followingError
-      setFollowingCount(followingCount || 0)
-    } catch (error) {
-      console.error('Error fetching follow counts:', error)
-    }
-  }
 
   const fetchBadges = async () => {
     // Fetch all available badges
@@ -650,270 +617,11 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          {[
-            { label: 'Movies', count: entries.filter(e => e.media_type === 'movie').length, icon: Film, type: 'movie' as const },
-            { label: 'Shows', count: entries.filter(e => e.media_type === 'show').length, icon: Tv, type: 'show' as const },
-            { label: 'Games', count: entries.filter(e => e.media_type === 'game').length, icon: Gamepad2, type: 'game' as const },
-            { label: 'Books', count: entries.filter(e => e.media_type === 'book').length, icon: Book, type: 'book' as const },
-          ].map((stat) => (
-            <button
-              key={stat.label}
-              onClick={() => setFilterType(filterType === stat.type ? null : stat.type)}
-              className={`bg-gray-800/50 backdrop-blur-sm border rounded-xl p-4 sm:p-6 text-center group hover:border-gray-600 transition-all cursor-pointer ${
-                filterType === stat.type ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-700'
-              }`}
-            >
-              <stat.icon className="w-6 h-6 mx-auto mb-2 text-gray-500 group-hover:text-white transition-colors" />
-              <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
-                {stat.count}
-              </div>
-              <div className="text-gray-400 text-xs sm:text-sm mt-1">{stat.label}</div>
-            </button>
-          ))}
-        </div>
-
-        {/* Social Stats */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <button
-            onClick={() => navigate('/people', { state: { initialTab: 'followers' } })}
-            className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 hover:border-purple-500/50 rounded-xl p-4 sm:p-6 text-center group transition-all cursor-pointer"
-          >
-            <Users className="w-6 h-6 mx-auto mb-2 text-purple-400 group-hover:text-purple-300 transition-colors" />
-            <div className="text-2xl sm:text-3xl font-bold text-white">
-              {followersCount}
-            </div>
-            <div className="text-gray-400 text-xs sm:text-sm mt-1">Followers</div>
-          </button>
-          <button
-            onClick={() => navigate('/people', { state: { initialTab: 'following' } })}
-            className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 hover:border-blue-500/50 rounded-xl p-4 sm:p-6 text-center group transition-all cursor-pointer"
-          >
-            <Users className="w-6 h-6 mx-auto mb-2 text-blue-400 group-hover:text-blue-300 transition-colors" />
-            <div className="text-2xl sm:text-3xl font-bold text-white">
-              {followingCount}
-            </div>
-            <div className="text-gray-400 text-xs sm:text-sm mt-1">Following</div>
-          </button>
-        </div>
-
-        {/* View Activity Button */}
-        <button
-          onClick={() => navigate('/activity')}
-          className="w-full mb-8 flex items-center justify-center gap-2 px-4 py-3 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 hover:border-gray-600 rounded-xl transition-all text-gray-300 hover:text-white"
-        >
-          <Calendar className="w-5 h-5" />
-          <span className="font-medium">View Your Activity</span>
-        </button>
-
-        {/* Currently Watching/Reading/Playing */}
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold mb-4">Currently Enjoying</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Latest Movie */}
-            {(() => {
-              const latestMovie = entries
-                .filter(e => e.media_type === 'movie')
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-              
-              return latestMovie ? (
-                <div className="bg-gradient-to-br from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Film className="w-5 h-5 text-red-400" />
-                    <span className="text-sm text-gray-400">Latest Movie</span>
-                  </div>
-                  <h4 className="font-semibold text-white mb-2 line-clamp-2">{latestMovie.title}</h4>
-                  {latestMovie.rating && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-gray-300">{latestMovie.rating}/5</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-4 flex items-center justify-center">
-                  <p className="text-gray-500 text-sm">No movies yet</p>
-                </div>
-              )
-            })()}
-
-            {/* Current Shows */}
-            {(() => {
-              const watchingShows = entries
-                .filter(e => e.media_type === 'show' && e.status === 'in-progress')
-                .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-              
-              const latestShow = watchingShows.length === 0 && entries
-                .filter(e => e.media_type === 'show' && e.status === 'completed')
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-              
-              return watchingShows.length > 0 ? (
-                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Tv className="w-5 h-5 text-purple-400" />
-                    <span className="text-sm text-gray-400">Watching</span>
-                  </div>
-                  <div className="space-y-2">
-                    {watchingShows.map((show, idx) => (
-                      <div key={show.id}>
-                        <h4 className="font-semibold text-white text-sm line-clamp-1">{show.title}</h4>
-                        {show.rating && (
-                          <div className="flex items-center gap-1 text-xs mt-0.5">
-                            <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                            <span className="text-gray-300">{show.rating}/5</span>
-                          </div>
-                        )}
-                        {idx < watchingShows.length - 1 && (
-                          <div className="border-t border-purple-500/20 my-2" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : latestShow ? (
-                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Tv className="w-5 h-5 text-purple-400" />
-                    <span className="text-sm text-gray-400">Latest Show</span>
-                  </div>
-                  <h4 className="font-semibold text-white mb-2 line-clamp-2">{latestShow.title}</h4>
-                  {latestShow.rating && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-gray-300">{latestShow.rating}/5</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-4 flex items-center justify-center">
-                  <p className="text-gray-500 text-sm">No shows yet</p>
-                </div>
-              )
-            })()}
-
-            {/* Current Games */}
-            {(() => {
-              const playingGames = entries
-                .filter(e => e.media_type === 'game' && e.status === 'in-progress')
-                .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-              
-              const latestGame = playingGames.length === 0 && entries
-                .filter(e => e.media_type === 'game' && (e.status === 'completed' || e.status === 'in-progress'))
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-              
-              return playingGames.length > 0 ? (
-                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Gamepad2 className="w-5 h-5 text-blue-400" />
-                    <span className="text-sm text-gray-400">Playing</span>
-                  </div>
-                  <div className="space-y-2">
-                    {playingGames.map((game, idx) => (
-                      <div key={game.id}>
-                        <h4 className="font-semibold text-white text-sm line-clamp-1">{game.title}</h4>
-                        {game.rating && (
-                          <div className="flex items-center gap-1 text-xs mt-0.5">
-                            <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                            <span className="text-gray-300">{game.rating}/5</span>
-                          </div>
-                        )}
-                        {idx < playingGames.length - 1 && (
-                          <div className="border-t border-blue-500/20 my-2" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : latestGame ? (
-                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Gamepad2 className="w-5 h-5 text-blue-400" />
-                    <span className="text-sm text-gray-400">Latest Game</span>
-                  </div>
-                  <h4 className="font-semibold text-white mb-2 line-clamp-2">{latestGame.title}</h4>
-                  <div className="flex items-center gap-2 text-sm">
-                    {latestGame.rating && (
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                        <span className="text-gray-300">{latestGame.rating}/5</span>
-                      </div>
-                    )}
-                    {latestGame.status === 'in-progress' && (
-                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
-                        In Progress
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-4 flex items-center justify-center">
-                  <p className="text-gray-500 text-sm">No games yet</p>
-                </div>
-              )
-            })()}
-
-            {/* Current Books */}
-            {(() => {
-              const readingBooks = entries
-                .filter(e => e.media_type === 'book' && e.status === 'in-progress')
-                .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-              
-              const latestBook = readingBooks.length === 0 && entries
-                .filter(e => e.media_type === 'book' && e.status === 'completed')
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-              
-              return readingBooks.length > 0 ? (
-                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Book className="w-5 h-5 text-green-400" />
-                    <span className="text-sm text-gray-400">Reading</span>
-                  </div>
-                  <div className="space-y-2">
-                    {readingBooks.map((book, idx) => (
-                      <div key={book.id}>
-                        <h4 className="font-semibold text-white text-sm line-clamp-1">{book.title}</h4>
-                        {book.rating && (
-                          <div className="flex items-center gap-1 text-xs mt-0.5">
-                            <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                            <span className="text-gray-300">{book.rating}/5</span>
-                          </div>
-                        )}
-                        {idx < readingBooks.length - 1 && (
-                          <div className="border-t border-green-500/20 my-2" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : latestBook ? (
-                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Book className="w-5 h-5 text-green-400" />
-                    <span className="text-sm text-gray-400">Latest Book</span>
-                  </div>
-                  <h4 className="font-semibold text-white mb-2 line-clamp-2">{latestBook.title}</h4>
-                  {latestBook.rating && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-gray-300">{latestBook.rating}/5</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-4 flex items-center justify-center">
-                  <p className="text-gray-500 text-sm">No books yet</p>
-                </div>
-              )
-            })()}
-          </div>
-        </div>
-
         {/* Recent Activity */}
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xl font-semibold">
-              {filterType ? `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} Activity` : 'Recent Activity'}
+              Recent Activity
             </h3>
             <button 
               onClick={() => navigate('/add')}
@@ -923,21 +631,33 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* View Library Button */}
-          <button
-            onClick={() => navigate('/library')}
-            className="w-full bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-3">
-              <Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-              <span className="text-gray-300 group-hover:text-white font-medium transition-colors">View Your Library</span>
-            </div>
-            <span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span>
-          </button>
+          {/* Quick Navigation Buttons */}
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => navigate('/library')}
+              className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3">
+                <Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                <span className="text-gray-300 group-hover:text-white font-medium transition-colors">Library</span>
+              </div>
+              <span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span>
+            </button>
+            <button
+              onClick={() => navigate('/activity')}
+              className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                <span className="text-gray-300 group-hover:text-white font-medium transition-colors">Activity</span>
+              </div>
+              <span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span>
+            </button>
+          </div>
 
-          {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).length > 0 ? (
+          {entries.filter(e => e.status !== 'logged').length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {entries.filter(e => e.status !== 'logged' && (!filterType || e.media_type === filterType)).map((entry) => {
+              {entries.filter(e => e.status !== 'logged').map((entry) => {
                 const Icon = getIcon(entry.media_type)
                 return (
                   <div

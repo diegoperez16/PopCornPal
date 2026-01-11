@@ -35,15 +35,17 @@ export default function ActivityPage() {
   }, [user, navigate, fetchEntries])
 
   useEffect(() => {
-    // Group entries by date
+    // Group entries by date, excluding 'logged' status entries
     const grouped: GroupedEntries = {}
-    entries.forEach(entry => {
-      const date = new Date(entry.created_at).toISOString().split('T')[0]
-      if (!grouped[date]) {
-        grouped[date] = []
-      }
-      grouped[date].push(entry)
-    })
+    entries
+      .filter(entry => entry.status !== 'logged')
+      .forEach(entry => {
+        const date = new Date(entry.created_at).toISOString().split('T')[0]
+        if (!grouped[date]) {
+          grouped[date] = []
+        }
+        grouped[date].push(entry)
+      })
     
     // Sort entries within each day by time (newest first)
     Object.keys(grouped).forEach(date => {
@@ -123,7 +125,7 @@ export default function ActivityPage() {
     new Date(b).getTime() - new Date(a).getTime()
   )
 
-  const totalEntriesCount = entries.length
+  const totalEntriesCount = entries.filter(entry => entry.status !== 'logged').length
   const daysActive = sortedDates.length
 
   return (
