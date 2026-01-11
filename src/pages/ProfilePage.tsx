@@ -11,22 +11,42 @@ export default function ProfilePage() {
   const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore()
   const navigate = useNavigate()
   
-  // Profile Editing State
-  const [isEditing, setIsEditing] = useState(false)
-  const [fullName, setFullName] = useState(profile?.full_name || '')
-  const [bio, setBio] = useState(profile?.bio || '')
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
+  // Profile Editing State - Initialized from LocalStorage if available
+  const [isEditing, setIsEditing] = useState(() => localStorage.getItem('popcorn_profile_is_editing') === 'true')
+  
+  const [fullName, setFullName] = useState(() => 
+    localStorage.getItem('popcorn_profile_fullname') || profile?.full_name || ''
+  )
+  const [bio, setBio] = useState(() => 
+    localStorage.getItem('popcorn_profile_bio') || profile?.bio || ''
+  )
+  const [avatarUrl, setAvatarUrl] = useState(() => 
+    localStorage.getItem('popcorn_profile_avatar_url') || profile?.avatar_url || ''
+  )
+  // uploadedAvatar is likely too large for simple localStorage text (base64), so we skip persisting it to keep it light
   const [uploadedAvatar, setUploadedAvatar] = useState<string | null>(null)
+  
   const [savingProfile, setSavingProfile] = useState(false)
   const [availableBadges, setAvailableBadges] = useState<Badge[]>([])
   const [userBadges, setUserBadges] = useState<UserBadge[]>([])
-  const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>([])
+  
+  const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('popcorn_profile_badges')
+    return saved ? JSON.parse(saved) : []
+  })
+  
   const [showAvatarGifPicker, setShowAvatarGifPicker] = useState(false)
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
   
-  // Profile Background State
-  const [profileBgUrl, setProfileBgUrl] = useState(profile?.bg_url || '')
-  const [profileBgOpacity, setProfileBgOpacity] = useState(profile?.bg_opacity ?? 80)
+  // Profile Background State - Persisted
+  const [profileBgUrl, setProfileBgUrl] = useState(() => 
+    localStorage.getItem('popcorn_profile_bg_url') || profile?.bg_url || ''
+  )
+  const [profileBgOpacity, setProfileBgOpacity] = useState(() => {
+    const saved = localStorage.getItem('popcorn_profile_bg_opacity')
+    return saved ? parseInt(saved) : (profile?.bg_opacity ?? 80)
+  })
+  
   const [showBgGifPicker, setShowBgGifPicker] = useState(false) 
   const [showGifPickerModal, setShowGifPickerModal] = useState(false) 
   const [uploadedBgImage, setUploadedBgImage] = useState<string | null>(null)
@@ -34,7 +54,6 @@ export default function ProfilePage() {
 
   // Entry Management State
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
-  // Removed unused isUpdating state
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in-progress' | 'planned'>('all')
   
   // Edit Entry Form State
@@ -42,6 +61,28 @@ export default function ProfilePage() {
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
   const [initialLoading, setInitialLoading] = useState(true)
+
+  // --- PERSISTENCE EFFECT ---
+  useEffect(() => {
+    if (isEditing) {
+      localStorage.setItem('popcorn_profile_is_editing', 'true')
+      localStorage.setItem('popcorn_profile_fullname', fullName)
+      localStorage.setItem('popcorn_profile_bio', bio)
+      localStorage.setItem('popcorn_profile_avatar_url', avatarUrl)
+      localStorage.setItem('popcorn_profile_bg_url', profileBgUrl)
+      localStorage.setItem('popcorn_profile_bg_opacity', profileBgOpacity.toString())
+      localStorage.setItem('popcorn_profile_badges', JSON.stringify(selectedBadgeIds))
+    } else {
+      // Clear storage when not editing (saved or canceled)
+      localStorage.removeItem('popcorn_profile_is_editing')
+      localStorage.removeItem('popcorn_profile_fullname')
+      localStorage.removeItem('popcorn_profile_bio')
+      localStorage.removeItem('popcorn_profile_avatar_url')
+      localStorage.removeItem('popcorn_profile_bg_url')
+      localStorage.removeItem('popcorn_profile_bg_opacity')
+      localStorage.removeItem('popcorn_profile_badges')
+    }
+  }, [isEditing, fullName, bio, avatarUrl, profileBgUrl, profileBgOpacity, selectedBadgeIds])
 
   useEffect(() => {
     if (user) {
@@ -85,12 +126,16 @@ export default function ProfilePage() {
     
     if (data) {
       setUserBadges(data as UserBadge[])
-      setSelectedBadgeIds(data.map(ub => ub.badge_id))
+      // Only sync selection from DB if we are NOT currently editing a draft
+      if (localStorage.getItem('popcorn_profile_is_editing') !== 'true') {
+        setSelectedBadgeIds(data.map(ub => ub.badge_id))
+      }
     }
   }
 
+  // Sync state with DB profile only if NOT editing
   useEffect(() => {
-    if (profile) {
+    if (profile && !isEditing) {
       setFullName(profile.full_name || '')
       setBio(profile.bio || '')
       setAvatarUrl(profile.avatar_url || '')
@@ -99,7 +144,7 @@ export default function ProfilePage() {
       setProfileBgOpacity(profile.bg_opacity ?? 80)
       setUploadedBgImage(null)
     }
-  }, [profile])
+  }, [profile, isEditing])
 
   useEffect(() => {
     if (selectedEntry) {
@@ -144,7 +189,13 @@ export default function ProfilePage() {
           .eq('user_id', user.id)
           .in('badge_id', badgesToRemove)
       }
-      await fetchUserBadges()
+      // Force refresh badges to ensure view matches DB
+      const { data } = await supabase
+        .from('user_badges')
+        .select('*, badges(*)')
+        .eq('user_id', user.id)
+      if (data) setUserBadges(data as UserBadge[])
+
       setIsEditing(false)
       setUploadedAvatar(null)
       setUploadedBgImage(null)

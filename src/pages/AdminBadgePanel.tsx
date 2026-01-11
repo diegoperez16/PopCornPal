@@ -9,6 +9,16 @@ type Profile = {
   avatar_url: string | null
 }
 
+// Define the shape of our form data to fix the "implicit any" error
+type BadgeFormData = {
+  name: string
+  description: string
+  color: string
+  gif_url: string
+  opacity: number
+  admin_only: boolean
+}
+
 const BADGE_COLORS = [
   'purple-500', 'red-500', 'blue-500', 'green-500', 
   'yellow-500', 'pink-500', 'orange-500', 'cyan-500',
@@ -23,19 +33,49 @@ export default function AdminBadges() {
   // --- STATE: SCROLL TO TOP ---
   const [showScrollTop, setShowScrollTop] = useState(false)
 
-  // --- STATE: BADGE EDITOR ---
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [editingBadge, setEditingBadge] = useState<Badge | null>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '', 
-    color: 'purple-500',
-    gif_url: '',
-    opacity: 80,
-    admin_only: false
+  // --- STATE: BADGE EDITOR (PERSISTED) ---
+  // Lazy initialize from localStorage to restore state on refresh/resume
+  const [isEditModalOpen, setIsEditModalOpen] = useState(() => localStorage.getItem('popcorn_admin_badge_modal_open') === 'true')
+  
+  const [editingBadge, setEditingBadge] = useState<Badge | null>(() => {
+    const saved = localStorage.getItem('popcorn_admin_badge_editing_badge')
+    return saved ? JSON.parse(saved) : null
   })
+
+  // Explicitly typed useState<BadgeFormData> fixes the "prev implicitly any" error
+  const [formData, setFormData] = useState<BadgeFormData>(() => {
+    const saved = localStorage.getItem('popcorn_admin_badge_form_data')
+    return saved ? JSON.parse(saved) : {
+      name: '',
+      description: '', 
+      color: 'purple-500',
+      gif_url: '',
+      opacity: 80,
+      admin_only: false
+    }
+  })
+
   const [saving, setSaving] = useState(false)
   const [showGifPicker, setShowGifPicker] = useState(false)
+
+  // --- PERSISTENCE EFFECT ---
+  // Save form state to localStorage whenever it changes while editing
+  useEffect(() => {
+    if (isEditModalOpen) {
+      localStorage.setItem('popcorn_admin_badge_modal_open', 'true')
+      localStorage.setItem('popcorn_admin_badge_form_data', JSON.stringify(formData))
+      if (editingBadge) {
+        localStorage.setItem('popcorn_admin_badge_editing_badge', JSON.stringify(editingBadge))
+      } else {
+        localStorage.removeItem('popcorn_admin_badge_editing_badge')
+      }
+    } else {
+      // Clear storage when modal is closed (saved or canceled)
+      localStorage.removeItem('popcorn_admin_badge_modal_open')
+      localStorage.removeItem('popcorn_admin_badge_form_data')
+      localStorage.removeItem('popcorn_admin_badge_editing_badge')
+    }
+  }, [isEditModalOpen, formData, editingBadge])
 
   // --- STATE: USER MANAGER ---
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
@@ -310,7 +350,6 @@ export default function AdminBadges() {
       {/* --- MODAL 1: CREATE / EDIT BADGE --- */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          {/* FIX: Added pb-32 to this inner div to push content above mobile navbar when scrolling */}
           <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 pb-32 relative shadow-2xl overflow-y-auto max-h-[90vh]">
             <button
               onClick={() => setIsEditModalOpen(false)}
@@ -329,7 +368,7 @@ export default function AdminBadges() {
                 <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Name</label>
                 <input
                   value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
                   placeholder="e.g. Cinephile"
                 />
@@ -339,7 +378,7 @@ export default function AdminBadges() {
                 <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Description</label>
                 <textarea
                   value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all resize-none h-20"
                   placeholder="Short description for this badge..."
                 />
@@ -355,7 +394,7 @@ export default function AdminBadges() {
                     return (
                       <button
                         key={color}
-                        onClick={() => setFormData({ ...formData, color })}
+                        onClick={() => setFormData(prev => ({ ...prev, color }))}
                         className={`
                           w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center relative
                           bg-${colorName}-500 hover:scale-110
@@ -377,7 +416,7 @@ export default function AdminBadges() {
                   <div className="relative flex-1">
                     <input
                       value={formData.gif_url}
-                      onChange={e => setFormData({ ...formData, gif_url: e.target.value })}
+                      onChange={e => setFormData(prev => ({ ...prev, gif_url: e.target.value }))}
                       className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-3 text-white text-sm outline-none focus:border-purple-500 transition-all"
                       placeholder="GIF URL (or search →)"
                     />
@@ -411,7 +450,7 @@ export default function AdminBadges() {
                   min="10"
                   max="100"
                   value={formData.opacity}
-                  onChange={e => setFormData({ ...formData, opacity: Number(e.target.value) })}
+                  onChange={e => setFormData(prev => ({ ...prev, opacity: Number(e.target.value) }))}
                   className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                 />
               </div>
@@ -421,7 +460,7 @@ export default function AdminBadges() {
                   type="checkbox"
                   id="adminOnly"
                   checked={formData.admin_only}
-                  onChange={e => setFormData({ ...formData, admin_only: e.target.checked })}
+                  onChange={e => setFormData(prev => ({ ...prev, admin_only: e.target.checked }))}
                   className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
                 />
                 <label htmlFor="adminOnly" className="text-sm text-gray-300 select-none cursor-pointer flex-1">

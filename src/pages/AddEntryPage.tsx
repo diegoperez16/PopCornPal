@@ -8,23 +8,58 @@ import { supabase } from '../lib/supabase'
 
 type MediaType = 'movie' | 'show' | 'game' | 'book'
 
+// Helper to safely parse JSON from localStorage
+const loadState = <T,>(key: string, fallback: T): T => {
+  try {
+    const saved = localStorage.getItem(key)
+    return saved ? JSON.parse(saved) : fallback
+  } catch (e) {
+    return fallback
+  }
+}
+
 export default function AddEntryPage() {
   const navigate = useNavigate()
   const { addEntry } = useMediaStore()
   const { user } = useAuthStore()
   
-  const [activeTab, setActiveTab] = useState<MediaType>('movie')
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [searching, setSearching] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null)
+  // Initialize state from localStorage or defaults
+  const [activeTab, setActiveTab] = useState<MediaType>(() => loadState('popcorn_add_tab', 'movie'))
+  const [query, setQuery] = useState(() => loadState('popcorn_add_query', ''))
+  const [results, setResults] = useState<SearchResult[]>(() => loadState('popcorn_add_results', []))
+  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(() => loadState('popcorn_add_selected', null))
   
   // Form State
-  const [rating, setRating] = useState(0)
-  const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
-  const [notes, setNotes] = useState('')
+  const [rating, setRating] = useState(() => loadState('popcorn_add_rating', 0))
+  const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>(() => loadState('popcorn_add_status', 'completed'))
+  const [notes, setNotes] = useState(() => loadState('popcorn_add_notes', ''))
+  
+  const [searching, setSearching] = useState(false)
   const [saving, setSaving] = useState(false)
   const [duplicateError, setDuplicateError] = useState(false)
+
+  // --- PERSISTENCE EFFECT ---
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('popcorn_add_tab', JSON.stringify(activeTab))
+    localStorage.setItem('popcorn_add_query', JSON.stringify(query))
+    localStorage.setItem('popcorn_add_results', JSON.stringify(results))
+    localStorage.setItem('popcorn_add_selected', JSON.stringify(selectedItem))
+    localStorage.setItem('popcorn_add_rating', JSON.stringify(rating))
+    localStorage.setItem('popcorn_add_status', JSON.stringify(status))
+    localStorage.setItem('popcorn_add_notes', JSON.stringify(notes))
+  }, [activeTab, query, results, selectedItem, rating, status, notes])
+
+  // Clear persistence when successfully saved or manually cleared (optional, here we clear on success)
+  const clearPersistence = () => {
+    localStorage.removeItem('popcorn_add_query')
+    localStorage.removeItem('popcorn_add_results')
+    localStorage.removeItem('popcorn_add_selected')
+    localStorage.removeItem('popcorn_add_rating')
+    localStorage.removeItem('popcorn_add_status')
+    localStorage.removeItem('popcorn_add_notes')
+    // We keep 'popcorn_add_tab' as a user preference
+  }
 
   // Hide mobile nav when modal is open
   useEffect(() => {
@@ -105,6 +140,10 @@ export default function AddEntryPage() {
         year: selectedItem.year ? parseInt(selectedItem.year) : null,
         cover_image_url: selectedItem.image || null
       })
+      
+      // Clear draft on success
+      clearPersistence()
+      
       // Ensure mobile nav reappears
       setSelectedItem(null)
       navigate('/profile')
@@ -113,6 +152,13 @@ export default function AddEntryPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleCloseModal = () => {
+    setSelectedItem(null)
+    // Optional: Clear selection draft when closing modal explicitly?
+    // For now we keep it so they can reopen if accidental close.
+    // To clear just the selection: localStorage.removeItem('popcorn_add_selected')
   }
 
   const tabs = [
@@ -129,7 +175,10 @@ export default function AddEntryPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Add New Entry</h1>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              clearPersistence() // Clear drafts if they cancel out
+              navigate(-1)
+            }}
             className="p-2 hover:bg-gray-800 rounded-full transition-colors"
           >
             <X className="w-6 h-6" />
@@ -188,9 +237,13 @@ export default function AddEntryPage() {
               key={item.id}
               onClick={() => {
                 setSelectedItem(item)
-                setRating(0)
-                setStatus('completed')
-                setNotes('')
+                // Don't reset draft values if re-selecting the same item
+                // But generally safer to reset form defaults for a new selection
+                if (!selectedItem || selectedItem.id !== item.id) {
+                    setRating(0)
+                    setStatus('completed')
+                    setNotes('')
+                }
               }}
               className="flex gap-4 p-4 bg-gray-800/30 border border-gray-700/50 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer group"
             >
@@ -229,7 +282,7 @@ export default function AddEntryPage() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200 max-h-[90vh] overflow-y-auto">
               <button
-                onClick={() => setSelectedItem(null)}
+                onClick={handleCloseModal}
                 className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
               >
                 <X className="w-5 h-5" />
@@ -288,7 +341,7 @@ export default function AddEntryPage() {
                     <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
                       Rating {rating > 0 && `(${rating}/5)`}
                     </label>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {/* Star Display */}
                       <div className="flex gap-1 items-center justify-center">
                         {[1, 2, 3, 4, 5].map((star) => {
@@ -312,19 +365,37 @@ export default function AddEntryPage() {
                           )
                         })}
                       </div>
-                      {/* Slider */}
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        step="1"
-                        value={rating * 2}
-                        onChange={(e) => setRating(parseFloat(e.target.value) / 2)}
-                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                        style={{
-                          background: `linear-gradient(to right, #eab308 0%, #eab308 ${(rating / 5) * 100}%, #374151 ${(rating / 5) * 100}%, #374151 100%)`
-                        }}
-                      />
+                      
+                      {/* Improved Slider */}
+                      <div className="relative w-full h-8 flex items-center">
+                        {/* Custom Track Background */}
+                        <div className="absolute w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                             {/* Filled part of the track */}
+                             <div 
+                                className="h-full bg-yellow-500 transition-all duration-75 ease-out"
+                                style={{ width: `${(rating / 5) * 100}%` }}
+                             />
+                        </div>
+                        
+                        {/* Actual Range Input (Invisible but interactive) */}
+                        <input
+                          type="range"
+                          min="0"
+                          max="10"
+                          step="1"
+                          value={rating * 2}
+                          onChange={(e) => setRating(parseFloat(e.target.value) / 2)}
+                          className="absolute w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+
+                        {/* Custom Thumb (Visual Only) */}
+                        <div 
+                            className="absolute h-5 w-5 bg-white border-2 border-yellow-500 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
+                            style={{ 
+                                left: `calc(${(rating / 5) * 100}% - 10px)` // Centered on value
+                            }}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
