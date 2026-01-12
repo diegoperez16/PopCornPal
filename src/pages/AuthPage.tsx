@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
-import { Check, X, Eye, EyeOff, Mail } from 'lucide-react'
+import { Check, X, Eye, EyeOff } from 'lucide-react'
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin')
@@ -193,7 +193,7 @@ export default function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="you@example.com"
-                required
+                  required={mode !== 'forgot'}
               />
             </div>
 
