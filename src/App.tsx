@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { isSupabaseConfigured, supabase, safeSupabaseRequest } from './lib/supabase'
+import { isSupabaseConfigured } from './lib/supabase'
 import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
 import UserProfilePage from './pages/UserProfilePage'
@@ -16,7 +16,6 @@ import DesktopNav from './components/DesktopNav'
 import NotificationBanner from './components/NotificationBanner'
 
 function SetupMessage() {
-  console.log('SetupMessage is rendering!')
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
       <div className="max-w-2xl w-full bg-gray-800/50 backdrop-blur-sm border border-yellow-500/50 rounded-xl p-8">
@@ -25,37 +24,9 @@ function SetupMessage() {
           <h1 className="text-3xl font-bold text-white mb-2">Setup Required</h1>
           <p className="text-gray-400">PopcornPal needs to be connected to Supabase</p>
         </div>
-
         <div className="bg-gray-900/50 rounded-lg p-6 mb-6">
           <h2 className="text-xl font-semibold text-white mb-4">Quick Setup Steps:</h2>
-          <ol className="space-y-3 text-gray-300">
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 text-white text-sm flex items-center justify-center">1</span>
-              <span>Create a free Supabase account at <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">supabase.com</a></span>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 text-white text-sm flex items-center justify-center">2</span>
-              <span>Create a new project and run the SQL from <code className="bg-gray-800 px-2 py-1 rounded">supabase-schema.sql</code></span>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 text-white text-sm flex items-center justify-center">3</span>
-              <span>Copy <code className="bg-gray-800 px-2 py-1 rounded">.env.example</code> to <code className="bg-gray-800 px-2 py-1 rounded">.env</code></span>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 text-white text-sm flex items-center justify-center">4</span>
-              <span>Add your Supabase URL and anon key to <code className="bg-gray-800 px-2 py-1 rounded">.env</code></span>
-            </li>
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 text-white text-sm flex items-center justify-center">5</span>
-              <span>Restart the dev server: <code className="bg-gray-800 px-2 py-1 rounded">npm run dev</code></span>
-            </li>
-          </ol>
-        </div>
-
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-          <p className="text-blue-300 text-sm">
-            📖 <strong>Detailed guide:</strong> See <code className="bg-gray-800 px-2 py-1 rounded">SUPABASE_SETUP.md</code> for step-by-step instructions
-          </p>
+          <p className="text-gray-300">Please check SUPABASE_SETUP.md in your project files.</p>
         </div>
       </div>
     </div>
@@ -139,91 +110,8 @@ function HomePage() {
   )
 }
 
-function ConnectionGuardian() {
-  const { loading } = useAuthStore()
-
-  useEffect(() => {
-    const checkConnection = async () => {
-      // Only check if visible
-      if (document.visibilityState !== 'visible') return
-
-      console.log('App became visible, checking connection health...')
-      
-      try {
-        // Ping Supabase with a very short timeout
-        // We just check if we can make a simple query
-        await safeSupabaseRequest(
-          supabase.from('profiles').select('count').limit(1).maybeSingle() as any,
-          2000
-        )
-        console.log('Connection is healthy')
-      } catch (error) {
-        console.warn('Connection check failed on resume - reloading app to recover')
-        // If we are stuck loading OR if the ping failed, we reload
-        // But if we are NOT loading, maybe we shouldn't reload?
-        // The user said "if its loading then wait a few seconds and automatically refresh"
-        // But if the connection is dead, we SHOULD reload because next action will fail.
-        // However, to be safe and strictly follow "if its loading", we can check loading state.
-        
-        // But 'loading' might be false if auth finished but subsequent fetches are hanging.
-        // So a dead ping is a better indicator of "stuck" state than just the variable.
-        window.location.reload()
-      }
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkConnection()
-      }
-    }
-
-    const handleTimeout = () => {
-      console.warn('Received global supabase timeout event')
-      // Only reload if we are visible (user is actively trying to use the app)
-      // and prevent multiple reloads in short succession
-      if (document.visibilityState === 'visible') {
-        const lastReload = sessionStorage.getItem('last_auto_reload')
-        const now = Date.now()
-        
-        // Prevent reload loops - only reload if it's been at least 10 seconds since the last one
-        if (!lastReload || (now - parseInt(lastReload)) > 10000) {
-          console.warn('Reloading app due to connection timeout...')
-          sessionStorage.setItem('last_auto_reload', now.toString())
-          window.location.reload()
-        } else {
-          console.log('Skipping reload - too soon since last reload')
-        }
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('supabase-timeout', handleTimeout)
-    
-    // Also run check immediately if we are stuck loading for more than 5s on mount
-    let mountTimer: any
-    if (loading) {
-       mountTimer = setTimeout(() => {
-         if (loading) {
-           console.warn('Stuck loading on mount - checking connection')
-           checkConnection()
-         }
-       }, 5000)
-    }
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('supabase-timeout', handleTimeout)
-      if (mountTimer) clearTimeout(mountTimer)
-    }
-  }, [loading])
-
-  return null
-}
-
 function App() {
-  const { initialize, loading } = useAuthStore()
-
-  console.log('App is rendering!', { isSupabaseConfigured, loading })
+  const { initialize, resumeSession, loading } = useAuthStore()
 
   useEffect(() => {
     if (isSupabaseConfigured) {
@@ -231,14 +119,23 @@ function App() {
     }
   }, [initialize])
 
-  // Show setup message if Supabase is not configured
-  if (!isSupabaseConfigured) {
-    return <SetupMessage />
-  }
+  // Silent Rehydration: Check session in background without setting global loading
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Tab active: checking session health (silent)...')
+        resumeSession()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [resumeSession])
+
+  if (!isSupabaseConfigured) return <SetupMessage />
 
   return (
     <>
-      <ConnectionGuardian />
       {loading ? (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center">
@@ -258,8 +155,6 @@ function App() {
 function AppContent() {
   const location = useLocation()
   const { user } = useAuthStore()
-  
-  // Don't show nav on auth page or home page when logged out
   const showNav = user && location.pathname !== '/auth'
 
   return (

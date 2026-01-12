@@ -2,9 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useNavigate, Link } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, RefreshCw } from 'lucide-react'
-import { supabase, safeSupabaseRequest } from '../lib/supabase'
+import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, RefreshCw, WifiOff, Star, Search} from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
+// Find your lucide-react import and add 'Star' to the list
+
+
+// --- Types ---
 
 interface Post {
   id: string
@@ -42,6 +46,22 @@ interface Comment {
   replies?: Comment[]
 }
 
+// --- Helper Functions ---
+
+const formatTimeAgo = (dateString: string) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+  
+  if (seconds < 60) return 'just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+  return date.toLocaleDateString()
+}
+
+// --- Components ---
+
 type CommentThreadProps = {
   comment: Comment
   postId: string
@@ -75,18 +95,6 @@ function CommentThread({
   uploadingReplyImage,
   setShowReplyGifPicker
 }: CommentThreadProps) {
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-    
-    if (seconds < 60) return 'just now'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-    return date.toLocaleDateString()
-  }
-
   const hasReplies = comment.replies && comment.replies.length > 0
 
   return (
@@ -135,7 +143,6 @@ function CommentThread({
               {hasReplies && depth === 0 && (
                 <button
                   onClick={() => {
-                    // This will be handled by parent component
                     const event = new CustomEvent('openThread', { detail: { comment, postId } })
                     window.dispatchEvent(event)
                   }}
@@ -260,115 +267,166 @@ export default function FeedPage() {
   const [threadModalPostId, setThreadModalPostId] = useState<string | null>(null)
   const [showModalReplyGifPicker, setShowModalReplyGifPicker] = useState(false)
   const lastFetchRef = useRef<number>(0)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('')
+  const [mediaFilterType, setMediaFilterType] = useState<'all' | 'movie' | 'show' | 'game' | 'book'>('all')
+  // ...
+
+  // --- PERSISTENCE: Restore all drafts on mount ---
+  useEffect(() => {
+    // 1. Main Post
+    const savedPost = localStorage.getItem('popcorn_new_post_draft')
+    if (savedPost) setNewPost(savedPost)
+    
+    const savedMedia = localStorage.getItem('popcorn_post_media')
+    if (savedMedia) setSelectedMediaEntry(savedMedia)
+    
+    const savedImgUrl = localStorage.getItem('popcorn_post_img_url')
+    if (savedImgUrl) setImageUrl(savedImgUrl)
+
+    const savedUpload = localStorage.getItem('popcorn_post_upload')
+    if (savedUpload) setUploadedImage(savedUpload)
+
+    // 2. Comments
+    const savedComment = localStorage.getItem('popcorn_comment_draft')
+    if (savedComment) setCommentText(savedComment)
+
+    const savedCommentImgUrl = localStorage.getItem('popcorn_comment_img_url')
+    if (savedCommentImgUrl) setCommentImageUrl(savedCommentImgUrl)
+    
+    const savedCommentUpload = localStorage.getItem('popcorn_comment_upload')
+    if (savedCommentUpload) setUploadedCommentImage(savedCommentUpload)
+
+    // 3. Replies
+    const savedReply = localStorage.getItem('popcorn_reply_draft')
+    if (savedReply) setReplyText(savedReply)
+
+    const savedReplyTo = localStorage.getItem('popcorn_reply_to')
+    if (savedReplyTo) setReplyingTo(savedReplyTo)
+
+    const savedReplyImgUrl = localStorage.getItem('popcorn_reply_img_url')
+    if (savedReplyImgUrl) setReplyImageUrl(savedReplyImgUrl)
+
+    const savedReplyUpload = localStorage.getItem('popcorn_reply_upload')
+    if (savedReplyUpload) setUploadedReplyImage(savedReplyUpload)
+  }, [])
+
+  // --- PERSISTENCE: Save drafts on change ---
+  
+  // Save Post Draft
+  useEffect(() => {
+    localStorage.setItem('popcorn_new_post_draft', newPost)
+    
+    if (selectedMediaEntry) localStorage.setItem('popcorn_post_media', selectedMediaEntry)
+    else localStorage.removeItem('popcorn_post_media')
+    
+    if (imageUrl) localStorage.setItem('popcorn_post_img_url', imageUrl)
+    else localStorage.removeItem('popcorn_post_img_url')
+    
+    if (uploadedImage) {
+        try { localStorage.setItem('popcorn_post_upload', uploadedImage) } catch(e) { console.warn('Image too large to persist') }
+    } else localStorage.removeItem('popcorn_post_upload')
+  }, [newPost, selectedMediaEntry, imageUrl, uploadedImage])
+
+  // Save Comment Draft
+  useEffect(() => {
+    localStorage.setItem('popcorn_comment_draft', commentText)
+    
+    if (commentImageUrl) localStorage.setItem('popcorn_comment_img_url', commentImageUrl)
+    else localStorage.removeItem('popcorn_comment_img_url')
+
+    if (uploadedCommentImage) {
+        try { localStorage.setItem('popcorn_comment_upload', uploadedCommentImage) } catch(e) { console.warn('Image too large to persist') }
+    } else localStorage.removeItem('popcorn_comment_upload')
+  }, [commentText, commentImageUrl, uploadedCommentImage])
+
+  // Save Reply Draft
+  useEffect(() => {
+    localStorage.setItem('popcorn_reply_draft', replyText)
+    
+    if (replyingTo) localStorage.setItem('popcorn_reply_to', replyingTo)
+    else localStorage.removeItem('popcorn_reply_to')
+
+    if (replyImageUrl) localStorage.setItem('popcorn_reply_img_url', replyImageUrl)
+    else localStorage.removeItem('popcorn_reply_img_url')
+
+    if (uploadedReplyImage) {
+        try { localStorage.setItem('popcorn_reply_upload', uploadedReplyImage) } catch(e) { console.warn('Image too large to persist') }
+    } else localStorage.removeItem('popcorn_reply_upload')
+  }, [replyText, replyingTo, replyImageUrl, uploadedReplyImage])
+
+  // --- PERSISTENCE: Save draft on change ---
+  useEffect(() => {
+    localStorage.setItem('popcorn_new_post_draft', newPost)
+  }, [newPost])
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false)
+    const handleOffline = () => setIsOffline(true)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     if (!user) {
       navigate('/auth')
       return
     }
-    fetchFeed().finally(() => setInitialLoading(false))
-    if (user) fetchEntries(user.id)
+    
+    if (!isOffline || posts.length === 0) {
+      fetchFeed().finally(() => setInitialLoading(false))
+    } else {
+      setInitialLoading(false)
+    }
+    
+    if (user && !isOffline) fetchEntries(user.id)
 
-    // Handle scroll to show/hide scroll-to-top button
     const handleScroll = () => {
       setShowScrollTop(window.scrollY > 400)
     }
     window.addEventListener('scroll', handleScroll)
 
-    // Handle tab visibility - only refetch if it's been a while
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Only refetch if it's been more than 30 seconds since last fetch
-        if (Date.now() - lastFetchRef.current > 30000) {
-          console.log('Tab visible - refetching feed (last fetch > 30s ago)')
+        // Only refresh if more than 60 seconds have passed to prevent spamming
+        if (Date.now() - lastFetchRef.current > 60000 && !isOffline) { 
+          console.log('Tab visible - refreshing feed')
           fetchFeed()
         }
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Handle thread modal opening
     const handleOpenThread = async (event: any) => {
       const { comment, postId } = event.detail
       setThreadModalComment(comment)
       setThreadModalPostId(postId)
       
-      // Fetch fresh comments to build parent chain
-      const result = await fetchComments(postId)
-      if (result && result.commentsMap) {
-        const freshComment = result.commentsMap.get(comment.id)
-        if (freshComment) {
-          setThreadModalComment(freshComment)
+      if (!isOffline) {
+        const result = await fetchComments(postId)
+        if (result && result.commentsMap) {
+          const freshComment = result.commentsMap.get(comment.id)
+          if (freshComment) {
+            setThreadModalComment(freshComment)
+          }
         }
       }
     }
     window.addEventListener('openThread', handleOpenThread as EventListener)
 
-    // DISABLED real-time subscriptions - they saturate the database
-    // Set up real-time subscriptions with debouncing
-    // let refetchTimeout: ReturnType<typeof setTimeout>
-    // const debouncedRefetch = () => {
-    //   clearTimeout(refetchTimeout)
-    //   refetchTimeout = setTimeout(() => {
-    //     // Only refetch if not currently loading
-    //     if (!refreshing && Date.now() - lastFetchRef.current > 5000) {
-    //       fetchFeed()
-    //     }
-    //   }, 3000) // Wait 3 seconds after last change
-    // }
-
-    // const postsChannel = supabase
-    //   .channel('posts-changes')
-    //   .on(
-    //     'postgres_changes',
-    //     {
-    //       event: '*',
-    //       schema: 'public',
-    //       table: 'posts'
-    //     },
-    //     debouncedRefetch
-    //   )
-    //   .subscribe()
-
-    // const likesChannel = supabase
-    //   .channel('likes-changes')
-    //   .on(
-    //     'postgres_changes',
-    //     {
-    //       event: '*',
-    //       schema: 'public',
-    //       table: 'post_likes'
-    //     },
-    //     debouncedRefetch
-    //   )
-    //   .subscribe()
-
-    // const commentsChannel = supabase
-    //   .channel('comments-changes')
-    //   .on(
-    //     'postgres_changes',
-    //     {
-    //       event: '*',
-    //       schema: 'public',
-    //       table: 'post_comments'
-    //     },
-    //     debouncedRefetch
-    //   )
-    //   .subscribe()
-
-    // Cleanup subscriptions on unmount
     return () => {
       window.removeEventListener('scroll', handleScroll)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('openThread', handleOpenThread as EventListener)
-      // supabase.removeChannel(postsChannel)
-      // supabase.removeChannel(likesChannel)
-      // supabase.removeChannel(commentsChannel)
     }
-  }, [user, navigate, fetchEntries])
+  }, [user, navigate, fetchEntries, isOffline])
 
   const fetchFeed = async (loadMore = false) => {
-    if (!user) return
+    if (!user || isOffline) return
     
     if (loadMore) {
       setLoadingMore(true)
@@ -379,27 +437,62 @@ export default function FeedPage() {
     lastFetchRef.current = Date.now()
     
     try {
-      // Use a reasonable timeout - 8 seconds is fast but reliable
-      const timeout = 8000
+      const offset = loadMore ? posts.length : 0
+      const limit = loadMore ? 20 : 10
+
+      // 1. Try Optimized RPC
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_feed', { 
+          p_user_id: user.id, 
+          p_limit: limit, 
+          p_offset: offset 
+      })
+
+      if (!rpcError && rpcData) {
+        const formattedPosts: Post[] = (rpcData as any[]).map(p => ({
+          id: p.id,
+          user_id: p.user_id,
+          content: p.content,
+          media_entry_id: p.media_entry_id,
+          image_url: p.image_url,
+          created_at: p.created_at,
+          profiles: {
+            username: p.username,
+            avatar_url: p.avatar_url
+          },
+          media_entries: p.media_title ? {
+            title: p.media_title,
+            media_type: p.media_type,
+            rating: p.media_rating,
+            cover_image_url: p.media_cover_url
+          } : undefined,
+          likes_count: parseInt(p.likes_count) || 0,
+          comments_count: parseInt(p.comments_count) || 0,
+          is_liked: p.is_liked
+        }))
+
+        if (loadMore) {
+          setPosts(prev => [...prev, ...formattedPosts])
+        } else {
+          setPosts(formattedPosts)
+        }
+        
+        setHasMore(rpcData.length === limit)
+        if (!loadMore) setVisiblePostsCount(10)
+        return
+      }
+
+      // 2. Fallback to Standard Query
+      console.warn('RPC fetch failed, using fallback query', rpcError)
       
-      // Get list of users we follow
-      const followingQuery = supabase
+      const { data: followingData } = await supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', user.id)
       
-      const { data: followingData } = await safeSupabaseRequest(followingQuery as any, timeout) as { data: any[] }
-      
       const followingIds = followingData?.map(f => f.following_id) || []
-      
-      // Limit to 50 most recent follows if following too many people (performance optimization)
       const limitedFollowingIds = followingIds.length > 50 ? followingIds.slice(0, 50) : followingIds
       
-      // Get posts from followed users + own posts
-      const offset = loadMore ? posts.length : 0
-      const limit = loadMore ? 20 : 5 // Load 5 initially, 20 on loadMore
-      
-      const postsQuery = supabase
+      const { data, error } = await supabase
         .from('posts')
         .select(`
           *,
@@ -410,81 +503,55 @@ export default function FeedPage() {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
-      const { data, error } = await safeSupabaseRequest(postsQuery as any, timeout) as { data: any[], error: any }
-
       if (error) throw error
       
       if (!data || data.length === 0) {
-        setPosts([])
+        if (!loadMore) setPosts([])
+        setHasMore(false)
         return
       }
 
       const postIds = data.map(p => p.id)
+      const { data: allLikes } = await supabase.from('post_likes').select('post_id, user_id').in('post_id', postIds)
+      const { data: allComments } = await supabase.from('post_comments').select('post_id').in('post_id', postIds)
       
-      // Batch fetch all likes for all posts
-      const likesQuery = supabase
-        .from('post_likes')
-        .select('post_id, user_id')
-        .in('post_id', postIds)
-
-      const { data: allLikes } = await safeSupabaseRequest(likesQuery as any, timeout) as { data: any[] }
+      const likesMap = new Map()
+      const commentsMap = new Map()
       
-      // Batch fetch all comments counts
-      const commentsQuery = supabase
-        .from('post_comments')
-        .select('post_id')
-        .in('post_id', postIds)
-
-      const { data: allComments } = await safeSupabaseRequest(commentsQuery as any, timeout) as { data: any[] }
+      postIds.forEach(id => {
+        likesMap.set(id, { count: 0, userLiked: false })
+        commentsMap.set(id, 0)
+      })
       
-      // Count likes and check user likes per post
-      const likesMap = new Map<string, { count: number, userLiked: boolean }>()
-      postIds.forEach(id => likesMap.set(id, { count: 0, userLiked: false }))
-      
-      allLikes?.forEach(like => {
-        const current = likesMap.get(like.post_id)!
-        current.count++
-        if (like.user_id === user.id) {
-          current.userLiked = true
+      allLikes?.forEach((like: any) => {
+        const curr = likesMap.get(like.post_id)
+        if (curr) {
+          curr.count++
+          if (like.user_id === user.id) curr.userLiked = true
         }
       })
       
-      // Count comments per post
-      const commentsMap = new Map<string, number>()
-      postIds.forEach(id => commentsMap.set(id, 0))
-      allComments?.forEach(comment => {
-        commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1)
+      allComments?.forEach((c: any) => {
+        commentsMap.set(c.post_id, (commentsMap.get(c.post_id) || 0) + 1)
       })
 
-      // Combine data
-      const postsWithLikes = data.map(post => {
-        const likes = likesMap.get(post.id) || { count: 0, userLiked: false }
-        const commentsCount = commentsMap.get(post.id) || 0
-        
-        return {
-          ...post,
-          likes_count: likes.count,
-          comments_count: commentsCount,
-          is_liked: likes.userLiked
-        }
-      })
+      const postsWithCounts = data.map((post: any) => ({
+        ...post,
+        likes_count: likesMap.get(post.id)?.count || 0,
+        comments_count: commentsMap.get(post.id) || 0,
+        is_liked: likesMap.get(post.id)?.userLiked || false
+      }))
 
       if (loadMore) {
-        setPosts(prev => [...prev, ...(postsWithLikes as Post[])])
+        setPosts(prev => [...prev, ...postsWithCounts])
       } else {
-        setPosts(postsWithLikes as Post[])
+        setPosts(postsWithCounts)
       }
+      setHasMore(data.length === limit)
+      if (!loadMore) setVisiblePostsCount(10)
 
-      // Check if there are more posts to load
-      if (loadMore) {
-        setHasMore(data.length === 20)
-      } else {
-        setHasMore(data.length === 5)
-        setVisiblePostsCount(5)
-      }
     } catch (error) {
       console.error('Error fetching feed:', error)
-      // Removed the manual reload here, as App.tsx now handles global connection health checks
     } finally {
       setRefreshing(false)
       setLoadingMore(false)
@@ -507,32 +574,39 @@ export default function FeedPage() {
 
       if (error) throw error
       
+      // Clear State
       setNewPost('')
       setSelectedMediaEntry(null)
       setImageUrl('')
       setUploadedImage(null)
       setShowMediaSelector(false)
+
+      // Clear Persistence
+      localStorage.removeItem('popcorn_new_post_draft')
+      localStorage.removeItem('popcorn_post_media')
+      localStorage.removeItem('popcorn_post_img_url')
+      localStorage.removeItem('popcorn_post_upload')
+
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
       await fetchFeed()
     } catch (error) {
       console.error('Error creating post:', error)
+      alert('Failed to post. Your draft is saved.')
     } finally {
       setPosting(false)
     }
   }
 
   const handleLike = async (postId: string) => {
-    if (!user || isLiking[postId]) return // Prevent double-clicks
+    if (!user || isLiking[postId]) return 
     
     const post = posts.find(p => p.id === postId)
     if (!post) return
 
-    // Set liking state
     setIsLiking(prev => ({ ...prev, [postId]: true }))
 
-    // Optimistic update - Update UI immediately
     const wasLiked = post.is_liked
     setPosts(prevPosts => 
       prevPosts.map(p => 
@@ -548,21 +622,18 @@ export default function FeedPage() {
 
     try {
       if (wasLiked) {
-        // Unlike
         await supabase
           .from('post_likes')
           .delete()
           .eq('post_id', postId)
           .eq('user_id', user.id)
       } else {
-        // Like
         await supabase
           .from('post_likes')
           .insert({ post_id: postId, user_id: user.id })
       }
     } catch (error) {
       console.error('Error toggling like:', error)
-      // Revert on error
       setPosts(prevPosts => 
         prevPosts.map(p => 
           p.id === postId 
@@ -575,7 +646,6 @@ export default function FeedPage() {
         )
       )
     } finally {
-      // Clear liking state after a short delay
       setTimeout(() => {
         setIsLiking(prev => ({ ...prev, [postId]: false }))
       }, 300)
@@ -603,14 +673,27 @@ export default function FeedPage() {
       if (error) throw error
 
       if (parentCommentId) {
+        // Clear Reply State
         setReplyText('')
         setReplyingTo(null)
         setReplyImageUrl('')
         setUploadedReplyImage(null)
+        
+        // Clear Reply Persistence
+        localStorage.removeItem('popcorn_reply_draft')
+        localStorage.removeItem('popcorn_reply_to')
+        localStorage.removeItem('popcorn_reply_img_url')
+        localStorage.removeItem('popcorn_reply_upload')
       } else {
+        // Clear Comment State
         setCommentText('')
         setCommentImageUrl('')
         setUploadedCommentImage(null)
+        
+        // Clear Comment Persistence
+        localStorage.removeItem('popcorn_comment_draft')
+        localStorage.removeItem('popcorn_comment_img_url')
+        localStorage.removeItem('popcorn_comment_upload')
       }
       
       // Update comment count immediately in local state
@@ -622,7 +705,6 @@ export default function FeedPage() {
         )
       )
       
-      // Only refetch comments for this post, not entire feed
       await fetchComments(postId)
     } catch (error) {
       console.error('Error posting comment:', error)
@@ -698,16 +780,13 @@ export default function FeedPage() {
 
       if (error) throw error
 
-      // Build nested structure
       const commentsMap = new Map<string, Comment>()
       const rootComments: Comment[] = []
 
-      // First pass: create all comment objects
       data.forEach((comment: any) => {
         commentsMap.set(comment.id, { ...comment, replies: [] })
       })
 
-      // Second pass: nest replies under parents
       data.forEach((comment: any) => {
         const commentObj = commentsMap.get(comment.id)!
         if (comment.parent_comment_id) {
@@ -745,7 +824,6 @@ export default function FeedPage() {
           url: url
         })
       } catch (error) {
-        // User cancelled or error occurred
         if ((error as Error).name !== 'AbortError') {
           copyToClipboard(url)
         }
@@ -769,7 +847,7 @@ export default function FeedPage() {
         .from('posts')
         .delete()
         .eq('id', postId)
-        .eq('user_id', user.id) // Extra safety check
+        .eq('user_id', user.id)
 
       if (error) throw error
       
@@ -790,18 +868,6 @@ export default function FeedPage() {
     }
   }
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-    
-    if (seconds < 60) return 'just now'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-    return date.toLocaleDateString()
-  }
-
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items
     if (!items) return
@@ -815,7 +881,7 @@ export default function FeedPage() {
           reader.onload = (e) => {
             const result = e.target?.result as string
             setUploadedImage(result)
-            setImageUrl('') // Clear URL input if pasting image
+            setImageUrl('') 
           }
           reader.readAsDataURL(file)
         }
@@ -837,7 +903,7 @@ export default function FeedPage() {
     reader.onload = (e) => {
       const result = e.target?.result as string
       setUploadedImage(result)
-      setImageUrl('') // Clear URL input if uploading image
+      setImageUrl('')
     }
     reader.readAsDataURL(file)
   }
@@ -858,11 +924,18 @@ export default function FeedPage() {
         </div>
       )}
 
+      {/* Offline Banner */}
+      {isOffline && (
+        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 text-center text-xs text-red-200 flex items-center justify-center gap-2 safe-area-top">
+          <WifiOff className="w-3 h-3" />
+          You are offline. Some features may be unavailable.
+        </div>
+      )}
+
       {/* Full Screen Loading Animation */}
       {initialLoading && (
         <div className="fixed inset-0 z-40 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center">
-            {/* Animated Icons */}
             <div className="mb-8 relative flex items-center justify-center gap-6">
               <Film className="w-16 h-16 text-red-500 animate-[spin_3s_linear_infinite]" />
               <div className="relative">
@@ -871,7 +944,6 @@ export default function FeedPage() {
               </div>
               <Gamepad2 className="w-16 h-16 text-red-500 animate-[spin_3s_linear_infinite_reverse]" />
             </div>
-            {/* Loading Text */}
             <div className="space-y-2">
               <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
                 Loading your feed...
@@ -898,7 +970,6 @@ export default function FeedPage() {
             rows={3}
           />
           
-          {/* Selected Media Entry Preview */}
           {selectedMediaEntry && (() => {
             const entry = entries.find(e => e.id === selectedMediaEntry)
             if (!entry) return null
@@ -917,7 +988,6 @@ export default function FeedPage() {
             )
           })()}
 
-          {/* Uploaded Image Preview */}
           {uploadedImage && (
             <div className="mt-3 bg-gray-900/50 border border-gray-600 rounded-lg p-3">
               <div className="flex items-start gap-2">
@@ -938,7 +1008,6 @@ export default function FeedPage() {
             </div>
           )}
 
-          {/* Image URL Preview */}
           {imageUrl && (
             <div className="mt-3 bg-gray-900/50 border border-gray-600 rounded-lg p-3">
               <div className="flex items-start gap-2">
@@ -953,46 +1022,6 @@ export default function FeedPage() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Media Selector Modal */}
-          {showMediaSelector && (
-            <div className="mt-3 bg-gray-900/50 border border-gray-600 rounded-lg p-4 max-h-60 overflow-y-auto">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-white">Select from your activity</h3>
-                <button
-                  onClick={() => setShowMediaSelector(false)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              {entries.length === 0 ? (
-                <p className="text-sm text-gray-400">No media entries yet. Add some first!</p>
-              ) : (
-                <div className="space-y-2">
-                  {entries.slice(0, 10).map(entry => {
-                    const Icon = getMediaIcon(entry.media_type)
-                    return (
-                      <button
-                        key={entry.id}
-                        onClick={() => {
-                          setSelectedMediaEntry(entry.id)
-                          setShowMediaSelector(false)
-                        }}
-                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800 transition-colors text-left"
-                      >
-                        <Icon className="w-4 h-4 text-gray-400" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{entry.title}</p>
-                          <p className="text-xs text-gray-400 capitalize">{entry.media_type}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
             </div>
           )}
 
@@ -1033,7 +1062,7 @@ export default function FeedPage() {
                   const url = prompt('Enter image URL:')
                   if (url) {
                     setImageUrl(url)
-                    setUploadedImage(null) // Clear uploaded image if adding URL
+                    setUploadedImage(null) 
                   }
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
@@ -1820,6 +1849,147 @@ export default function FeedPage() {
           </div>
         </div>
       )}
+    {/* Media Selector Modal */}
+          {showMediaSelector && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative shadow-2xl flex flex-col max-h-[85vh]">
+                
+                {/* Modal Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-white">Select Media</h3>
+                  <button
+                    onClick={() => {
+                      setShowMediaSelector(false)
+                      setMediaSearchQuery('')
+                      setMediaFilterType('all')
+                    }}
+                    className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Search & Filter */}
+                <div className="space-y-3 mb-4">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={mediaSearchQuery}
+                      onChange={(e) => setMediaSearchQuery(e.target.value)}
+                      placeholder="Search your library..."
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'movie', label: 'Movies', icon: Film },
+                      { id: 'show', label: 'TV', icon: Tv },
+                      { id: 'game', label: 'Games', icon: Gamepad2 },
+                      { id: 'book', label: 'Books', icon: Book },
+                    ].map((type) => {
+                      const Icon = type.icon
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => setMediaFilterType(type.id as any)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${
+                            mediaFilterType === type.id
+                              ? 'bg-red-500/10 border-red-500/50 text-red-400'
+                              : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'
+                          }`}
+                        >
+                          {Icon && <Icon className="w-3.5 h-3.5" />}
+                          {type.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* List */}
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
+                  {entries.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>Your library is empty.</p>
+                      <button 
+                         onClick={() => { setShowMediaSelector(false); navigate('/add') }}
+                         className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium"
+                      >
+                        Add your first entry
+                      </button>
+                    </div>
+                  ) : (() => {
+                    // Filter Logic
+                    const filteredEntries = entries.filter(entry => {
+                      const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
+                      const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
+                      return matchesType && matchesSearch
+                    })
+
+                    if (filteredEntries.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-gray-500">
+                          <p>No matches found.</p>
+                        </div>
+                      )
+                    }
+
+                    return filteredEntries.map(entry => {
+                      const Icon = getMediaIcon(entry.media_type)
+                      return (
+                        <button
+                          key={entry.id}
+                          onClick={() => {
+                            setSelectedMediaEntry(entry.id)
+                            setShowMediaSelector(false)
+                            setMediaSearchQuery('')
+                            setMediaFilterType('all')
+                          }}
+                          className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-800 transition-colors text-left group border border-transparent hover:border-gray-700"
+                        >
+                          <div className="w-10 h-14 bg-gray-800 rounded flex-shrink-0 overflow-hidden relative">
+                            {entry.cover_image_url ? (
+                              <img src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Icon className="w-4 h-4 text-gray-600" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">
+                              {entry.title}
+                            </h4>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                              <span className="capitalize">{entry.media_type}</span>
+                              {entry.year && <span>• {entry.year}</span>}
+                              {entry.rating && (
+                                <span className="flex items-center gap-1 text-yellow-500/80">
+                                  • <Star className="w-3 h-3 fill-current" /> {entry.rating}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Selection Indicator */}
+                          <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex items-center justify-center group-hover:border-red-500 transition-colors">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </button>
+                      )
+                    })
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
     </div>
   )
 }

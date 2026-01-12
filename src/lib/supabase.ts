@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Check if Supabase is properly configured (must be actual URLs, not placeholders)
+// Check if Supabase is properly configured
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
@@ -12,50 +12,41 @@ export const isSupabaseConfigured = Boolean(
   !supabaseAnonKey.includes('your_supabase')
 )
 
+// Hard timeout for ALL Supabase network requests (aborts the underlying fetch)
+const REQUEST_TIMEOUT_MS = 60000
+
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+// Create the client via a factory so resetSupabaseClient reuses the exact same config
+const makeClient = () =>
+  createClient(
+    isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
+    isSupabaseConfigured
+      ? supabaseAnonKey
+      : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder',
+    {
+      global: { fetch: fetchWithTimeout },
+    }
+  )
+
 // Create a dummy client if env vars are missing (for development)
-export let supabase = createClient(
-  isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
-  isSupabaseConfigured ? supabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder'
-)
+export let supabase = makeClient()
 
 export const resetSupabaseClient = () => {
   console.log('Resetting Supabase client connection...')
-  supabase = createClient(
-    isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
-    isSupabaseConfigured ? supabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9zZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder'
-  )
-}
-
-// Helper for requests that might hang due to connection issues
-export const safeSupabaseRequest = async <T>(
-  promise: Promise<T>, 
-  timeout = 8000, // 8 seconds - fast but allows time for network
-  fallbackValue?: T
-): Promise<T> => {
-  let timer: any;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error('Supabase request timed out'))
-    }, timeout)
-  });
-  
-  try {
-    const result = await Promise.race([promise, timeoutPromise]);
-    clearTimeout(timer);
-    return result;
-  } catch (error) {
-    clearTimeout(timer);
-    const err = error as Error;
-    if (err.message === 'Supabase request timed out') {
-      console.warn('Supabase request timed out - connection might be stale')
-      // Dispatch event to notify app of connection issues
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('supabase-timeout'))
-      }
-    }
-    if (fallbackValue !== undefined) return fallbackValue;
-    throw error;
-  }
+  supabase = makeClient()
 }
 
 // Types for our database tables
@@ -65,7 +56,7 @@ export type Profile = {
   full_name: string | null
   avatar_url: string | null
   bio: string | null
-  badges: string[] // DEPRECATED - use user_badges table instead
+  badges: string[] 
   is_admin: boolean
   created_at: string
   updated_at: string
@@ -101,10 +92,13 @@ export type MediaEntry = {
   user_id: string
   media_type: MediaType
   title: string
-  rating: number // 1-5 stars
-  status: 'completed' | 'in-progress' | 'planned'
+  rating: number
+  status: 'completed' | 'in-progress' | 'planned' | 'logged'
   completed_date: string | null
   notes: string | null
   created_at: string
   updated_at: string
+  genre?: string | null
+  year?: number | null
+  cover_image_url?: string | null
 }
