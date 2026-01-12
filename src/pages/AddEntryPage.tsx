@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star, Calendar, Tag } from 'lucide-react'
+import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star, Calendar } from 'lucide-react'
 import { api, type SearchResult } from '../lib/api'
 import { useMediaStore } from '../store/mediaStore'
 import { useAuthStore } from '../store/authStore'
@@ -209,7 +209,7 @@ export default function AddEntryPage() {
                 className="w-full pl-12 pr-4 py-4 bg-gray-800/50 border border-gray-700 rounded-xl focus:outline-none focus:border-red-500 transition-colors text-lg"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearch()
+                  if (e.key === 'Enter') handleSearch(e)
                 }}
               />
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />

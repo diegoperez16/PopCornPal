@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Star, Calendar, Clock, Activity, ArrowUpRight } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Star, Calendar, Activity, ArrowUpRight } from 'lucide-react'
 
 interface GroupedEntries {
   [date: string]: MediaEntry[]
