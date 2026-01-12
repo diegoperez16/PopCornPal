@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { supabase, type UserBadge } from '../lib/supabase'
-import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, User, Crown, Beaker, Star, Calendar, Clock, ArrowUpRight, X, Search, Library, Tag, AlignLeft } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, Calendar, Clock, X, Search, Library, AlignLeft } from 'lucide-react'
 
 // --- TYPES ---
 type UserProfile = {
@@ -459,7 +459,7 @@ export default function UserProfilePage() {
                           'fuchsia-500': { gradient: 'from-fuchsia-600 via-fuchsia-500 to-pink-500', glow: 'shadow-fuchsia-500/50' },
                           'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
                         }
-                        const effects = colorEffects[badge.color] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
+                        const effects = colorEffects[badge.color as keyof typeof colorEffects] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
                         return (
                           <div
                             key={userBadge.id}
