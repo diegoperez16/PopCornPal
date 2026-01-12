@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect,useLayoutEffect } from 'react'
 import { Search, UserPlus, UserCheck, Loader2, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
+import { useSocialStore, type ProfileWithFollowStatus } from '../store/socialStore'
 import { useLocation, Link } from 'react-router-dom'
+
 
 type Profile = {
   id: string
@@ -11,31 +13,57 @@ type Profile = {
   bio: string | null
 }
 
-type ProfileWithFollowStatus = Profile & {
-  isFollowing: boolean
-  isFollower: boolean
-}
-
 export default function PeoplePage() {
   const { user } = useAuthStore()
   const location = useLocation()
+  
+  // Use Global Store for caching
+  const { 
+    followers, 
+    following, 
+    setFollowers, 
+    setFollowing, 
+    peopleLoaded,
+    peopleScrollPos,    // <--- Add this
+    setPeopleScrollPos
+  } = useSocialStore()
+
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
-  const [followers, setFollowers] = useState<ProfileWithFollowStatus[]>([])
-  const [following, setFollowing] = useState<ProfileWithFollowStatus[]>([])
-  const [initialLoading, setInitialLoading] = useState(true)
+  
+  // Only show full blocking loader if we haven't loaded data yet
+  const [initialLoading, setInitialLoading] = useState(!peopleLoaded)
   const [refreshing, setRefreshing] = useState(false)
+  
   const [activeTab, setActiveTab] = useState<'search' | 'followers' | 'following'>(
     (location.state as any)?.initialTab || 'search'
   )
 
+  useLayoutEffect(() => {
+    if (peopleScrollPos > 0) {
+      window.scrollTo(0, peopleScrollPos)
+    }
+    return () => {
+      setPeopleScrollPos(window.scrollY)
+    }
+  }, [peopleScrollPos, setPeopleScrollPos])
+
   // Fetch followers and following on mount
   useEffect(() => {
     if (user) {
-      Promise.all([fetchFollowers(), fetchFollowing()]).finally(() => setInitialLoading(false))
+      // If we already have data, we just refresh in the background
+      if (peopleLoaded) {
+        setRefreshing(true)
+      }
+      
+      Promise.all([fetchFollowers(), fetchFollowing()])
+        .finally(() => {
+          setInitialLoading(false)
+          setRefreshing(false)
+        })
     }
 
-    // Handle tab visibility - immediately refetch when tab becomes visible
+    // Handle tab visibility - background refresh
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
         setRefreshing(true)
@@ -106,20 +134,25 @@ export default function PeoplePage() {
 
     // Check which followers we follow back
     const followerIds = profiles.map((p: Profile) => p.id)
-    const { data: followingData } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', user.id)
-      .in('following_id', followerIds)
+    
+    if (followerIds.length > 0) {
+      const { data: followingData } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id)
+        .in('following_id', followerIds)
 
-    const followingIds = new Set(followingData?.map((f) => f.following_id) || [])
+      const followingIds = new Set(followingData?.map((f) => f.following_id) || [])
 
-    setFollowers(
-      profiles.map((p: Profile & { isFollowing: boolean; isFollower: boolean }) => ({
-        ...p,
-        isFollowing: followingIds.has(p.id),
-      }))
-    )
+      setFollowers(
+        profiles.map((p: Profile & { isFollowing: boolean; isFollower: boolean }) => ({
+          ...p,
+          isFollowing: followingIds.has(p.id),
+        }))
+      )
+    } else {
+      setFollowers([])
+    }
   }
 
   const fetchFollowing = async () => {
@@ -146,20 +179,25 @@ export default function PeoplePage() {
 
     // Check which people we follow also follow us back
     const followingIds = profiles.map((p: Profile) => p.id)
-    const { data: followersData } = await supabase
-      .from('follows')
-      .select('follower_id')
-      .eq('following_id', user.id)
-      .in('follower_id', followingIds)
+    
+    if (followingIds.length > 0) {
+      const { data: followersData } = await supabase
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', user.id)
+        .in('follower_id', followingIds)
 
-    const followerIds = new Set(followersData?.map((f) => f.follower_id) || [])
+      const followerIds = new Set(followersData?.map((f) => f.follower_id) || [])
 
-    setFollowing(
-      profiles.map((p: Profile & { isFollowing: boolean; isFollower: boolean }) => ({
-        ...p,
-        isFollower: followerIds.has(p.id),
-      }))
-    )
+      setFollowing(
+        profiles.map((p: Profile & { isFollowing: boolean; isFollower: boolean }) => ({
+          ...p,
+          isFollower: followerIds.has(p.id),
+        }))
+      )
+    } else {
+      setFollowing([])
+    }
   }
 
   const handleSearch = async (query: string) => {
@@ -226,12 +264,14 @@ export default function PeoplePage() {
 
       if (error) throw error
 
-      // Update local state
+      // Update local search results
       setSearchResults(
         searchResults.map((p) =>
           p.id === profileId ? { ...p, isFollowing: true } : p
         )
       )
+      
+      // Update store followers list optimistically
       setFollowers(
         followers.map((p) =>
           p.id === profileId ? { ...p, isFollowing: true } : p
@@ -257,12 +297,14 @@ export default function PeoplePage() {
 
       if (error) throw error
 
-      // Update local state
+      // Update local search results
       setSearchResults(
         searchResults.map((p) =>
           p.id === profileId ? { ...p, isFollowing: false } : p
         )
       )
+      
+      // Update store lists optimistically
       setFollowing(following.filter((p) => p.id !== profileId))
       setFollowers(
         followers.map((p) =>
@@ -350,7 +392,7 @@ export default function PeoplePage() {
         </div>
       )}
 
-      {/* Full Screen Loading Animation */}
+      {/* Full Screen Loading Animation - Only show if data is NOT loaded */}
       {initialLoading && (
         <div className="fixed inset-0 z-40 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center">

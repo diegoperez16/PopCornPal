@@ -1,36 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
+import { useSocialStore, type Post } from '../store/socialStore' // Import new store
 import { useNavigate, Link } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, RefreshCw, WifiOff, Star, Search} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
-// Find your lucide-react import and add 'Star' to the list
-
+import { useLayoutEffect } from 'react'
 
 // --- Types ---
-
-interface Post {
-  id: string
-  user_id: string
-  content: string
-  media_entry_id: string | null
-  image_url: string | null
-  created_at: string
-  profiles: {
-    username: string
-    avatar_url: string | null
-  }
-  media_entries?: {
-    title: string
-    media_type: 'movie' | 'show' | 'game' | 'book'
-    rating: number
-    cover_image_url: string | null
-  }
-  likes_count: number
-  comments_count: number
-  is_liked: boolean
-}
+// (Post interface removed here as it is imported from store)
 
 interface Comment {
   id: string
@@ -110,14 +89,14 @@ function CommentThread({
           )}
         </div>
         <div className="flex-1">
-          <div className="bg-gray-800/50 rounded-lg p-3">
+          <div className="bg-gray-800/50 rounded-lg p-3 max-w-full overflow-x-auto">
             <Link 
               to={`/user/${comment.profiles.username}`}
               className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
             >
               @{comment.profiles.username}
             </Link>
-            <p className="text-sm text-gray-300">{comment.content}</p>
+            <p className="text-sm text-gray-300 break-all max-w-full">{comment.content}</p>
             
             {/* Comment Image */}
             {comment.image_url && (
@@ -231,9 +210,21 @@ function CommentThread({
 export default function FeedPage() {
   const { user } = useAuthStore()
   const { entries, fetchEntries } = useMediaStore()
+  const { 
+    feedPosts: posts, 
+    setFeedPosts: setPosts, 
+    feedLoaded, 
+    feedScrollPos,
+    setFeedScrollPos,
+    feedVisibleCount: visiblePostsCount, // <--- Map store value to local name
+    setFeedVisibleCount: setVisiblePostsCount // <--- Map store setter to local name
+} = useSocialStore() // Use Global Store
+
   const navigate = useNavigate()
-  const [posts, setPosts] = useState<Post[]>([])
-  const [initialLoading, setInitialLoading] = useState(true)
+  
+  // Use loaded state to determine initial loading instead of always true
+  const [initialLoading, setInitialLoading] = useState(!feedLoaded)
+  
   const [refreshing, setRefreshing] = useState(false)
   const [newPost, setNewPost] = useState('')
   const [posting, setPosting] = useState(false)
@@ -262,7 +253,7 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
-  const [visiblePostsCount, setVisiblePostsCount] = useState(5)
+  // const [visiblePostsCount, setVisiblePostsCount] = useState(5)
   const [threadModalComment, setThreadModalComment] = useState<Comment | null>(null)
   const [threadModalPostId, setThreadModalPostId] = useState<string | null>(null)
   const [showModalReplyGifPicker, setShowModalReplyGifPicker] = useState(false)
@@ -270,8 +261,22 @@ export default function FeedPage() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const [mediaSearchQuery, setMediaSearchQuery] = useState('')
   const [mediaFilterType, setMediaFilterType] = useState<'all' | 'movie' | 'show' | 'game' | 'book'>('all')
-  // ...
 
+  // 1. Restore scroll position on mount
+  useLayoutEffect(() => {
+    if (feedScrollPos > 0) {
+      window.scrollTo(0, feedScrollPos)
+    }
+  }, [feedScrollPos])
+
+  // 2. Save scroll position ONLY on unmount
+  useLayoutEffect(() => {
+    return () => {
+      setFeedScrollPos(window.scrollY)
+    }
+  }, [setFeedScrollPos])
+
+  // ... [Persistence effects remain unchanged] ...
   // --- PERSISTENCE: Restore all drafts on mount ---
   useEffect(() => {
     // 1. Main Post
@@ -311,8 +316,6 @@ export default function FeedPage() {
     if (savedReplyUpload) setUploadedReplyImage(savedReplyUpload)
   }, [])
 
-  // --- PERSISTENCE: Save drafts on change ---
-  
   // Save Post Draft
   useEffect(() => {
     localStorage.setItem('popcorn_new_post_draft', newPost)
@@ -355,11 +358,6 @@ export default function FeedPage() {
     } else localStorage.removeItem('popcorn_reply_upload')
   }, [replyText, replyingTo, replyImageUrl, uploadedReplyImage])
 
-  // --- PERSISTENCE: Save draft on change ---
-  useEffect(() => {
-    localStorage.setItem('popcorn_new_post_draft', newPost)
-  }, [newPost])
-
   useEffect(() => {
     const handleOnline = () => setIsOffline(false)
     const handleOffline = () => setIsOffline(true)
@@ -372,17 +370,27 @@ export default function FeedPage() {
   }, [])
 
   useEffect(() => {
+    localStorage.setItem('popcorn_new_post_draft', newPost)
+  }, [newPost])
+
+  // ... inside FeedPage component
+
+  useEffect(() => {
     if (!user) {
       navigate('/auth')
       return
     }
     
-    if (!isOffline || posts.length === 0) {
+    // ✅ FIX: Only fetch if we don't have data yet.
+    // If we have data (feedLoaded is true), we skip the fetch to preserve 
+    // the "loaded more" posts and the scroll position.
+    if (!feedLoaded) {
       fetchFeed().finally(() => setInitialLoading(false))
     } else {
       setInitialLoading(false)
     }
     
+    // We can still fetch the user's media library in the background
     if (user && !isOffline) fetchEntries(user.id)
 
     const handleScroll = () => {
@@ -390,17 +398,7 @@ export default function FeedPage() {
     }
     window.addEventListener('scroll', handleScroll)
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Only refresh if more than 60 seconds have passed to prevent spamming
-        if (Date.now() - lastFetchRef.current > 60000 && !isOffline) { 
-          console.log('Tab visible - refreshing feed')
-          fetchFeed()
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
+    // ... (keep the visibility change logic if you want auto-refresh on tab switch) ...
     const handleOpenThread = async (event: any) => {
       const { comment, postId } = event.detail
       setThreadModalComment(comment)
@@ -420,10 +418,10 @@ export default function FeedPage() {
 
     return () => {
       window.removeEventListener('scroll', handleScroll)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('openThread', handleOpenThread as EventListener)
+      // ...
     }
-  }, [user, navigate, fetchEntries, isOffline])
+  }, [user, navigate, fetchEntries, isOffline, feedLoaded]) // Add feedLoaded to dependencies
 
   const fetchFeed = async (loadMore = false) => {
     if (!user || isOffline) return
@@ -438,7 +436,10 @@ export default function FeedPage() {
     
     try {
       const offset = loadMore ? posts.length : 0
-      const limit = loadMore ? 20 : 5
+      
+      // ✅ FIX: If refreshing (!loadMore), fetch whichever is larger: 5 or your current count.
+      // This ensures if you have 50 posts loaded, a refresh fetches 50 items so you don't lose your place.
+      const limit = loadMore ? 20 : Math.max(5, visiblePostsCount)
 
       // 1. Try Optimized RPC
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_feed', { 
@@ -477,7 +478,7 @@ export default function FeedPage() {
         }
         
         setHasMore(rpcData.length === limit)
-        if (!loadMore) setVisiblePostsCount(5)
+        // ❌ REMOVED: setVisiblePostsCount(5) - This was causing the reset!
         return
       }
 
@@ -535,7 +536,7 @@ export default function FeedPage() {
         commentsMap.set(c.post_id, (commentsMap.get(c.post_id) || 0) + 1)
       })
 
-      const postsWithCounts = data.map((post: any) => ({
+      const postsWithCounts: Post[] = data.map((post: any) => ({
         ...post,
         likes_count: likesMap.get(post.id)?.count || 0,
         comments_count: commentsMap.get(post.id) || 0,
@@ -548,7 +549,7 @@ export default function FeedPage() {
         setPosts(postsWithCounts)
       }
       setHasMore(data.length === limit)
-      if (!loadMore) setVisiblePostsCount(5)
+      // ❌ REMOVED: setVisiblePostsCount(5) - This was causing the reset!
 
     } catch (error) {
       console.error('Error fetching feed:', error)
@@ -557,6 +558,9 @@ export default function FeedPage() {
       setLoadingMore(false)
     }
   }
+
+  // ... (rest of the file remains exactly the same, 
+  // handleCreatePost, handleLike etc. utilize the new setPosts which supports functional updates)
 
   const handleCreatePost = async () => {
     if (!user || !newPost.trim()) return
@@ -608,6 +612,7 @@ export default function FeedPage() {
     setIsLiking(prev => ({ ...prev, [postId]: true }))
 
     const wasLiked = post.is_liked
+    // This works because setPosts in socialStore supports functional updates
     setPosts(prevPosts => 
       prevPosts.map(p => 
         p.id === postId 
@@ -696,7 +701,6 @@ export default function FeedPage() {
         localStorage.removeItem('popcorn_comment_upload')
       }
       
-      // Update comment count immediately in local state
       setPosts(prevPosts => 
         prevPosts.map(p => 
           p.id === postId 
@@ -917,7 +921,7 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      {/* Loading Bar */}
+      {/* Loading Bar - Shows when fetching in background */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
           <div className="h-full bg-gradient-to-r from-red-500 to-pink-500 animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
@@ -932,8 +936,8 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Full Screen Loading Animation */}
-      {initialLoading && (
+      {/* Full Screen Loading Animation - ONLY if no posts loaded */}
+      {initialLoading && posts.length === 0 && (
         <div className="fixed inset-0 z-40 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center">
             <div className="mb-8 relative flex items-center justify-center gap-6">
@@ -959,6 +963,7 @@ export default function FeedPage() {
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+        {/* ... (Rest of UI identical to previous file) ... */}
         {/* Create Post */}
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 mb-6">
           <textarea
@@ -1118,7 +1123,7 @@ export default function FeedPage() {
         </div>
 
         {/* Feed */}
-        {initialLoading ? (
+        {initialLoading && posts.length === 0 ? (
           <div className="text-center py-12">
             <div className="inline-block w-8 h-8 border-4 border-gray-700 border-t-red-500 rounded-full animate-spin"></div>
           </div>
@@ -1548,8 +1553,8 @@ export default function FeedPage() {
                 }
                 
                 return parentChain.map((parentComment) => (
-                  <div key={parentComment.id} className="flex gap-3 opacity-60">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <div key={parentComment.id} className="flex gap-3 opacity-60 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center flex-shrink-0 overflow-hidden min-w-0">
                       {parentComment.profiles.avatar_url ? (
                         <img src={parentComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -1558,11 +1563,11 @@ export default function FeedPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <div className="bg-gray-800/30 rounded-lg p-3">
+                    <div className="flex-1 min-w-0"> 
+                      <div className="bg-gray-800/30 rounded-lg p-3 min-w-0">
                         <Link 
                           to={`/user/${parentComment.profiles.username}`}
-                          className="text-sm font-semibold text-gray-300 hover:text-red-400 transition-colors inline-block mb-1"
+                          className="text-sm font-semibold text-gray-300 hover:text-red-400 transition-colors inline-block mb-1 min-w-0"
                           onClick={() => {
                             setThreadModalComment(null)
                             setThreadModalPostId(null)
@@ -1570,7 +1575,7 @@ export default function FeedPage() {
                         >
                           @{parentComment.profiles.username}
                         </Link>
-                        <p className="text-sm text-gray-400">{parentComment.content}</p>
+                        <p className="text-sm text-gray-400 break-words overflow-wrap-anywhere">{parentComment.content}</p>
                         {parentComment.image_url && (
                           <div className="mt-2">
                             <img 
