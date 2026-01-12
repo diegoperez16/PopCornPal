@@ -438,7 +438,7 @@ export default function FeedPage() {
     
     try {
       const offset = loadMore ? posts.length : 0
-      const limit = loadMore ? 20 : 10
+      const limit = loadMore ? 20 : 5
 
       // 1. Try Optimized RPC
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_feed', { 
@@ -477,7 +477,7 @@ export default function FeedPage() {
         }
         
         setHasMore(rpcData.length === limit)
-        if (!loadMore) setVisiblePostsCount(10)
+        if (!loadMore) setVisiblePostsCount(5)
         return
       }
 
@@ -548,7 +548,7 @@ export default function FeedPage() {
         setPosts(postsWithCounts)
       }
       setHasMore(data.length === limit)
-      if (!loadMore) setVisiblePostsCount(10)
+      if (!loadMore) setVisiblePostsCount(5)
 
     } catch (error) {
       console.error('Error fetching feed:', error)
