@@ -115,10 +115,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('✉️ Please check your email to confirm your account.')
     }
 
-    await supabase.from('profiles').insert({
-      id: data.user.id,
-      username: username.toLowerCase().trim(),
-    })
+    // await supabase.from('profiles').insert({
+    //   id: data.user.id,
+    //   username: username.toLowerCase().trim(),
+    // })
 
     set({ user: data.user })
     await get().fetchProfile(data.user.id)

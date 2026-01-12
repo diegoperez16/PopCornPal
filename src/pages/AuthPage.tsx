@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
-import { Check, X, Eye, EyeOff } from 'lucide-react'
+import { Check, X, Eye, EyeOff, Mail } from 'lucide-react'
 
 export default function AuthPage() {
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [username, setUsername] = useState('')
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  const { signIn, signUp } = useAuthStore()
+  const { signIn, signUp, resetPasswordForEmail } = useAuthStore()
   const navigate = useNavigate()
 
   const getPasswordStrength = (pass: string) => {
@@ -78,8 +79,26 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccessMsg('')
 
-    if (isSignUp) {
+    if (mode === 'forgot') {
+      if (!email) {
+        setError('Please enter your email')
+        return
+      }
+      setLoading(true)
+      try {
+        await resetPasswordForEmail(email)
+        setSuccessMsg('Check your email for the password reset link!')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    if (mode === 'signup') {
       // Validate username
       const usernameError = validateUsername(username)
       if (usernameError) {
@@ -104,7 +123,7 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      if (isSignUp) {
+      if (mode === 'signup') {
         await signUp(email, password, username.toLowerCase())
       } else {
         await signIn(email, password)
@@ -117,6 +136,12 @@ export default function AuthPage() {
     }
   }
 
+  const switchMode = (newMode: typeof mode) => {
+    setMode(newMode)
+    setError('')
+    setSuccessMsg('')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
@@ -125,17 +150,19 @@ export default function AuthPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent mb-2">
             PopcornPal
           </h1>
-          <p className="text-gray-400">Track what you watch, play, and read</p>
+          <p className="text-gray-400">
+            {mode === 'forgot' ? 'Reset your password' : 'Track what you watch, play, and read'}
+          </p>
         </div>
 
         {/* Auth Form */}
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
           <h2 className="text-2xl font-semibold text-white mb-6">
-            {isSignUp ? 'Create Account' : 'Welcome Back'}
+            {mode === 'signup' ? 'Create Account' : mode === 'forgot' ? 'Forgot Password' : 'Welcome Back'}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
+            {mode === 'signup' && (
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
                   Username
@@ -147,7 +174,7 @@ export default function AuthPage() {
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
                   className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   placeholder="johndoe"
-                  required={isSignUp}
+                  required={mode === 'signup'}
                 />
                 <p className="mt-1 text-xs text-gray-400">
                   3-30 characters, lowercase letters, numbers, and underscores only
@@ -170,74 +197,87 @@ export default function AuthPage() {
               />
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="••••••••"
-                  required
-                  minLength={isSignUp ? 8 : 6}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {isSignUp && password && (
-                <div className="mt-3 space-y-2">
-                  {/* Strength Bar */}
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <div
-                        key={level}
-                        className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                          level <= passwordStrength.strength
-                            ? passwordStrength.strength <= 2
-                              ? 'bg-red-500'
-                              : passwordStrength.strength <= 3
-                              ? 'bg-yellow-500'
-                              : passwordStrength.strength <= 4
-                              ? 'bg-blue-500'
-                              : 'bg-green-500'
-                            : 'bg-gray-700'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  {/* Requirements */}
-                  <div className="space-y-1 text-xs">
-                    <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.length ? 'text-green-400' : 'text-gray-500'}`}>
-                      {passwordStrength.checks.length ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      <span>At least 8 characters</span>
-                    </div>
-                    <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.uppercase ? 'text-green-400' : 'text-gray-500'}`}>
-                      {passwordStrength.checks.uppercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      <span>Uppercase letter (A-Z)</span>
-                    </div>
-                    <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.lowercase ? 'text-green-400' : 'text-gray-500'}`}>
-                      {passwordStrength.checks.lowercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      <span>Lowercase letter (a-z)</span>
-                    </div>
-                    <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.number ? 'text-green-400' : 'text-gray-500'}`}>
-                      {passwordStrength.checks.number ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                      <span>Number (0-9)</span>
-                    </div>
-                  </div>
+            {mode !== 'forgot' && (
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 pr-12 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    placeholder="••••••••"
+                    required={mode !== 'forgot'}
+                    minLength={mode === 'signup' ? 8 : 6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
-              )}
-            </div>
+                {mode === 'signin' && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+                {mode === 'signup' && password && (
+                  <div className="mt-3 space-y-2">
+                    {/* Strength Bar */}
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((level) => (
+                        <div
+                          key={level}
+                          className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                            level <= passwordStrength.strength
+                              ? passwordStrength.strength <= 2
+                                ? 'bg-red-500'
+                                : passwordStrength.strength <= 3
+                                ? 'bg-yellow-500'
+                                : passwordStrength.strength <= 4
+                                ? 'bg-blue-500'
+                                : 'bg-green-500'
+                              : 'bg-gray-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {/* Requirements */}
+                    <div className="space-y-1 text-xs">
+                      <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.length ? 'text-green-400' : 'text-gray-500'}`}>
+                        {passwordStrength.checks.length ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>At least 8 characters</span>
+                      </div>
+                      <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.uppercase ? 'text-green-400' : 'text-gray-500'}`}>
+                        {passwordStrength.checks.uppercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Uppercase letter (A-Z)</span>
+                      </div>
+                      <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.lowercase ? 'text-green-400' : 'text-gray-500'}`}>
+                        {passwordStrength.checks.lowercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Lowercase letter (a-z)</span>
+                      </div>
+                      <div className={`flex items-center gap-2 transition-colors ${passwordStrength.checks.number ? 'text-green-400' : 'text-gray-500'}`}>
+                        {passwordStrength.checks.number ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Number (0-9)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {isSignUp && (
+            {mode === 'signup' && (
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
                   Confirm Password
@@ -258,7 +298,7 @@ export default function AuthPage() {
                         : 'border-red-500/50 focus:ring-red-500'
                     }`}
                     placeholder="••••••••"
-                    required={isSignUp}
+                    required={mode === 'signup'}
                   />
                   <button
                     type="button"
@@ -330,26 +370,39 @@ export default function AuthPage() {
               </div>
             )}
 
+            {successMsg && (
+              <div className="bg-green-500/10 border border-green-500/50 rounded-lg p-3 text-green-400 text-sm flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                {successMsg}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (mode === 'forgot' && !!successMsg)}
               className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+              {loading ? 'Loading...' : mode === 'signup' ? 'Sign Up' : mode === 'forgot' ? 'Send Reset Link' : 'Sign In'}
             </button>
           </form>
 
-          {/* Toggle Sign In / Sign Up */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp)
-                setError('')
-              }}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </button>
+          {/* Toggle Sign In / Sign Up / Forgot Password */}
+          <div className="mt-6 text-center space-y-2">
+            {mode === 'forgot' ? (
+              <button
+                onClick={() => switchMode('signin')}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Back to Sign In
+              </button>
+            ) : (
+              <button
+                onClick={() => switchMode(mode === 'signup' ? 'signin' : 'signup')}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+              </button>
+            )}
           </div>
         </div>
       </div>
