@@ -210,7 +210,7 @@ export default function AuthPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full px-4 py-3 pr-12 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     placeholder="••••••••"
-                    required={mode !== 'forgot'}
+                    required={mode === 'signin' || mode === 'signup'}
                     minLength={mode === 'signup' ? 8 : 6}
                   />
                   <button
