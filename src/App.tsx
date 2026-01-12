@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { useAuthStore } from './store/authStore'
 import { isSupabaseConfigured } from './lib/supabase'
 import AuthPage from './pages/AuthPage'
+import UpdatePasswordPage from './pages/UpdatePasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import UserProfilePage from './pages/UserProfilePage'
 import AddEntryPage from './pages/AddEntryPage'
@@ -165,6 +166,7 @@ function AppContent() {
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/auth/callback" element={<AuthPage />} />
+        <Route path="/update-password" element={<UpdatePasswordPage />} />
         <Route path="/feed" element={<FeedPage />} />
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/activity" element={<ActivityPage />} />

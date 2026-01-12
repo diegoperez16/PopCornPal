@@ -10,6 +10,10 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, username: string) => Promise<void>
   signOut: () => Promise<void>
+  // New methods
+  resetPasswordForEmail: (email: string) => Promise<void>
+  updatePassword: (password: string) => Promise<void>
+  
   fetchProfile: (userId: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   initialize: () => Promise<void>
@@ -26,6 +30,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
       const accessToken = hashParams.get('access_token')
       const refreshToken = hashParams.get('refresh_token')
+      const type = hashParams.get('type') // Supabase sends 'recovery' type for password resets
       
       if (accessToken && refreshToken) {
         const { data, error } = await supabase.auth.setSession({
@@ -37,14 +42,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         else if (data.session?.user) {
           set({ user: data.session.user })
           await get().fetchProfile(data.session.user.id)
-          window.history.replaceState({}, document.title, '/feed')
+          
+          // Only redirect to feed if we are NOT in recovery/password update mode
+          if (type !== 'recovery' && window.location.pathname !== '/update-password') {
+            window.history.replaceState({}, document.title, '/feed')
+          }
+          
           set({ loading: false })
           return
         }
       }
 
-      supabase.auth.onAuthStateChange(async (_event, session) => {
-        // Only update state if it actually changed
+      // ... existing auth state change listener ...
+      supabase.auth.onAuthStateChange(async (event, session) => {
         const currentUser = get().user
         if (session?.user?.id !== currentUser?.id) {
           set({ user: session?.user ?? null })
@@ -56,9 +66,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       })
 
-      // Initial session check
+      // ... existing session check ...
       const { data: { session } } = await supabase.auth.getSession()
-      
       if (session?.user) {
         set({ user: session.user })
         await get().fetchProfile(session.user.id)
@@ -70,21 +79,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // New silent check for tab resume
   resumeSession: async () => {
     try {
       const { data, error } = await supabase.auth.getSession()
-      
       if (error || !data.session) {
         console.warn('Session invalid on resume, attempting silent refresh...')
-        // Don't set global loading=true here to avoid UI flicker
         resetSupabaseClient()
         const { data: refreshData } = await supabase.auth.getSession()
-        
         if (refreshData.session?.user) {
           set({ user: refreshData.session.user })
-          // Optionally refresh profile if needed
-          // await get().fetchProfile(refreshData.session.user.id)
         }
       }
     } catch (err) {
@@ -105,7 +108,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username }, emailRedirectTo: `${window.location.origin}/auth/callback?confirmed=true` }
+      options: { 
+        data: { username }, 
+        emailRedirectTo: `${window.location.origin}/auth/callback?confirmed=true` 
+      }
     })
 
     if (error) throw new Error(error.message)
@@ -115,13 +121,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('✉️ Please check your email to confirm your account.')
     }
 
-    // await supabase.from('profiles').insert({
-    //   id: data.user.id,
-    //   username: username.toLowerCase().trim(),
-    // })
-
     set({ user: data.user })
     await get().fetchProfile(data.user.id)
+  },
+
+  // New function: Request Password Reset Email
+  resetPasswordForEmail: async (email) => {
+    // IMPORTANT: This redirectTo tells Supabase where to send the user 
+    // after they click the link in the email.
+    const redirectTo = `${window.location.origin}/update-password`
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    })
+    if (error) throw error
+  },
+
+  // New function: Update Password (used after clicking the link)
+  updatePassword: async (password) => {
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw error
   },
 
   signOut: async () => {
