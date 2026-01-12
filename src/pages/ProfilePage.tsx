@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker } from 'lucide-react'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker, Search, Settings2,GripVertical } from 'lucide-react'
 import { supabase, type Badge, type UserBadge } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
@@ -62,6 +62,105 @@ export default function ProfilePage() {
   const [editNotes, setEditNotes] = useState('')
   const [initialLoading, setInitialLoading] = useState(true)
 
+  // --- FAVORITES LOGIC ---
+  const [favorites, setFavorites] = useState<any[]>([])
+  const [draggedFavIndex, setDraggedFavIndex] = useState<number | null>(null)
+  const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null)
+  const [showMediaSelector, setShowMediaSelector] = useState(false)
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('')
+  const [mediaFilterType, setMediaFilterType] = useState<'all' | 'movie' | 'show' | 'game' | 'book'>('all')
+  // ... existing state
+  const [isManagingFavorites, setIsManagingFavorites] = useState(false) // <--- NEW STATE
+
+  const fetchFavorites = async () => {
+    if (!user) return
+    const { data } = await supabase
+      .from('profile_favorites')
+      .select('*, media_entry:media_entries(*)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+    
+    if (data) setFavorites(data)
+  }
+
+  const handleAddFavorite = async (entryId: string) => {
+    if (!user) return
+    if (favorites.length >= 10) {
+      alert('You can only have 10 favorites!')
+      return
+    }
+    // Prevent duplicates (robust: check both local and DB)
+    if (favorites.some(fav => fav.media_entry_id === entryId)) {
+      alert('Already in favorites')
+      return
+    }
+    try {
+      // Double-check on DB for race conditions
+      const { data: existing } = await supabase
+        .from('profile_favorites')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('media_entry_id', entryId)
+        .maybeSingle()
+      if (existing) {
+        alert('Already in favorites')
+        return
+      }
+      await supabase.from('profile_favorites').insert({
+        user_id: user.id,
+        media_entry_id: entryId
+      })
+      await fetchFavorites() // Refresh list
+      setShowMediaSelector(false)
+      setMediaSearchQuery('')
+    } catch (error) {
+      console.error('Error adding favorite:', error)
+    }
+  }
+
+  const handleRemoveFavorite = async (favId: string) => {
+    if (!window.confirm('Remove from favorites?')) return
+    try {
+      await supabase.from('profile_favorites').delete().eq('id', favId)
+      setFavorites(prev => prev.filter(f => f.id !== favId))
+    } catch (error) {
+      console.error('Error removing favorite:', error)
+    }
+  }
+
+  // Drag and drop reorder logic
+  const handleDragStart = (index: number) => setDraggedFavIndex(index)
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedFavIndex === null || draggedFavIndex === index) return
+
+    const newFavorites = [...favorites]
+    const [draggedItem] = newFavorites.splice(draggedFavIndex, 1)
+    newFavorites.splice(index, 0, draggedItem)
+
+    setFavorites(newFavorites)
+    setDraggedFavIndex(index)
+  }
+  const handleDragEnd = async () => {
+    setDraggedFavIndex(null)
+    if (!user) return
+
+    try {
+      // Create updates: Assign new timestamps spaced 1 second apart to enforce order
+      const updates = favorites.map((fav, index) => {
+        const newTime = new Date(Date.now() + index * 1000).toISOString()
+        return supabase
+          .from('profile_favorites')
+          .update({ created_at: newTime })
+          .eq('id', fav.id)
+      })
+      
+      await Promise.all(updates)
+    } catch (error) {
+      console.error('Error saving order:', error)
+    }
+  }
+
   // --- PERSISTENCE EFFECT ---
   useEffect(() => {
     if (isEditing) {
@@ -89,7 +188,8 @@ export default function ProfilePage() {
       Promise.all([
         fetchEntries(user.id), 
         fetchBadges(), 
-        fetchUserBadges()
+        fetchUserBadges(),
+        fetchFavorites()
       ]).finally(() => setInitialLoading(false))
     }
 
@@ -97,6 +197,7 @@ export default function ProfilePage() {
       if (document.visibilityState === 'visible' && user) {
         fetchEntries(user.id)
         fetchUserBadges()
+        fetchFavorites()
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -452,7 +553,7 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-
+              {/* Actions, background, avatar, badges, etc. remain here */}
               {/* === BADGES SECTION === */}
               {!isEditing && userBadges.length > 0 && (
                 <div className="space-y-4">
@@ -814,6 +915,181 @@ export default function ProfilePage() {
                   )}
                 </div>
               )}
+
+            </div>
+          </div>
+        </div>
+
+        {/* --- FAVORITES SHELF --- */}
+        <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-400 fill-current" />
+              Top Favorites
+            </h3>
+            
+            {/* Manage Favorites Toggle */}
+            <div className="flex items-center gap-2">
+              {isManagingFavorites && favorites.length < 10 && (
+                <button 
+                  onClick={() => setShowMediaSelector(true)}
+                  className="text-xs bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/50 px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors animate-in fade-in"
+                >
+                  <Plus className="w-3 h-3" /> Add
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setIsManagingFavorites(!isManagingFavorites)
+                  setSelectedFavoriteId(null) // Clear selection when toggling
+                }}
+                className={`
+                  text-xs px-3 py-1.5 rounded-full flex items-center gap-2 transition-all border
+                  ${isManagingFavorites 
+                    ? 'bg-red-500/20 text-red-400 border-red-500/50' 
+                    : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}
+                `}
+              >
+                {isManagingFavorites ? (
+                  <>
+                    <X className="w-3 h-3" /> Done
+                  </>
+                ) : (
+                  <>
+                    <Settings2 className="w-3 h-3" /> Manage
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className={`
+            bg-gray-900/40 border-y border-gray-800/50 rounded-3xl sm:rounded-2xl sm:border p-8 transition-colors duration-300
+            ${isManagingFavorites ? 'bg-gray-900/60 border-red-500/20' : ''}
+          `}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-8 px-2 items-stretch">
+              {favorites.length === 0 ? (
+                <div className="flex-1 flex items-center col-span-full justify-center py-8">
+                  <div className="text-gray-500 text-center">
+                    <p className="mb-2 italic">No favorites yet.</p>
+                    <button 
+                      onClick={() => {
+                        setIsManagingFavorites(true)
+                        setShowMediaSelector(true)
+                      }}
+                      className="text-red-400 hover:text-red-300 text-sm font-medium underline underline-offset-4"
+                    >
+                      Start your collection
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                favorites.map((fav, index) => {
+                const draggableProps = {
+                  draggable: isManagingFavorites,
+                  onDragStart: () => isManagingFavorites && handleDragStart(index),
+                  onDragOver: (e: React.DragEvent) => { 
+                    e.preventDefault(); 
+                    if (isManagingFavorites && draggedFavIndex !== null && draggedFavIndex !== index) {
+                       handleDragOver(e, index) 
+                    }
+                  },
+                  onDragEnd: handleDragEnd,
+                }
+                
+                const isSelected = selectedFavoriteId === fav.id
+                
+                return (
+                  <div
+                    key={fav.id}
+                    className={`
+                      relative group flex-shrink-0 w-24 sm:w-28 transition-all duration-200
+                      ${isSelected ? 'scale-105 z-10' : 'hover:scale-105 hover:z-10'}
+                      ${draggedFavIndex === index ? 'opacity-20 scale-90' : 'opacity-100'}
+                      ${isManagingFavorites ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                    `}
+                    {...draggableProps}
+                    onClick={() => {
+                      if (isManagingFavorites) {
+                        setSelectedFavoriteId(fav.id === selectedFavoriteId ? null : fav.id)
+                      }
+                    }}
+                  >
+                    <div className={`
+                      aspect-[2/3] bg-gray-800 rounded-lg overflow-hidden shadow-lg border relative transition-all
+                      ${isSelected ? 'border-red-500 ring-2 ring-red-500/50' : 'border-gray-700/50'}
+                    `}>
+                      {fav.media_entry?.cover_image_url ? (
+                        <img 
+                          src={fav.media_entry.cover_image_url} 
+                          alt={fav.media_entry.title} 
+                          className="w-full h-full object-cover pointer-events-none" 
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-600">
+                          <Film className="w-8 h-8" />
+                        </div>
+                      )}
+                      
+                      {/* Rank Badge */}
+                      <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-white/20 shadow-sm">
+                        {index + 1}
+                      </div>
+
+                      {/* Drag Handle Overlay (Visible only when managing) */}
+                      {isManagingFavorites && !isSelected && (
+                        <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100 pointer-events-none">
+                          <div className="bg-black/60 p-1.5 rounded-full backdrop-blur-sm">
+                            <GripVertical className="w-4 h-4 text-white/80" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Remove Button - Top Right Corner */}
+                      {/* Using pointer-events to ensure it doesn't block clicks when hidden */}
+                      {isManagingFavorites && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation() // Stop click from triggering selection
+                            handleRemoveFavorite(fav.id)
+                            setSelectedFavoriteId(null)
+                          }}
+                          className={`
+                            absolute -top-1 -right-1 z-20 
+                            bg-red-500 text-white p-1.5 rounded-full shadow-lg shadow-black/50 
+                            transform transition-all duration-200 border-2 border-gray-900
+                            ${isSelected 
+                              ? 'scale-100 opacity-100 pointer-events-auto' 
+                              : 'scale-50 opacity-0 pointer-events-none' // Hidden and unclickable when not selected
+                            }
+                          `}
+                          title="Remove from favorites"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    <p className="text-xs text-center mt-2 truncate text-gray-400 group-hover:text-white transition-colors px-1 select-none">
+                      {fav.media_entry?.title}
+                    </p>
+                  </div>
+                )
+              })
+              )}
+              
+              {/* Add Button Slot */}
+              {isManagingFavorites && favorites.length < 10 && (
+                <button 
+                  onClick={() => setShowMediaSelector(true)}
+                  className="flex-shrink-0 w-24 sm:w-28 aspect-[2/3] bg-gray-800/30 border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all group"
+                >
+                   <div className="bg-gray-800 group-hover:bg-gray-700 p-3 rounded-full transition-colors">
+                     <Plus className="w-5 h-5" />
+                   </div>
+                   <span className="text-xs font-medium">Add New</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1010,6 +1286,61 @@ export default function ProfilePage() {
                 </div>
              </div>
            </div>
+        </div>
+      )}
+      {/* --- FAVORITES MEDIA SELECTOR --- */}
+      {showMediaSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">Select Favorite</h3>
+              <button onClick={() => { setShowMediaSelector(false); setMediaSearchQuery(''); }} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input type="text" value={mediaSearchQuery} onChange={(e) => setMediaSearchQuery(e.target.value)} placeholder="Search your library..." className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" autoFocus />
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {[{ id: 'all', label: 'All' }, { id: 'movie', label: 'Movies', icon: Film }, { id: 'show', label: 'TV', icon: Tv }, { id: 'game', label: 'Games', icon: Gamepad2 }, { id: 'book', label: 'Books', icon: Book }].map((type) => { const Icon = type.icon; return ( <button key={type.id} onClick={() => setMediaFilterType(type.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${mediaFilterType === type.id ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'}`}>{Icon && <Icon className="w-3.5 h-3.5" />}{type.label}</button> )})}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
+              {entries.length === 0 ? (
+                <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
+              ) : (() => {
+                // Remove duplicates by title+media_type (case-insensitive)
+                const seen = new Set<string>()
+                const filteredEntries = entries.filter(entry => {
+                  const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
+                  const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
+                  const notInFavorites = !favorites.some(f => f.media_entry_id === entry.id)
+                  const key = `${entry.media_type}:${entry.title.trim().toLowerCase()}`
+                  if (seen.has(key)) return false
+                  seen.add(key)
+                  return matchesType && matchesSearch && notInFavorites
+                })
+                if (filteredEntries.length === 0) return <div className="text-center py-8 text-gray-500"><p>No matches found.</p></div>
+                return filteredEntries.map(entry => {
+                  const Icon = getIcon(entry.media_type)
+                  return (
+                    <button key={entry.id} onClick={() => handleAddFavorite(entry.id)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-800 transition-colors text-left group border border-transparent hover:border-gray-700">
+                      <div className="w-10 h-14 bg-gray-800 rounded flex-shrink-0 overflow-hidden relative">
+                        {entry.cover_image_url ? <img src={entry.cover_image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Icon className="w-4 h-4 text-gray-600" /></div>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">{entry.title}</h4>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5"><span className="capitalize">{entry.media_type}</span>{entry.year && <span>• {entry.year}</span>}</div>
+                      </div>
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex items-center justify-center group-hover:border-green-500 transition-colors"><Plus className="w-3 h-3 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+          </div>
         </div>
       )}
     </div>

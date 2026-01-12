@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star } from 'lucide-react'
+import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star, Calendar, Tag } from 'lucide-react'
 import { api, type SearchResult } from '../lib/api'
 import { useMediaStore } from '../store/mediaStore'
 import { useAuthStore } from '../store/authStore'
@@ -23,7 +23,7 @@ export default function AddEntryPage() {
   const { addEntry } = useMediaStore()
   const { user } = useAuthStore()
   
-  // Initialize state from localStorage or defaults
+  // Initialize state
   const [activeTab, setActiveTab] = useState<MediaType>(() => loadState('popcorn_add_tab', 'movie'))
   const [query, setQuery] = useState(() => loadState('popcorn_add_query', ''))
   const [results, setResults] = useState<SearchResult[]>(() => loadState('popcorn_add_results', []))
@@ -39,7 +39,6 @@ export default function AddEntryPage() {
   const [duplicateError, setDuplicateError] = useState(false)
 
   // --- PERSISTENCE EFFECT ---
-  // Save state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('popcorn_add_tab', JSON.stringify(activeTab))
     localStorage.setItem('popcorn_add_query', JSON.stringify(query))
@@ -50,7 +49,6 @@ export default function AddEntryPage() {
     localStorage.setItem('popcorn_add_notes', JSON.stringify(notes))
   }, [activeTab, query, results, selectedItem, rating, status, notes])
 
-  // Clear persistence when successfully saved or manually cleared (optional, here we clear on success)
   const clearPersistence = () => {
     localStorage.removeItem('popcorn_add_query')
     localStorage.removeItem('popcorn_add_results')
@@ -58,7 +56,6 @@ export default function AddEntryPage() {
     localStorage.removeItem('popcorn_add_rating')
     localStorage.removeItem('popcorn_add_status')
     localStorage.removeItem('popcorn_add_notes')
-    // We keep 'popcorn_add_tab' as a user preference
   }
 
   // Hide mobile nav when modal is open
@@ -110,8 +107,6 @@ export default function AddEntryPage() {
     setDuplicateError(false)
     
     try {
-      // Only check for duplicates if adding to library (logged status)
-      // Activity posts (completed, in-progress, planned) can have duplicates
       if (status === 'logged') {
         const { data: existingEntry } = await supabase
           .from('media_entries')
@@ -136,15 +131,12 @@ export default function AddEntryPage() {
         status,
         completed_date: status === 'completed' ? new Date().toISOString().split('T')[0] : null,
         notes: notes.trim() || null,
-        genre: null, // API doesn't always provide simple genre string, skipping for now
+        genre: null, 
         year: selectedItem.year ? parseInt(selectedItem.year) : null,
         cover_image_url: selectedItem.image || null
       })
       
-      // Clear draft on success
       clearPersistence()
-      
-      // Ensure mobile nav reappears
       setSelectedItem(null)
       navigate('/profile')
     } catch (error) {
@@ -156,9 +148,6 @@ export default function AddEntryPage() {
 
   const handleCloseModal = () => {
     setSelectedItem(null)
-    // Optional: Clear selection draft when closing modal explicitly?
-    // For now we keep it so they can reopen if accidental close.
-    // To clear just the selection: localStorage.removeItem('popcorn_add_selected')
   }
 
   const tabs = [
@@ -176,7 +165,7 @@ export default function AddEntryPage() {
           <h1 className="text-2xl font-bold">Add New Entry</h1>
           <button 
             onClick={() => {
-              clearPersistence() // Clear drafts if they cancel out
+              clearPersistence()
               navigate(-1)
             }}
             className="p-2 hover:bg-gray-800 rounded-full transition-colors"
@@ -208,24 +197,32 @@ export default function AddEntryPage() {
           ))}
         </div>
 
-        {/* Search */}
+        {/* Search - SLEEKER & RESPONSIVE */}
         <form onSubmit={handleSearch} className="mb-8">
-          <div className="relative">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Search for ${activeTab}s...`}
-              className="w-full pl-12 pr-4 py-4 bg-gray-800/50 border border-gray-700 rounded-xl focus:outline-none focus:border-red-500 transition-colors text-lg"
-              autoFocus
-            />
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Search for ${activeTab}s...`}
+                className="w-full pl-12 pr-4 py-4 bg-gray-800/50 border border-gray-700 rounded-xl focus:outline-none focus:border-red-500 transition-colors text-lg"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearch()
+                }}
+              />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+            </div>
             <button
-              type="submit"
+              type="button"
+              onClick={handleSearch}
               disabled={searching || !query.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="bg-gray-700 hover:bg-gray-600 h-[56px] w-[56px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 mt-2 sm:mt-0"
+              tabIndex={0}
+              aria-label="Search"
             >
-              {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+              {searching ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-7 h-7 text-white" />}
             </button>
           </div>
         </form>
@@ -237,8 +234,6 @@ export default function AddEntryPage() {
               key={item.id}
               onClick={() => {
                 setSelectedItem(item)
-                // Don't reset draft values if re-selecting the same item
-                // But generally safer to reset form defaults for a new selection
                 if (!selectedItem || selectedItem.id !== item.id) {
                     setRating(0)
                     setStatus('completed')
@@ -277,107 +272,143 @@ export default function AddEntryPage() {
           )}
         </div>
 
-        {/* Selection Modal */}
+        {/* --- NEW RESPONSIVE MODAL --- */}
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 relative animate-in slide-in-from-bottom-10 fade-in duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-gray-900 border border-gray-700 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
+              
+              {/* Close Button */}
               <button
                 onClick={handleCloseModal}
-                className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white z-10"
+                className="absolute top-3 right-3 z-30 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white/90 hover:text-white transition-colors border border-white/10 shadow-lg"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h2 className="text-xl font-bold mb-1 pr-10 leading-tight">{selectedItem.title}</h2>
-              <p className="text-gray-400 text-sm mb-6">{selectedItem.year} • {activeTab}</p>
-
-              {/* Duplicate Error Alert */}
-              {duplicateError && (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6 flex items-start gap-3">
-                  <span className="text-red-500 flex-shrink-0 mt-0.5">⚠️</span>
-                  <div className="flex-1 text-sm">
-                    <p className="font-medium mb-1">Already in your library</p>
-                    <p className="text-red-400/80">"{selectedItem.title}" is already in your {activeTab} library. You can still add it as activity using other statuses.</p>
+              {/* --- LEFT (Desktop) / TOP (Mobile): Poster & Backdrop --- */}
+              <div className="w-full h-48 md:h-auto md:w-2/5 bg-black relative flex-shrink-0">
+                {selectedItem.image ? (
+                  <>
+                    {/* Blurred Backdrop */}
+                    <div className="absolute inset-0 overflow-hidden">
+                      <img src={selectedItem.image} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent md:bg-gradient-to-r" />
+                    </div>
+                    
+                    {/* Actual Poster Image */}
+                    <div className="relative h-full w-full flex items-center justify-center p-6 md:p-8">
+                      <img 
+                        src={selectedItem.image} 
+                        alt={selectedItem.title} 
+                        className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36" 
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 bg-gray-800">
+                    <Film className="w-16 h-16 opacity-20" />
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              <div className="space-y-6">
-                {/* Status */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
-                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                    {[
-                      { value: 'completed', label: 'Completed' },
-                      { value: 'in-progress', label: 'In Progress' },
-                      { value: 'planned', label: 'Plan to Watch' },
-                      { value: 'logged', label: 'Library' },
-                    ].map((s) => (
-                      <button
-                        key={s.value}
-                        onClick={() => {
-                          setStatus(s.value as any)
-                          // Clear rating and notes if not completed or logged
-                          if (s.value !== 'completed' && s.value !== 'logged') {
-                            setRating(0)
-                            setNotes('')
-                          }
-                        }}
-                        className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
-                          status === s.value
-                            ? 'bg-red-500/10 border-red-500 text-red-500'
-                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
+              {/* --- RIGHT (Desktop) / BOTTOM (Mobile): Details & Form --- */}
+              <div className="flex-1 overflow-y-auto bg-gray-900 p-5 md:p-8 flex flex-col">
+                
+                {/* Media Info Section */}
+                <div className="mb-8 border-b border-gray-800 pb-6">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="px-2.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                      {selectedItem.type}
+                    </span>
+                    {selectedItem.year && (
+                      <span className="flex items-center gap-1 text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-800 rounded-md">
+                        <Calendar className="w-3 h-3" />
+                        {selectedItem.year}
+                      </span>
+                    )}
                   </div>
+                  
+                  <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight mb-3">
+                    {selectedItem.title}
+                  </h2>
+                  
+                  {/* Duplicate Error Alert */}
+                  {duplicateError && (
+                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-4 flex items-start gap-3">
+                      <span className="text-red-500 flex-shrink-0 mt-0.5">⚠️</span>
+                      <div className="flex-1 text-sm">
+                        <p className="font-medium mb-1">Already in your library</p>
+                        <p className="text-red-400/80">"{selectedItem.title}" is already in your library. Try a different status.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Rating - show if completed or logged */}
-                {(status === 'completed' || status === 'logged') && (
+                {/* Form Section */}
+                <div className="space-y-6">
+                  {/* Status Selector */}
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">
-                      Rating {rating > 0 && `(${rating}/5)`}
-                    </label>
-                    <div className="space-y-4">
-                      {/* Star Display */}
-                      <div className="flex gap-1 items-center justify-center">
-                        {[1, 2, 3, 4, 5].map((star) => {
-                          const isFilled = rating >= star
-                          const isHalfFilled = rating >= star - 0.5 && rating < star
-                          
-                          return (
-                            <div key={star} className="relative">
-                              {/* Background star */}
-                              <Star className="w-8 h-8 sm:w-9 sm:h-9 text-gray-700" />
-                              {/* Filled overlay */}
-                              {(isFilled || isHalfFilled) && (
-                                <div
-                                  className="absolute inset-0 overflow-hidden pointer-events-none"
-                                  style={{ width: isHalfFilled ? '50%' : '100%' }}
-                                >
-                                  <Star className="w-8 h-8 sm:w-9 sm:h-9 fill-yellow-500 text-yellow-500" />
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Status</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: 'completed', label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
+                        { value: 'in-progress', label: 'In-progress', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+                        { value: 'planned', label: 'Plan to Watch', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+                        { value: 'logged', label: 'Logged', color: 'text-gray-400', bg: 'bg-gray-800', border: 'border-gray-700' },
+                      ].map((s) => (
+                        <button
+                          key={s.value}
+                          onClick={() => {
+                            setStatus(s.value as any)
+                            if (s.value !== 'completed' && s.value !== 'logged') {
+                              setRating(0)
+                              setNotes('')
+                            }
+                          }}
+                          className={`
+                            px-3 py-2 rounded-lg text-xs md:text-sm font-medium border transition-all duration-200 flex-1 md:flex-none text-center
+                            ${status === s.value
+                              ? `${s.bg} ${s.border} ${s.color} shadow-sm ring-1 ring-inset ring-white/10`
+                              : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white'}
+                          `}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Rating with Slider & Stars */}
+                  {(status === 'completed' || status === 'logged') && (
+                    <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
+                      <div className="flex justify-between items-center mb-3">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rating</label>
+                        <span className="text-xl font-bold text-white flex items-baseline gap-1">
+                          {rating > 0 ? rating : '-'} <span className="text-gray-600 text-sm font-normal">/ 5</span>
+                        </span>
                       </div>
                       
-                      {/* Improved Slider */}
-                      <div className="relative w-full h-8 flex items-center">
-                        {/* Custom Track Background */}
+                      {/* Star Display (Visual + Click) */}
+                      <div className="flex gap-1 mb-4 justify-center md:justify-start">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star 
+                            key={star} 
+                            className={`w-8 h-8 md:w-9 md:h-9 transition-colors cursor-pointer ${rating >= star ? 'text-yellow-400 fill-yellow-400' : rating >= star - 0.5 ? 'text-yellow-400 fill-yellow-400/50' : 'text-gray-700'}`} 
+                            onClick={() => setRating(star)} 
+                          />
+                        ))}
+                      </div>
+                      
+                      {/* Smooth Slider Control */}
+                      <div className="relative w-full h-6 flex items-center group">
+                        {/* Track */}
                         <div className="absolute w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                             {/* Filled part of the track */}
                              <div 
-                                className="h-full bg-yellow-500 transition-all duration-75 ease-out"
+                                className="h-full bg-yellow-400 transition-all duration-75 ease-out"
                                 style={{ width: `${(rating / 5) * 100}%` }}
                              />
                         </div>
-                        
-                        {/* Actual Range Input (Invisible but interactive) */}
+                        {/* Invisible Input for interaction */}
                         <input
                           type="range"
                           min="0"
@@ -387,46 +418,42 @@ export default function AddEntryPage() {
                           onChange={(e) => setRating(parseFloat(e.target.value) / 2)}
                           className="absolute w-full h-full opacity-0 cursor-pointer z-10"
                         />
-
-                        {/* Custom Thumb (Visual Only) */}
+                        {/* Thumb Visual */}
                         <div 
-                            className="absolute h-5 w-5 bg-white border-2 border-yellow-500 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
+                            className="absolute h-5 w-5 bg-white border-2 border-yellow-400 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
                             style={{ 
-                                left: `calc(${(rating / 5) * 100}% - 10px)` // Centered on value
+                                left: `calc(${(rating / 5) * 100}% - 10px)` 
                             }}
                         />
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Notes - show if completed or logged */}
-                {(status === 'completed' || status === 'logged') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      onBlur={() => {
-                        // Auto zoom-out on iOS when user finishes typing
-                        if (window.visualViewport) {
-                          window.scrollTo(0, 0)
-                        }
-                      }}
-                      rows={3}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-base focus:outline-none focus:border-red-500 transition-colors"
-                      placeholder="What did you think?"
-                    />
-                  </div>
-                )}
+                  {/* Notes / Review */}
+                  {(status === 'completed' || status === 'logged') && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Review</label>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        onBlur={() => {
+                          if (window.visualViewport) window.scrollTo(0, 0)
+                        }}
+                        rows={4}
+                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all resize-none text-sm leading-relaxed"
+                        placeholder="What did you think about it?"
+                      />
+                    </div>
+                  )}
 
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3.5 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Add to Library'}
-                </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-red-900/20 transition-all disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
+                  >
+                    {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Add to Library'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
