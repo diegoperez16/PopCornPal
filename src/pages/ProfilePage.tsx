@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +8,28 @@ import GifPicker from '../components/GifPicker'
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, signOut } = useAuthStore()
-  const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore()
+  const { 
+    entries, 
+    fetchEntries, 
+    updateEntry, 
+    deleteEntry,
+    favorites,
+    userBadges,
+    availableBadges,
+    profileLoaded,
+    profileScrollPos,
+    setFavorites,
+    setUserBadges,
+    setAvailableBadges,
+    setProfileLoaded,
+    setProfileScrollPos
+  } = useMediaStore()
+
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Update initialLoading to rely on store
+  // If profileLoaded is true, we don't show the full screen loader
+  const [initialLoading, setInitialLoading] = useState(!profileLoaded)
   const navigate = useNavigate()
   
   // Profile Editing State
@@ -26,8 +47,8 @@ export default function ProfilePage() {
   const [uploadedAvatar, setUploadedAvatar] = useState<string | null>(null)
   
   const [savingProfile, setSavingProfile] = useState(false)
-  const [availableBadges, setAvailableBadges] = useState<Badge[]>([])
-  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
+  // const [availableBadges, setAvailableBadges] = useState<Badge[]>([])
+  // const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   
   const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('popcorn_profile_badges')
@@ -59,10 +80,10 @@ export default function ProfilePage() {
   const [editRating, setEditRating] = useState(0)
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
-  const [initialLoading, setInitialLoading] = useState(true)
+  //const [initialLoading, setInitialLoading] = useState(true)
 
   // --- FAVORITES LOGIC ---
-  const [favorites, setFavorites] = useState<any[]>([])
+  // const [favorites, setFavorites] = useState<any[]>([])
   const [draggedFavIndex, setDraggedFavIndex] = useState<number | null>(null)
   const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null)
   const [showMediaSelector, setShowMediaSelector] = useState(false)
@@ -170,14 +191,15 @@ export default function ProfilePage() {
   }
 
   const handleRemoveFavorite = async (favId: string) => {
-    if (!window.confirm('Remove from favorites?')) return
-    try {
-      await supabase.from('profile_favorites').delete().eq('id', favId)
-      setFavorites(prev => prev.filter(f => f.id !== favId))
-    } catch (error) {
-      console.error('Error removing favorite:', error)
-    }
+  if (!window.confirm('Remove from favorites?')) return
+  try {
+    await supabase.from('profile_favorites').delete().eq('id', favId)
+    // Use functional update or refetch
+    setFavorites(favorites.filter(f => f.id !== favId)) 
+  } catch (error) {
+    console.error('Error removing favorite:', error)
   }
+}
 
   const handleDragStart = (index: number) => setDraggedFavIndex(index)
   const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -263,19 +285,35 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user) {
+      // If data is already loaded (cached), show it and refresh in background
+      if (profileLoaded) {
+        setRefreshing(true)
+      }
+      
+      // Fetch all data
       Promise.all([
         fetchEntries(user.id), 
         fetchBadges(), 
         fetchUserBadges(),
         fetchFavorites()
-      ]).finally(() => setInitialLoading(false))
+      ]).finally(() => {
+        // Once done:
+        setInitialLoading(false) // Hide full screen loader (if showing)
+        setRefreshing(false)     // Hide top bar loader (if showing)
+        setProfileLoaded(true)   // Mark as loaded in store
+      })
     }
 
+    // Handle visibility change (tab switching)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        fetchEntries(user.id)
-        fetchUserBadges()
-        fetchFavorites()
+        setRefreshing(true)
+        Promise.all([
+          fetchEntries(user.id), 
+          fetchBadges(), 
+          fetchUserBadges(), 
+          fetchFavorites()
+        ]).finally(() => setRefreshing(false))
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -283,7 +321,7 @@ export default function ProfilePage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [user, fetchEntries])
+  }, [user, fetchEntries]) // Removed 'profileLoaded' from dependency to prevent loops
 
   const fetchBadges = async () => {
     const { data } = await supabase
@@ -292,7 +330,7 @@ export default function ProfilePage() {
       .order('admin_only', { ascending: true })
       .order('name')
     
-    if (data) setAvailableBadges(data)
+    if (data) setAvailableBadges(data) // Using store setter
   }
 
   const fetchUserBadges = async () => {
@@ -500,6 +538,20 @@ export default function ProfilePage() {
     }
   }
 
+  // 1. Restore scroll position on mount
+  useLayoutEffect(() => {
+    if (profileScrollPos > 0) {
+      window.scrollTo(0, profileScrollPos)
+    }
+  }, [profileScrollPos])
+
+  // 2. Save scroll position ONLY on unmount
+  useLayoutEffect(() => {
+    return () => {
+      setProfileScrollPos(window.scrollY)
+    }
+  }, [setProfileScrollPos])
+
   const getIcon = (type: string) => {
     switch (type) {
       case 'movie': return Film
@@ -528,6 +580,8 @@ export default function ProfilePage() {
 
   if (initialLoading) {
     return (
+
+      
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
         <div className="text-center">
           <div className="mb-8 relative flex items-center justify-center gap-6">
@@ -556,6 +610,7 @@ export default function ProfilePage() {
   if (!user || !profile) return null
 
   return (
+    
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Profile Header */}
