@@ -1,17 +1,37 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker, Search, Settings2,GripVertical } from 'lucide-react'
-import { supabase, type Badge, type UserBadge } from '../lib/supabase'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical } from 'lucide-react'
+import { supabase, type UserBadge } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, signOut } = useAuthStore()
-  const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore()
+  const { 
+    entries, 
+    fetchEntries, 
+    updateEntry, 
+    deleteEntry,
+    favorites,
+    userBadges,
+    availableBadges,
+    profileLoaded,
+    profileScrollPos,
+    setFavorites,
+    setUserBadges,
+    setAvailableBadges,
+    setProfileLoaded,
+    setProfileScrollPos
+  } = useMediaStore()
+
+
+  // Update initialLoading to rely on store
+  // If profileLoaded is true, we don't show the full screen loader
+  const [initialLoading, setInitialLoading] = useState(!profileLoaded)
   const navigate = useNavigate()
   
-  // Profile Editing State - Initialized from LocalStorage if available
+  // Profile Editing State
   const [isEditing, setIsEditing] = useState(() => localStorage.getItem('popcorn_profile_is_editing') === 'true')
   
   const [fullName, setFullName] = useState(() => 
@@ -23,12 +43,11 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState(() => 
     localStorage.getItem('popcorn_profile_avatar_url') || profile?.avatar_url || ''
   )
-  // uploadedAvatar is likely too large for simple localStorage text (base64), so we skip persisting it to keep it light
   const [uploadedAvatar, setUploadedAvatar] = useState<string | null>(null)
   
   const [savingProfile, setSavingProfile] = useState(false)
-  const [availableBadges, setAvailableBadges] = useState<Badge[]>([])
-  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
+  // const [availableBadges, setAvailableBadges] = useState<Badge[]>([])
+  // const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   
   const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('popcorn_profile_badges')
@@ -38,7 +57,7 @@ export default function ProfilePage() {
   const [showAvatarGifPicker, setShowAvatarGifPicker] = useState(false)
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
   
-  // Profile Background State - Persisted
+  // Profile Background State
   const [profileBgUrl, setProfileBgUrl] = useState(() => 
     localStorage.getItem('popcorn_profile_bg_url') || profile?.bg_url || ''
   )
@@ -60,17 +79,71 @@ export default function ProfilePage() {
   const [editRating, setEditRating] = useState(0)
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('completed')
   const [editNotes, setEditNotes] = useState('')
-  const [initialLoading, setInitialLoading] = useState(true)
+  //const [initialLoading, setInitialLoading] = useState(true)
 
   // --- FAVORITES LOGIC ---
-  const [favorites, setFavorites] = useState<any[]>([])
+  // const [favorites, setFavorites] = useState<any[]>([])
   const [draggedFavIndex, setDraggedFavIndex] = useState<number | null>(null)
   const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null)
   const [showMediaSelector, setShowMediaSelector] = useState(false)
   const [mediaSearchQuery, setMediaSearchQuery] = useState('')
   const [mediaFilterType, setMediaFilterType] = useState<'all' | 'movie' | 'show' | 'game' | 'book'>('all')
-  // ... existing state
-  const [isManagingFavorites, setIsManagingFavorites] = useState(false) // <--- NEW STATE
+  
+  const [isManagingFavorites, setIsManagingFavorites] = useState(false) 
+
+  // --- Carousel scroll indicator logic (Direct DOM) ---
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const progressBarRef = useRef<HTMLDivElement>(null)
+  const progressContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = carouselRef.current
+    const bar = progressBarRef.current
+    const container = progressContainerRef.current
+    
+    if (!el || isManagingFavorites) return
+
+    let rafId: number | null = null
+
+    const updateBar = () => {
+      if (!el || !bar || !container) return
+      
+      const { scrollLeft, scrollWidth, clientWidth } = el
+      
+      // Hide bar if content fits (no scrolling needed)
+      if (scrollWidth <= clientWidth) {
+        container.style.opacity = '0'
+      } else {
+        container.style.opacity = '1'
+        const left = (scrollLeft / scrollWidth) * 100
+        const width = (clientWidth / scrollWidth) * 100
+        bar.style.left = `${left}%`
+        bar.style.width = `${width}%`
+      }
+    }
+
+    const onScroll = () => {
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        updateBar()
+        rafId = null
+      })
+    }
+
+    // Passive listener improves scroll performance and silences warnings
+    el.addEventListener('scroll', onScroll, { passive: true })
+    const observer = new ResizeObserver(() => requestAnimationFrame(updateBar))
+    observer.observe(el)
+    
+    // Initial check
+    requestAnimationFrame(updateBar)
+
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      observer.disconnect()
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [isManagingFavorites, favorites]) // Added 'favorites' to deps so it updates when data loads
 
   const fetchFavorites = async () => {
     if (!user) return
@@ -89,13 +162,11 @@ export default function ProfilePage() {
       alert('You can only have 10 favorites!')
       return
     }
-    // Prevent duplicates (robust: check both local and DB)
     if (favorites.some(fav => fav.media_entry_id === entryId)) {
       alert('Already in favorites')
       return
     }
     try {
-      // Double-check on DB for race conditions
       const { data: existing } = await supabase
         .from('profile_favorites')
         .select('id')
@@ -110,7 +181,7 @@ export default function ProfilePage() {
         user_id: user.id,
         media_entry_id: entryId
       })
-      await fetchFavorites() // Refresh list
+      await fetchFavorites()
       setShowMediaSelector(false)
       setMediaSearchQuery('')
     } catch (error) {
@@ -119,16 +190,16 @@ export default function ProfilePage() {
   }
 
   const handleRemoveFavorite = async (favId: string) => {
-    if (!window.confirm('Remove from favorites?')) return
-    try {
-      await supabase.from('profile_favorites').delete().eq('id', favId)
-      setFavorites(prev => prev.filter(f => f.id !== favId))
-    } catch (error) {
-      console.error('Error removing favorite:', error)
-    }
+  if (!window.confirm('Remove from favorites?')) return
+  try {
+    await supabase.from('profile_favorites').delete().eq('id', favId)
+    // Use functional update or refetch
+    setFavorites(favorites.filter(f => f.id !== favId)) 
+  } catch (error) {
+    console.error('Error removing favorite:', error)
   }
+}
 
-  // Drag and drop reorder logic
   const handleDragStart = (index: number) => setDraggedFavIndex(index)
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault()
@@ -146,7 +217,6 @@ export default function ProfilePage() {
     if (!user) return
 
     try {
-      // Create updates: Assign new timestamps spaced 1 second apart to enforce order
       const updates = favorites.map((fav, index) => {
         const newTime = new Date(Date.now() + index * 1000).toISOString()
         return supabase
@@ -161,7 +231,37 @@ export default function ProfilePage() {
     }
   }
 
-  // --- PERSISTENCE EFFECT ---
+  // --- TOUCH HANDLERS (MOBILE) ---
+  const handleTouchStart = (index: number) => {
+    if (!isManagingFavorites) return
+    setDraggedFavIndex(index)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isManagingFavorites || draggedFavIndex === null) return
+    if (e.cancelable) e.preventDefault() // Crucial: Stops screen from scrolling while dragging
+    
+    const touch = e.touches[0]
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)
+    const item = target?.closest('[data-fav-index]')
+    
+    if (item) {
+      const newIndex = parseInt(item.getAttribute('data-fav-index') || '-1')
+      if (newIndex !== -1 && newIndex !== draggedFavIndex) {
+        const newFavorites = [...favorites]
+        const [draggedItem] = newFavorites.splice(draggedFavIndex, 1)
+        newFavorites.splice(newIndex, 0, draggedItem)
+        setFavorites(newFavorites)
+        setDraggedFavIndex(newIndex)
+      }
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!isManagingFavorites) return
+    handleDragEnd()
+  }
+
   useEffect(() => {
     if (isEditing) {
       localStorage.setItem('popcorn_profile_is_editing', 'true')
@@ -172,7 +272,6 @@ export default function ProfilePage() {
       localStorage.setItem('popcorn_profile_bg_opacity', profileBgOpacity.toString())
       localStorage.setItem('popcorn_profile_badges', JSON.stringify(selectedBadgeIds))
     } else {
-      // Clear storage when not editing (saved or canceled)
       localStorage.removeItem('popcorn_profile_is_editing')
       localStorage.removeItem('popcorn_profile_fullname')
       localStorage.removeItem('popcorn_profile_bio')
@@ -185,19 +284,35 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user) {
+      // If data is already loaded (cached), show it and refresh in background
+      if (profileLoaded) {
+        // setRefreshing(true) // removed
+      }
+      
+      // Fetch all data
       Promise.all([
         fetchEntries(user.id), 
         fetchBadges(), 
         fetchUserBadges(),
         fetchFavorites()
-      ]).finally(() => setInitialLoading(false))
+      ]).finally(() => {
+        // Once done:
+        setInitialLoading(false) // Hide full screen loader (if showing)
+        // setRefreshing(false)     // removed
+        setProfileLoaded(true)   // Mark as loaded in store
+      })
     }
 
+    // Handle visibility change (tab switching)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        fetchEntries(user.id)
-        fetchUserBadges()
-        fetchFavorites()
+        // setRefreshing(true) // removed
+        Promise.all([
+          fetchEntries(user.id), 
+          fetchBadges(), 
+          fetchUserBadges(), 
+          fetchFavorites()
+        ]).finally(() => {/* setRefreshing(false) removed */})
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -205,7 +320,7 @@ export default function ProfilePage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [user, fetchEntries])
+  }, [user, fetchEntries]) // Removed 'profileLoaded' from dependency to prevent loops
 
   const fetchBadges = async () => {
     const { data } = await supabase
@@ -214,7 +329,7 @@ export default function ProfilePage() {
       .order('admin_only', { ascending: true })
       .order('name')
     
-    if (data) setAvailableBadges(data)
+    if (data) setAvailableBadges(data) // Using store setter
   }
 
   const fetchUserBadges = async () => {
@@ -227,14 +342,12 @@ export default function ProfilePage() {
     
     if (data) {
       setUserBadges(data as UserBadge[])
-      // Only sync selection from DB if we are NOT currently editing a draft
       if (localStorage.getItem('popcorn_profile_is_editing') !== 'true') {
         setSelectedBadgeIds(data.map(ub => ub.badge_id))
       }
     }
   }
 
-  // Sync state with DB profile only if NOT editing
   useEffect(() => {
     if (profile && !isEditing) {
       setFullName(profile.full_name || '')
@@ -290,7 +403,6 @@ export default function ProfilePage() {
           .eq('user_id', user.id)
           .in('badge_id', badgesToRemove)
       }
-      // Force refresh badges to ensure view matches DB
       const { data } = await supabase
         .from('user_badges')
         .select('*, badges(*)')
@@ -425,6 +537,20 @@ export default function ProfilePage() {
     }
   }
 
+  // 1. Restore scroll position on mount
+  useLayoutEffect(() => {
+    if (profileScrollPos > 0) {
+      window.scrollTo(0, profileScrollPos)
+    }
+  }, [profileScrollPos])
+
+  // 2. Save scroll position ONLY on unmount
+  useLayoutEffect(() => {
+    return () => {
+      setProfileScrollPos(window.scrollY)
+    }
+  }, [setProfileScrollPos])
+
   const getIcon = (type: string) => {
     switch (type) {
       case 'movie': return Film
@@ -444,11 +570,8 @@ export default function ProfilePage() {
     })
   }
 
-  // --- LOGIC TO SPLIT BADGES ---
   const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
   const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')
-  
-  // Filter out special badges from the regular list so they don't show twice
   const regularBadges = userBadges.filter(ub => {
     const name = ub.badges?.name.toLowerCase()
     return name !== 'creator' && name !== 'alpha tester'
@@ -456,6 +579,8 @@ export default function ProfilePage() {
 
   if (initialLoading) {
     return (
+
+      
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
         <div className="text-center">
           <div className="mb-8 relative flex items-center justify-center gap-6">
@@ -484,6 +609,7 @@ export default function ProfilePage() {
   if (!user || !profile) return null
 
   return (
+    
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Profile Header */}
@@ -507,7 +633,6 @@ export default function ProfilePage() {
             </div>
           )}
           <div className="relative z-10 flex flex-col sm:flex-row items-start gap-6">
-            {/* Avatar */}
             <div className="flex-shrink-0 mx-auto sm:mx-0">
               <div className="relative group">
                 <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-4xl font-bold shadow-lg shadow-red-500/20">
@@ -536,7 +661,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Profile Info */}
             <div className="flex-1 w-full text-center sm:text-left flex flex-col gap-4">
               <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 mb-2">
                 <h2 className="text-2xl font-bold mb-1">@{profile.username}</h2>
@@ -553,20 +677,15 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-              {/* Actions, background, avatar, badges, etc. remain here */}
-              {/* === BADGES SECTION === */}
+              
               {!isEditing && userBadges.length > 0 && (
                 <div className="space-y-4">
-                  
-                  {/* 1. CREATOR BADGE SUB-SECTION */}
                   {creatorBadge && (
                     <div className="bg-gradient-to-r from-gray-900/90 to-purple-900/20 border border-purple-500/30 rounded-xl p-3 flex items-center justify-between sm:justify-start gap-4">
                       <div className="flex items-center gap-2 text-purple-300 font-semibold text-sm uppercase tracking-wider">
                         <Crown className="w-4 h-4 text-yellow-400" />
                         <span>Creator Status</span>
                       </div>
-                      
-                      {/* High-Impact Creator Badge */}
                       <div className="relative overflow-hidden rounded-lg shadow-[0_0_30px_rgba(236,72,153,0.8)] ring-4 ring-pink-500/50 animate-[pulse_2s_infinite] scale-110 z-10 brightness-110 w-32 h-10 flex-shrink-0">
                         {creatorBadge.badges?.gif_url ? (
                           <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}>
@@ -582,15 +701,12 @@ export default function ProfilePage() {
                     </div>
                   )}
 
-                  {/* 2. ALPHA TESTER SUB-SECTION */}
                   {alphaBadge && (
                     <div className="bg-gradient-to-r from-gray-900/90 to-cyan-900/20 border border-cyan-500/30 rounded-xl p-3 flex items-center justify-between sm:justify-start gap-4">
                       <div className="flex items-center gap-2 text-cyan-300 font-semibold text-sm uppercase tracking-wider">
                         <Beaker className="w-4 h-4 text-cyan-400" />
                         <span>Alpha Status</span>
                       </div>
-                      
-                      {/* High-Impact Alpha Badge */}
                       <div className="relative overflow-hidden rounded-lg shadow-[0_0_30px_rgba(34,211,238,0.8)] ring-4 ring-cyan-500/50 animate-[pulse_3s_infinite] scale-105 z-10 brightness-110 w-36 h-10 flex-shrink-0">
                         {alphaBadge.badges?.gif_url ? (
                           <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}>
@@ -606,7 +722,6 @@ export default function ProfilePage() {
                     </div>
                   )}
 
-                  {/* 3. REGULAR BADGES LIST */}
                   {regularBadges.length > 0 && (
                     <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 justify-center sm:justify-start">
                       {regularBadges.map((userBadge) => {
@@ -667,7 +782,6 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Actions */}
               {!isEditing && (
                 <div className="flex gap-2">
                   {profile.is_admin && (
@@ -928,12 +1042,11 @@ export default function ProfilePage() {
               Top Favorites
             </h3>
             
-            {/* Manage Favorites Toggle */}
             <div className="flex items-center gap-2">
               {isManagingFavorites && favorites.length < 10 && (
                 <button 
                   onClick={() => setShowMediaSelector(true)}
-                  className="text-xs bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/50 px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors animate-in fade-in"
+                  className="text-xs bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white border border-pink-500/50 px-3 py-1.5 rounded-full flex items-center gap-2 transition-colors animate-in fade-in shadow"
                 >
                   <Plus className="w-3 h-3" /> Add
                 </button>
@@ -946,13 +1059,13 @@ export default function ProfilePage() {
                 className={`
                   text-xs px-3 py-1.5 rounded-full flex items-center gap-2 transition-all border
                   ${isManagingFavorites 
-                    ? 'bg-red-500/20 text-red-400 border-red-500/50' 
+                    ? 'bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white border-blue-500/50 shadow' 
                     : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}
                 `}
               >
                 {isManagingFavorites ? (
                   <>
-                    <X className="w-3 h-3" /> Done
+                    Done <Check className="w-3 h-3" />
                   </>
                 ) : (
                   <>
@@ -962,12 +1075,21 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
-
+          
+          {/* Favorites Grid / Carousel Container */}
           <div className={`
-            bg-gray-900/40 border-y border-gray-800/50 rounded-3xl sm:rounded-2xl sm:border p-8 transition-colors duration-300
-            ${isManagingFavorites ? 'bg-gray-900/60 border-red-500/20' : ''}
+            bg-gray-900/40 border-y border-gray-800/50 rounded-3xl sm:rounded-2xl sm:border transition-colors duration-300
+            ${isManagingFavorites ? 'bg-gray-900/60 border-red-500/20 p-4' : 'p-4 sm:p-8'}
           `}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-8 px-2 items-stretch">
+            <div 
+              className={
+                isManagingFavorites
+                  ? "grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 w-full justify-items-center" // Grid = Symmetrical
+                  : "flex gap-6 px-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden max-w-full w-full min-w-0"
+              }
+              ref={carouselRef}
+              style={{ overflowX: isManagingFavorites ? 'visible' : 'auto' }}
+            >
               {favorites.length === 0 ? (
                 <div className="flex-1 flex items-center col-span-full justify-center py-8">
                   <div className="text-gray-500 text-center">
@@ -985,29 +1107,49 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 favorites.map((fav, index) => {
+                const isSelected = selectedFavoriteId === fav.id
+                
                 const draggableProps = {
-                  draggable: isManagingFavorites,
-                  onDragStart: () => isManagingFavorites && handleDragStart(index),
-                  onDragOver: (e: React.DragEvent) => { 
-                    e.preventDefault(); 
-                    if (isManagingFavorites && draggedFavIndex !== null && draggedFavIndex !== index) {
-                       handleDragOver(e, index) 
+                  draggable: isManagingFavorites && isSelected, // Only draggable when managing AND selected
+                  onDragStart: (e: React.DragEvent) => {
+                    if (isManagingFavorites && isSelected) {
+                      handleDragStart(index)
+                    } else {
+                      e.preventDefault() 
                     }
                   },
                   onDragEnd: handleDragEnd,
                 }
                 
-                const isSelected = selectedFavoriteId === fav.id
-                
                 return (
                   <div
                     key={fav.id}
+                    data-fav-index={index}
                     className={`
-                      relative group flex-shrink-0 w-24 sm:w-28 transition-all duration-200
-                      ${isSelected ? 'scale-105 z-10' : 'hover:scale-105 hover:z-10'}
+                      relative group flex-shrink-0 w-24 sm:w-28 transition-all duration-200 select-none
+                      ${isManagingFavorites && isSelected ? 'cursor-grab active:cursor-grabbing hover:scale-105 hover:z-10' : isManagingFavorites ? 'cursor-pointer' : 'cursor-default'}
+                      ${isSelected ? 'scale-105 z-10' : ''}
                       ${draggedFavIndex === index ? 'opacity-20 scale-90' : 'opacity-100'}
-                      ${isManagingFavorites ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
                     `}
+                    style={{ 
+                      // Only prevent scrolling when this specific item is selected and being dragged
+                      touchAction: isManagingFavorites && isSelected ? 'none' : 'auto', 
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none'
+                    }}
+
+                    onDragOver={(e: React.DragEvent) => { 
+                      e.preventDefault(); 
+                      if (isManagingFavorites && draggedFavIndex !== null) {
+                        handleDragOver(e, index) 
+                      }
+                    }}
+                    
+                    // Touch Handlers
+                    onTouchStart={() => isSelected && handleTouchStart(index)}
+                    onTouchMove={(e) => isSelected && handleTouchMove(e)}
+                    onTouchEnd={() => isSelected && handleTouchEnd()}
+                    
                     {...draggableProps}
                     onClick={() => {
                       if (isManagingFavorites) {
@@ -1019,11 +1161,18 @@ export default function ProfilePage() {
                       aspect-[2/3] bg-gray-800 rounded-lg overflow-hidden shadow-lg border relative transition-all
                       ${isSelected ? 'border-red-500 ring-2 ring-red-500/50' : 'border-gray-700/50'}
                     `}>
+                      {/* Draggable Indicator */}
+                      {isManagingFavorites && isSelected && (
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/70 backdrop-blur-md rounded-lg p-2 pointer-events-none">
+                          <GripVertical className="w-6 h-6 text-white/90" />
+                        </div>
+                      )}
                       {fav.media_entry?.cover_image_url ? (
                         <img 
                           src={fav.media_entry.cover_image_url} 
                           alt={fav.media_entry.title} 
                           className="w-full h-full object-cover pointer-events-none" 
+                          draggable={false}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-600">
@@ -1032,38 +1181,27 @@ export default function ProfilePage() {
                       )}
                       
                       {/* Rank Badge */}
-                      <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-white/20 shadow-sm">
+                      <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-white/20 shadow-sm z-20">
                         {index + 1}
                       </div>
 
-                      {/* Drag Handle Overlay (Visible only when managing) */}
-                      {isManagingFavorites && !isSelected && (
-                        <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100 pointer-events-none">
-                          <div className="bg-black/60 p-1.5 rounded-full backdrop-blur-sm">
-                            <GripVertical className="w-4 h-4 text-white/80" />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Remove Button - Top Right Corner */}
-                      {/* Using pointer-events to ensure it doesn't block clicks when hidden */}
+                      {/* Remove Button */}
                       {isManagingFavorites && (
                         <button 
                           onClick={(e) => {
-                            e.stopPropagation() // Stop click from triggering selection
+                            e.stopPropagation() 
                             handleRemoveFavorite(fav.id)
                             setSelectedFavoriteId(null)
                           }}
                           className={`
-                            absolute -top-1 -right-1 z-20 
+                            absolute -top-2 -right-2 z-30 
                             bg-red-500 text-white p-1.5 rounded-full shadow-lg shadow-black/50 
                             transform transition-all duration-200 border-2 border-gray-900
                             ${isSelected 
                               ? 'scale-100 opacity-100 pointer-events-auto' 
-                              : 'scale-50 opacity-0 pointer-events-none' // Hidden and unclickable when not selected
+                              : 'scale-100 opacity-100 pointer-events-auto' // Always visible in manage mode 
                             }
                           `}
-                          title="Remove from favorites"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -1078,7 +1216,7 @@ export default function ProfilePage() {
               })
               )}
               
-              {/* Add Button Slot */}
+              {/* Add Button */}
               {isManagingFavorites && favorites.length < 10 && (
                 <button 
                   onClick={() => setShowMediaSelector(true)}
@@ -1091,56 +1229,43 @@ export default function ProfilePage() {
                 </button>
               )}
             </div>
+
+            {/* Pink gradient scroll slider for carousel */}
+            {!isManagingFavorites && (
+              <div 
+                ref={progressContainerRef}
+                className="relative mt-4 h-1.5 w-full px-2 transition-opacity duration-300 opacity-0"
+              >
+                {/* Track */}
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-gray-800/60 w-full" />
+                
+                {/* Active Indicator (Direct DOM controlled) */}
+                <div
+                  ref={progressBarRef}
+                  className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-gradient-to-r from-pink-500 via-red-500 to-pink-400 shadow-sm shadow-pink-900/20"
+                  style={{ width: '0%', left: '0%' }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* Recent Activity */}
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-semibold">
-              Recent Activity
-            </h3>
-            <button 
-              onClick={() => navigate('/add')}
-              className="sm:hidden p-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-lg shadow-red-500/20"
-            >
-              <Plus className="w-5 h-5 text-white" />
-            </button>
+            <h3 className="text-xl font-semibold">Recent Activity</h3>
+            <button onClick={() => navigate('/add')} className="sm:hidden p-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-lg shadow-red-500/20"><Plus className="w-5 h-5 text-white" /></button>
           </div>
-
-          {/* Quick Navigation Buttons */}
           <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => navigate('/library')}
-              className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-                <span className="text-gray-300 group-hover:text-white font-medium transition-colors">Library</span>
-              </div>
-              <span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span>
-            </button>
-            <button
-              onClick={() => navigate('/activity')}
-              className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-                <span className="text-gray-300 group-hover:text-white font-medium transition-colors">Activity</span>
-              </div>
-              <span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span>
-            </button>
+            <button onClick={() => navigate('/library')} className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"><div className="flex items-center gap-3"><Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" /><span className="text-gray-300 group-hover:text-white font-medium transition-colors">Library</span></div><span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span></button>
+            <button onClick={() => navigate('/activity')} className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"><div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" /><span className="text-gray-300 group-hover:text-white font-medium transition-colors">Activity</span></div><span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span></button>
           </div>
-
-          {/* Filter Buttons */}
           <div className="flex gap-2 overflow-x-auto pb-2">
             <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'all' ? 'bg-gradient-to-r from-red-500 to-pink-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>All</button>
             <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Completed</button>
             <button onClick={() => setStatusFilter('in-progress')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'in-progress' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>In Progress</button>
             <button onClick={() => setStatusFilter('planned')} className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'planned' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Planned</button>
           </div>
-
-          {/* Entries Grid */}
           {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).length > 0 ? (
              <div className="grid grid-cols-1 gap-4">
                {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).map((entry) => {
@@ -1148,43 +1273,20 @@ export default function ProfilePage() {
                  return (
                     <div key={entry.id} onClick={() => setSelectedEntry(entry)} className="bg-gray-800/30 border border-gray-700/50 rounded-xl p-4 hover:bg-gray-800/50 transition-colors flex gap-4 cursor-pointer group">
                       <div className="flex-shrink-0 w-16 h-24 bg-gray-900 rounded-lg overflow-hidden relative">
-                         {entry.cover_image_url ? (
-                           <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover" />
-                         ) : (
-                           <div className="w-full h-full flex items-center justify-center text-gray-700"><Icon className="w-6 h-6" /></div>
-                         )}
-                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            <Edit2 className="w-6 h-6 text-white" />
-                         </div>
+                         {entry.cover_image_url ? <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-700"><Icon className="w-6 h-6" /></div>}
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Edit2 className="w-6 h-6 text-white" /></div>
                       </div>
                       <div className="flex-1 min-w-0 py-1">
                         <div className="flex items-start justify-between gap-2">
                           <h4 className="text-lg font-semibold truncate text-white">{entry.title}</h4>
-                          <div className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
-                            entry.status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                            entry.status === 'in-progress' ? 'bg-blue-500/10 text-blue-500' :
-                            'bg-yellow-500/10 text-yellow-500'
-                          }`}>
-                            {entry.status.replace('-', ' ')}
-                          </div>
+                          <div className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${entry.status === 'completed' ? 'bg-green-500/10 text-green-500' : entry.status === 'in-progress' ? 'bg-blue-500/10 text-blue-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{entry.status.replace('-', ' ')}</div>
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
                            <span className="flex items-center gap-1"><Icon className="w-3 h-3" /> {entry.media_type}</span>
                            {entry.year && <span>· {entry.year}</span>}
-                           {entry.completed_date && (
-                             <span className="flex items-center gap-1">
-                               <Calendar className="w-3 h-3" />
-                               {formatDate(entry.completed_date)}
-                             </span>
-                           )}
+                           {entry.completed_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(entry.completed_date)}</span>}
                         </div>
-                        {entry.rating && (
-                          <div className="flex items-center gap-1 mt-2">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Star key={star} className={`w-4 h-4 ${star <= entry.rating! ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}`} />
-                            ))}
-                          </div>
-                        )}
+                        {entry.rating && <div className="flex items-center gap-1 mt-2">{[1, 2, 3, 4, 5].map((star) => (<Star key={star} className={`w-4 h-4 ${star <= entry.rating! ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}`} />))}</div>}
                         {entry.notes && <p className="text-gray-500 text-sm mt-2 line-clamp-2 italic">"{entry.notes}"</p>}
                       </div>
                     </div>
@@ -1193,73 +1295,30 @@ export default function ProfilePage() {
              </div>
           ) : (
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-12 text-center">
-              <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
-                <Film className="w-8 h-8" />
-              </div>
+              <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600"><Film className="w-8 h-8" /></div>
               <h3 className="text-lg font-medium text-white mb-2">No entries yet</h3>
               <p className="text-gray-400 mb-6">Start building your collection by adding movies, shows, games, or books.</p>
-              <button
-                onClick={() => navigate('/add')}
-                className="bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 shadow-lg shadow-red-500/20"
-              >
-                Add Your First Entry
-              </button>
+              <button onClick={() => navigate('/add')} className="bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 shadow-lg shadow-red-500/20">Add Your First Entry</button>
             </div>
           )}
         </div>
 
         {/* Logout */}
         <div className="mt-8 pb-24 md:hidden">
-          <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 text-gray-400 rounded-xl transition-all">
-            <LogOut className="w-5 h-5" /> <span className="font-medium">Sign Out</span>
-          </button>
+          <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 text-gray-400 rounded-xl transition-all"><LogOut className="w-5 h-5" /> <span className="font-medium">Sign Out</span></button>
         </div>
       </main>
 
-      {/* --- MOVED: Background GIF Picker Modal to Root Level --- */}
-      {showGifPickerModal && (
-        <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" 
-          onClick={() => setShowGifPickerModal(false)}
-        >
-          <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <GifPicker
-              onSelect={handleGifPickerSelect}
-              onClose={() => setShowGifPickerModal(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* --- MOVED: Avatar GIF Picker Modal to Root Level --- */}
-      {showAvatarGifPicker && (
-        <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" 
-          onClick={() => setShowAvatarGifPicker(false)}
-        >
-          <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <GifPicker
-              onSelect={(gifUrl) => {
-                setAvatarUrl(gifUrl)
-                setUploadedAvatar(null)
-                setShowAvatarGifPicker(false)
-              }}
-              onClose={() => setShowAvatarGifPicker(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Edit Entry Modal */}
+      {/* Modals and GIF Pickers */}
+      {showGifPickerModal && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowGifPickerModal(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleGifPickerSelect} onClose={() => setShowGifPickerModal(false)} /></div></div>}
+      {showAvatarGifPicker && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowAvatarGifPicker(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={(gifUrl) => { setAvatarUrl(gifUrl); setUploadedAvatar(null); setShowAvatarGifPicker(false) }} onClose={() => setShowAvatarGifPicker(false)} /></div></div>}
       {selectedEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-           {/* ... (Existing Edit Entry Modal Content) ... */}
            <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative shadow-2xl">
              <button onClick={() => setSelectedEntry(null)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
              <h2 className="text-xl font-bold mb-1 pr-8 leading-tight">{selectedEntry.title}</h2>
              <p className="text-gray-400 text-sm mb-6 capitalize">{selectedEntry.media_type}</p>
              <div className="space-y-4">
-                {/* Status */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Status</label>
                   <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
@@ -1268,18 +1327,15 @@ export default function ProfilePage() {
                     ))}
                   </div>
                 </div>
-                {/* Rating */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Rating {editRating > 0 && `(${editRating}/5)`}</label>
                   <div className="flex gap-1 items-center justify-center mb-2">{[1, 2, 3, 4, 5].map((star) => (<Star key={star} className={`w-8 h-8 ${editRating >= star ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}`} />))}</div>
                   <input type="range" min="0" max="10" step="1" value={editRating * 2} onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
                 </div>
-                {/* Notes */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Notes</label>
                   <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={3} className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 text-white" placeholder="What did you think?" />
                 </div>
-                {/* Buttons */}
                 <div className="flex gap-3 pt-2">
                   <button onClick={handleDeleteEntry} className="px-4 py-3 rounded-xl border border-gray-700 text-gray-400 hover:bg-red-500/10 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
                   <button onClick={handleUpdateEntry} className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold py-3 rounded-xl">Save Changes</button>
@@ -1288,7 +1344,6 @@ export default function ProfilePage() {
            </div>
         </div>
       )}
-      {/* --- FAVORITES MEDIA SELECTOR --- */}
       {showMediaSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 relative shadow-2xl flex flex-col max-h-[85vh]">
@@ -1296,7 +1351,6 @@ export default function ProfilePage() {
               <h3 className="text-lg font-bold text-white">Select Favorite</h3>
               <button onClick={() => { setShowMediaSelector(false); setMediaSearchQuery(''); }} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-
             <div className="space-y-3 mb-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1306,12 +1360,10 @@ export default function ProfilePage() {
                 {[{ id: 'all', label: 'All' }, { id: 'movie', label: 'Movies', icon: Film }, { id: 'show', label: 'TV', icon: Tv }, { id: 'game', label: 'Games', icon: Gamepad2 }, { id: 'book', label: 'Books', icon: Book }].map((type) => { const Icon = type.icon; return ( <button key={type.id} onClick={() => setMediaFilterType(type.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${mediaFilterType === type.id ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'}`}>{Icon && <Icon className="w-3.5 h-3.5" />}{type.label}</button> )})}
               </div>
             </div>
-
             <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
               {entries.length === 0 ? (
                 <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
               ) : (() => {
-                // Remove duplicates by title+media_type (case-insensitive)
                 const seen = new Set<string>()
                 const filteredEntries = entries.filter(entry => {
                   const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType

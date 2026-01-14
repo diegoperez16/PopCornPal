@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+// Add Badge and UserBadge to imports
+import type { Badge, UserBadge } from '../lib/supabase'
 
 export interface MediaEntry {
   id: string
@@ -31,15 +33,32 @@ export interface UserStats {
 }
 
 interface MediaState {
+  // ... existing entries ...
   entries: MediaEntry[]
   userStats: UserStats | null
   loading: boolean
   error: string | null
+
+  // --- NEW: Profile Caching State ---
+  favorites: any[]
+  userBadges: UserBadge[]
+  availableBadges: Badge[]
+  profileLoaded: boolean
+  profileScrollPos: number
+
+  // ... existing actions ...
   fetchEntries: (userId: string) => Promise<void>
   fetchUserStats: (userId: string) => Promise<void>
   addEntry: (entry: Omit<MediaEntry, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>
   deleteEntry: (id: string) => Promise<void>
   updateEntry: (id: string, updates: Partial<MediaEntry>) => Promise<void>
+
+  // --- NEW: Profile Actions ---
+  setFavorites: (favorites: any[]) => void
+  setUserBadges: (badges: UserBadge[]) => void
+  setAvailableBadges: (badges: Badge[]) => void
+  setProfileLoaded: (loaded: boolean) => void
+  setProfileScrollPos: (pos: number) => void
 }
 
 export const useMediaStore = create<MediaState>((set, get) => ({
@@ -47,6 +66,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   userStats: null,
   loading: false,
   error: null,
+
+  favorites: [],
+  userBadges: [],
+  availableBadges: [],
+  profileLoaded: false,
+  profileScrollPos: 0,
 
   fetchEntries: async (userId: string) => {
     set({ loading: true, error: null })
@@ -159,5 +184,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     } finally {
       set({ loading: false })
     }
-  }
+  },
+
+  // --- NEW: Implement Actions ---
+  setFavorites: (favorites) => set({ favorites }),
+  setUserBadges: (userBadges) => set({ userBadges }),
+  setAvailableBadges: (availableBadges) => set({ availableBadges }),
+  setProfileLoaded: (profileLoaded) => set({ profileLoaded }),
+  setProfileScrollPos: (profileScrollPos) => set({ profileScrollPos }),
 }))
