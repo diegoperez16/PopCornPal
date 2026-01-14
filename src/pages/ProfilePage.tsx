@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical } from 'lucide-react'
-import { supabase, type Badge, type UserBadge } from '../lib/supabase'
+import { supabase, type UserBadge } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 
 export default function ProfilePage() {
@@ -25,7 +25,6 @@ export default function ProfilePage() {
     setProfileScrollPos
   } = useMediaStore()
 
-  const [refreshing, setRefreshing] = useState(false)
 
   // Update initialLoading to rely on store
   // If profileLoaded is true, we don't show the full screen loader
@@ -287,7 +286,7 @@ export default function ProfilePage() {
     if (user) {
       // If data is already loaded (cached), show it and refresh in background
       if (profileLoaded) {
-        setRefreshing(true)
+        // setRefreshing(true) // removed
       }
       
       // Fetch all data
@@ -299,7 +298,7 @@ export default function ProfilePage() {
       ]).finally(() => {
         // Once done:
         setInitialLoading(false) // Hide full screen loader (if showing)
-        setRefreshing(false)     // Hide top bar loader (if showing)
+        // setRefreshing(false)     // removed
         setProfileLoaded(true)   // Mark as loaded in store
       })
     }
@@ -307,13 +306,13 @@ export default function ProfilePage() {
     // Handle visibility change (tab switching)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        setRefreshing(true)
+        // setRefreshing(true) // removed
         Promise.all([
           fetchEntries(user.id), 
           fetchBadges(), 
           fetchUserBadges(), 
           fetchFavorites()
-        ]).finally(() => setRefreshing(false))
+        ]).finally(() => {/* setRefreshing(false) removed */})
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -1152,7 +1151,7 @@ export default function ProfilePage() {
                     onTouchEnd={() => isSelected && handleTouchEnd()}
                     
                     {...draggableProps}
-                    onClick={(e) => {
+                    onClick={() => {
                       if (isManagingFavorites) {
                         setSelectedFavoriteId(fav.id === selectedFavoriteId ? null : fav.id)
                       }
