@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
+import { useMediaStore } from './store/mediaStore'
+import { useSocialStore } from './store/socialStore'
 import { isSupabaseConfigured } from './lib/supabase'
 import AuthPage from './pages/AuthPage'
 import UpdatePasswordPage from './pages/UpdatePasswordPage'
@@ -15,6 +17,12 @@ import AdminBadgePanel from './pages/AdminBadgePanel'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
 import NotificationBanner from './components/NotificationBanner'
+import SplashLoader from './components/SplashLoader'
+
+function RedirectToProfile() {
+  const { username } = useParams<{ username: string }>()
+  return <Navigate to={`/profile/${username}`} replace />
+}
 
 function SetupMessage() {
   return (
@@ -112,12 +120,18 @@ function HomePage() {
 }
 
 function App() {
-  const { initialize, resumeSession, loading } = useAuthStore()
+  const { initialize, resumeSession } = useAuthStore()
+  const [appLoading, setAppLoading] = useState(true)
 
   useEffect(() => {
-    if (isSupabaseConfigured) {
-      initialize()
+    const init = async () => {
+      if (isSupabaseConfigured) {
+        await initialize()
+      }
+      setAppLoading(false)
     }
+    
+    init()
   }, [initialize])
 
   // Silent Rehydration: Check session in background without setting global loading
@@ -137,13 +151,8 @@ function App() {
 
   return (
     <>
-      {loading ? (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block w-12 h-12 border-4 border-gray-700 border-t-red-500 rounded-full animate-spin mb-4"></div>
-            <div className="text-white text-xl">Loading...</div>
-          </div>
-        </div>
+      {appLoading ? (
+        <SplashLoader />
       ) : (
         <Router>
           <AppContent />
@@ -172,7 +181,9 @@ function AppContent() {
         <Route path="/activity" element={<ActivityPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/user/:username" element={<UserProfilePage />} />
+        <Route path="/profile/:username" element={<UserProfilePage />} />
+        {/* Legacy redirect for any old /user/ links */}
+        <Route path="/user/:username" element={<RedirectToProfile />} />
         <Route path="/add" element={<AddEntryPage />} />
         <Route path="/admin/badges" element={<AdminBadgePanel />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -41,7 +41,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (error) console.error('Error setting session:', error)
         else if (data.session?.user) {
           set({ user: data.session.user })
-          await get().fetchProfile(data.session.user.id)
+          
+          // Attempt to fetch profile with timeout
+          const fetchProfilePromise = get().fetchProfile(data.session.user.id)
+          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
+          await Promise.race([fetchProfilePromise, timeoutPromise])
           
           // Only redirect to feed if we are NOT in recovery/password update mode
           if (type !== 'recovery' && window.location.pathname !== '/update-password') {
@@ -70,7 +74,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         set({ user: session.user })
-        await get().fetchProfile(session.user.id)
+        // Attempt to fetch profile, but don't block app load indefinitely (max 2s)
+        const fetchProfilePromise = get().fetchProfile(session.user.id)
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
+        await Promise.race([fetchProfilePromise, timeoutPromise])
       }
     } catch (error) {
       console.error('Error initializing auth:', error)
