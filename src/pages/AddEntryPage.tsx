@@ -239,9 +239,11 @@ export default function AddEntryPage() {
                 <button
                   type="button"
                   onClick={() => setQuery('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-2 inset-y-0 my-auto flex items-center justify-center rounded-full bg-gray-700/60 hover:bg-gray-600/80 text-gray-300 hover:text-white transition-colors w-10 h-10 md:w-8 md:h-8 z-10 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  style={{ touchAction: 'manipulation' }}
+                  aria-label="Clear search"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 pointer-events-none" />
                 </button>
               )}
             </div>
