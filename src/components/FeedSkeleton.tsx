@@ -1,5 +1,5 @@
 
-import React from 'react'
+// Removed unused React import
 
 export default function FeedSkeleton() {
   return (

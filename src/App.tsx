@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { useMediaStore } from './store/mediaStore'
-import { useSocialStore } from './store/socialStore'
+// Removed unused imports
 import { isSupabaseConfigured } from './lib/supabase'
 import AuthPage from './pages/AuthPage'
 import UpdatePasswordPage from './pages/UpdatePasswordPage'

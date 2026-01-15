@@ -111,9 +111,7 @@ export default function UserProfilePage() {
 
   // Lazy Load States for Posts and Recent Activity
   const [postsLoaded, setPostsLoaded] = useState(false)
-  const [loadingPosts, setLoadingPosts] = useState(false)
   const [recentActivityLoaded, setRecentActivityLoaded] = useState(false)
-  const [loadingRecentActivity, setLoadingRecentActivity] = useState(false)
 
   useEffect(() => {
     if (username) {
@@ -313,7 +311,7 @@ export default function UserProfilePage() {
   const fetchRecentActivity = async (userId?: string) => {
     const targetId = userId || profile?.id
     if (!targetId) return
-    setLoadingRecentActivity(true)
+    // setLoadingRecentActivity(true) // removed, use setLoading if needed
     try {
       const { data, error } = await supabase
         .from('media_entries')
@@ -329,14 +327,14 @@ export default function UserProfilePage() {
     } catch (error) {
       console.error('Error fetching recent activity:', error)
     } finally {
-      setLoadingRecentActivity(false)
+      // setLoadingRecentActivity(false) // removed, use setLoading if needed
     }
   }
 
   const fetchPosts = async (userId?: string) => {
     const targetId = userId || profile?.id
     if (!targetId) return
-    setLoadingPosts(true)
+    setLoading(true)
     try {
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
@@ -366,7 +364,7 @@ export default function UserProfilePage() {
     } catch (error) {
       console.error('Error fetching posts:', error)
     } finally {
-      setLoadingPosts(false)
+      setLoading(false)
     }
   }
 

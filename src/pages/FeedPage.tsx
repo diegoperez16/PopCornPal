@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useSocialStore, type Post } from '../store/socialStore'
 import { useNavigate, Link } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, RefreshCw, WifiOff, Star, Search, Link2, Pencil } from 'lucide-react'
+import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, RefreshCw, WifiOff, Star, Search, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 import FeedSkeleton from '../components/FeedSkeleton'
@@ -388,7 +388,7 @@ export default function FeedPage() {
   const [commentImageUrl, setCommentImageUrl] = useState('')
   const [uploadedCommentImage, setUploadedCommentImage] = useState<string | null>(null)
   const [uploadingCommentImage, setUploadingCommentImage] = useState(false)
-  const commentImageInputRef = useRef<HTMLInputElement>(null)
+  // Removed unused commentImageInputRef
   const [replyImageUrl, setReplyImageUrl] = useState('')
   const [uploadedReplyImage, setUploadedReplyImage] = useState<string | null>(null)
   const [uploadingReplyImage, setUploadingReplyImage] = useState(false)

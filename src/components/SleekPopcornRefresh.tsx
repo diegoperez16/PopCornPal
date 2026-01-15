@@ -5,7 +5,7 @@ import './SleekPopcornRefresh.css';
 // Three different popcorn shapes for variety
 const PopcornShapes = [
   // Classic fluffy popcorn
-  ({ scale }: { scale: number }) => (
+  () => (
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-lg" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.2))' }}>
       <path d="M12 4C9.5 4 7.5 5.5 7 7.5C5 8 3.5 9.5 3.5 11.5C3.5 13.5 5 15 7 15.5V16C7 18.2 8.8 20 11 20H13C15.2 20 17 18.2 17 16V15.5C19 15 20.5 13.5 20.5 11.5C20.5 9.5 19 8 17 7.5C16.5 5.5 14.5 4 12 4Z" fill="#FDF6E3" />
       <path d="M12 8C11.5 8 11 8.5 11 9C11 11 9 12 8 12C9.5 13 11.5 13 12 11C13 13 15 13 16 12C15 11 13 11 13 9C13 8.5 12.5 8 12 8Z" fill="#FCD34D" />
@@ -13,7 +13,7 @@ const PopcornShapes = [
     </svg>
   ),
   // Rounded popcorn
-  ({ scale }: { scale: number }) => (
+  () => (
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-lg" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.2))' }}>
       <path d="M12 5C10 5 8.5 6.5 8 8C6.5 8.5 5.5 10 5.5 11.5C5.5 13 6.5 14.5 8 15V16.5C8 18 9.5 19.5 11.5 19.5H12.5C14.5 19.5 16 18 16 16.5V15C17.5 14.5 18.5 13 18.5 11.5C18.5 10 17.5 8.5 16 8C15.5 6.5 14 5 12 5Z" fill="#FFFBEB" />
       <circle cx="10" cy="11" r="1.5" fill="#FBBF24" opacity="0.5" />
@@ -21,7 +21,7 @@ const PopcornShapes = [
     </svg>
   ),
   // Angular popcorn
-  ({ scale }: { scale: number }) => (
+  () => (
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-lg" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.2))' }}>
       <path d="M12 4L10 7L7 8L6 11L7 14L8 16L10 19H14L16 16L17 14L18 11L17 8L14 7L12 4Z" fill="#FEF3C7" />
       <path d="M12 7L11 9L9.5 10L9 11.5L9.5 13L10.5 15H13.5L14.5 13L15 11.5L14.5 10L13 9L12 7Z" fill="#FDE68A" />
@@ -179,7 +179,7 @@ export default function SleekPopcornRefresh({ onRefresh }: SleekPopcornRefreshPr
                   transform: `scale(${p.scale})`, 
                 }} 
               > 
-                <PopcornShape scale={p.scale} /> 
+                <PopcornShape />
               </div> 
             </div> 
           ); 

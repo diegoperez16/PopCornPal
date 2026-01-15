@@ -1,5 +1,5 @@
 
-import React from 'react'
+// Removed unused React import
 import { Film, Popcorn, Star, Clapperboard, Sparkles } from 'lucide-react'
 
 export default function SplashLoader() {
