@@ -70,34 +70,56 @@ export default function AddEntryPage() {
     }
   }, [selectedItem])
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!query.trim()) return
-
-    setSearching(true)
-    setResults([])
-    try {
-      let data: SearchResult[] = []
-      switch (activeTab) {
-        case 'movie':
-          data = await api.searchMovies(query)
-          break
-        case 'show':
-          data = await api.searchShows(query)
-          break
-        case 'game':
-          data = await api.searchGames(query)
-          break
-        case 'book':
-          data = await api.searchBooks(query)
-          break
-      }
-      setResults(data)
-    } catch (error) {
-      console.error('Search error:', error)
-    } finally {
+  // Debounced Search Effect
+  useEffect(() => {
+    // Don't search if query is empty
+    if (!query.trim()) {
+      setResults([])
       setSearching(false)
+      return
     }
+
+    let isActive = true
+    const timeoutId = setTimeout(async () => {
+      setSearching(true)
+      try {
+        let data: SearchResult[] = []
+        switch (activeTab) {
+          case 'movie':
+            data = await api.searchMovies(query)
+            break
+          case 'show':
+            data = await api.searchShows(query)
+            break
+          case 'game':
+            data = await api.searchGames(query)
+            break
+          case 'book':
+            data = await api.searchBooks(query)
+            break
+        }
+        
+        if (isActive) {
+          setResults(data)
+        }
+      } catch (error) {
+        console.error('Search error:', error)
+      } finally {
+        if (isActive) {
+          setSearching(false)
+        }
+      }
+    }, 500) // 500ms debounce
+
+    return () => {
+      isActive = false
+      clearTimeout(timeoutId)
+    }
+  }, [query, activeTab])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    // The useEffect handles the search automatically
   }
 
   const handleSave = async () => {
@@ -206,13 +228,22 @@ export default function AddEntryPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={`Search for ${activeTab}s...`}
-                className="w-full pl-12 pr-4 py-4 bg-gray-800/50 border border-gray-700 rounded-xl focus:outline-none focus:border-red-500 transition-colors text-lg"
+                className="w-full pl-12 pr-12 py-4 bg-gray-800/50 border border-gray-700 rounded-xl focus:outline-none focus:border-red-500 transition-colors text-lg"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSearch(e)
                 }}
               />
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
             <button
               type="button"

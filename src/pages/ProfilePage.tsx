@@ -2,9 +2,10 @@ import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Users, User, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical } from 'lucide-react'
+import { Plus, Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical } from 'lucide-react'
 import { supabase, type UserBadge } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
+import ProfileSkeleton from '../components/ProfileSkeleton'
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, signOut } = useAuthStore()
@@ -91,7 +92,23 @@ export default function ProfilePage() {
   
   const [isManagingFavorites, setIsManagingFavorites] = useState(false) 
 
-  // --- Carousel scroll indicator logic (Direct DOM) ---
+  const [showAddButton, setShowAddButton] = useState(false)
+  const recentActivityRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Show button if scrolled past the header (approx 300px)
+      setShowAddButton(window.scrollY > 300)
+    }
+    
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    // Initial check
+    handleScroll()
+    
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // ... Carousel scroll indicator logic ...
   const carouselRef = useRef<HTMLDivElement>(null)
   const progressBarRef = useRef<HTMLDivElement>(null)
   const progressContainerRef = useRef<HTMLDivElement>(null)
@@ -578,32 +595,7 @@ export default function ProfilePage() {
   })
 
   if (initialLoading) {
-    return (
-
-      
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="mb-8 relative flex items-center justify-center gap-6">
-            <Users className="w-16 h-16 text-purple-500 animate-pulse" />
-            <div className="relative">
-              <User className="w-20 h-20 text-pink-500 animate-bounce" />
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-ping"></div>
-            </div>
-            <Film className="w-16 h-16 text-red-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent">
-              Loading your profile...
-            </h2>
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }}></div>
-              <div className="w-2 h-2 bg-pink-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }}></div>
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-[bounce_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }}></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <ProfileSkeleton />
   }
 
   if (!user || !profile) return null
@@ -1251,10 +1243,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="space-y-4">
+        <div className="space-y-4" ref={recentActivityRef}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xl font-semibold">Recent Activity</h3>
-            <button onClick={() => navigate('/add')} className="sm:hidden p-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-lg shadow-red-500/20"><Plus className="w-5 h-5 text-white" /></button>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <button onClick={() => navigate('/library')} className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-xl p-4 transition-all flex items-center justify-between group"><div className="flex items-center gap-3"><Book className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" /><span className="text-gray-300 group-hover:text-white font-medium transition-colors">Library</span></div><span className="text-gray-500 group-hover:text-gray-300 transition-colors">→</span></button>
@@ -1308,6 +1299,19 @@ export default function ProfilePage() {
           <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 text-gray-400 rounded-xl transition-all"><LogOut className="w-5 h-5" /> <span className="font-medium">Sign Out</span></button>
         </div>
       </main>
+
+      {/* Floating Action Button (Add Entry) */}
+      <button
+        onClick={() => navigate('/add')}
+        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 md:bottom-8 md:right-8 z-[60] bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white p-3 rounded-full shadow-lg shadow-red-900/40 hover:shadow-red-900/60 hover:scale-110 active:scale-95 transition-all duration-300 group ${
+          showAddButton 
+            ? 'translate-y-0 opacity-100' 
+            : 'translate-y-20 opacity-0 pointer-events-none'
+        }`}
+        aria-label="Add New Entry"
+      >
+        <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+      </button>
 
       {/* Modals and GIF Pickers */}
       {showGifPickerModal && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowGifPickerModal(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleGifPickerSelect} onClose={() => setShowGifPickerModal(false)} /></div></div>}

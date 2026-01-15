@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { supabase, type UserBadge } from '../lib/supabase'
 import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, Calendar, Clock, X, Search, Library, AlignLeft } from 'lucide-react'
+import ProfileSkeleton from '../components/ProfileSkeleton'
 
 // --- TYPES ---
 type UserProfile = {
@@ -55,9 +56,26 @@ export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>()
   const { user: currentUser } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
   
   // Profile Data
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    // Optimistic UI: Initialize from location state if available
+    const initialProfile = location.state?.initialProfile
+    if (initialProfile && initialProfile.username === username) {
+      return {
+        id: initialProfile.id,
+        username: initialProfile.username,
+        full_name: initialProfile.full_name || null,
+        bio: initialProfile.bio || null,
+        avatar_url: initialProfile.avatar_url || null,
+        bg_url: null,
+        bg_opacity: null,
+        created_at: new Date().toISOString()
+      }
+    }
+    return null
+  })
   const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   
@@ -70,7 +88,7 @@ export default function UserProfilePage() {
   const [favorites, setFavorites] = useState<Favorite[]>([])
   const [recentActivity, setRecentActivity] = useState<MediaEntry[]>([])
   const [fullLibrary, setFullLibrary] = useState<MediaEntry[]>([]) // Store full library for modal search
-
+  
   // Modal States
   const [showLibraryModal, setShowLibraryModal] = useState(false)
   const [showFollowersModal, setShowFollowersModal] = useState(false)
@@ -84,19 +102,308 @@ export default function UserProfilePage() {
   const [inspectedEntry, setInspectedEntry] = useState<MediaEntry | null>(null)
 
   // Loading States
-  const [initialLoading, setInitialLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(!profile)
   const [loading, setLoading] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const [followersListLoading, setFollowersListLoading] = useState(false)
+  const [followingListLoading, setFollowingListLoading] = useState(false)
+
+  // Lazy Load States for Posts and Recent Activity
+  const [postsLoaded, setPostsLoaded] = useState(false)
+  const [recentActivityLoaded, setRecentActivityLoaded] = useState(false)
 
   useEffect(() => {
     if (username) {
+      // FIX: Don't show skeleton if we already have profile data (optimistic or otherwise)
+      if (!profile || profile.username !== username) {
+         setInitialLoading(true)
+      }
       fetchUserProfile().finally(() => setInitialLoading(false))
     }
   }, [username])
 
+  // Lazy Load Effects
+  useEffect(() => {
+    if (showLibraryModal && fullLibrary.length === 0 && profile) {
+      fetchFullLibrary()
+    }
+  }, [showLibraryModal])
+
+  useEffect(() => {
+    if (showFollowersModal && profile) {
+      fetchFollowersList()
+    }
+  }, [showFollowersModal, profile?.id, currentUser?.id]) // Using specific IDs instead of object references
+
+  useEffect(() => {
+    if (showFollowingModal && profile) {
+      fetchFollowingList()
+    }
+  }, [showFollowingModal, profile?.id, currentUser?.id]) // Using specific IDs instead of object references
+
+  const fetchFullLibrary = async () => {
+    if (!profile) return
+    setLibraryLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('media_entries')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('updated_at', { ascending: false })
+      
+      if (error) throw error
+      setFullLibrary(data as MediaEntry[])
+    } catch (error) {
+      console.error('Error fetching library:', error)
+    } finally {
+      setLibraryLoading(false)
+    }
+  }
+
+  const handleFollowUser = async (targetUserId: string, isCurrentlyFollowing: boolean, listType: 'followers' | 'following') => {
+    if (!currentUser) return
+
+    try {
+      if (isCurrentlyFollowing) {
+        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetUserId)
+      } else {
+        await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: targetUserId })
+      }
+
+      // Update local state for immediate feedback
+      const updateList = (list: any[]) => list.map(user => 
+        user.id === targetUserId 
+          ? { ...user, isFollowing: !isCurrentlyFollowing }
+          : user
+      )
+
+      if (listType === 'followers') setFollowersList(updateList(followersList))
+      if (listType === 'following') setFollowingList(updateList(followingList))
+      
+      // Also update main profile follow status if we just followed/unfollowed the main profile user
+      if (targetUserId === profile?.id) {
+        setIsFollowing(!isCurrentlyFollowing)
+        setFollowersCount(prev => isCurrentlyFollowing ? prev - 1 : prev + 1)
+      }
+
+    } catch (error) {
+      console.error('Error toggling follow:', error)
+    }
+  }
+
+  const navigateToProfile = (username: string) => {
+    // Find user data from current lists to pass as optimistic state
+    const userFromFollowers = followersList.find(u => u.username === username)
+    const userFromFollowing = followingList.find(u => u.username === username)
+    const optimisticProfile = userFromFollowers || userFromFollowing
+
+    setShowFollowersModal(false)
+    setShowFollowingModal(false)
+    navigate(`/profile/${username}`, { 
+      state: { initialProfile: optimisticProfile } 
+    })
+  }
+
+  const fetchFollowersList = async () => {
+    if (!profile) return
+    setFollowersListLoading(true)
+    try {
+      // Fetch Followers + Profiles (Joined)
+      const { data: followsData, error: followsError } = await supabase
+        .from('follows')
+        .select(`
+          follower_id,
+          follower:profiles!follower_id (id, username, full_name, avatar_url, bio)
+        `)
+        .eq('following_id', profile.id)
+        .limit(100)
+
+      if (followsError) throw followsError
+      
+      if (!followsData || followsData.length === 0) {
+        setFollowersList([])
+        return
+      }
+
+      const profiles = followsData.map(f => f.follower).filter(Boolean) as any[]
+      const ids = profiles.map(p => p.id)
+
+      // Check if current user follows them
+      let followersWithStatus = profiles.map(p => ({ ...p, isFollowing: false }))
+      
+      if (currentUser) {
+        // console.log('Checking follower status for IDs:', ids)
+        const { data: myFollows, error: myFollowsError } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', currentUser.id)
+          .in('following_id', ids)
+        
+        if (myFollowsError) console.error('Error checking follows:', myFollowsError)
+
+        const myFollowsSet = new Set(myFollows?.map(f => f.following_id))
+        followersWithStatus = followersWithStatus.map(p => ({
+          ...p,
+          isFollowing: myFollowsSet.has(p.id)
+        }))
+      }
+
+      setFollowersList(followersWithStatus)
+    } catch (error) {
+      console.error('Error fetching followers list:', error)
+    } finally {
+      setFollowersListLoading(false)
+    }
+  }
+
+  const fetchFollowingList = async () => {
+    if (!profile) return
+    setFollowingListLoading(true)
+    try {
+      // Fetch Following + Profiles (Joined)
+      const { data: followsData, error: followsError } = await supabase
+        .from('follows')
+        .select(`
+          following_id,
+          following:profiles!following_id (id, username, full_name, avatar_url, bio)
+        `)
+        .eq('follower_id', profile.id)
+        .limit(100)
+
+      if (followsError) throw followsError
+      
+      if (!followsData || followsData.length === 0) {
+        setFollowingList([])
+        return
+      }
+
+      const profiles = followsData.map(f => f.following).filter(Boolean) as any[]
+      const ids = profiles.map(p => p.id)
+
+      // Check if current user follows them
+      let followingWithStatus = profiles.map(p => ({ ...p, isFollowing: false }))
+      
+      if (currentUser) {
+        const { data: myFollows, error: myFollowsError } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', currentUser.id)
+          .in('following_id', ids)
+        
+        if (myFollowsError) console.error('Error checking following status:', myFollowsError)
+
+        const myFollowsSet = new Set(myFollows?.map(f => f.following_id))
+        followingWithStatus = followingWithStatus.map(p => ({
+          ...p,
+          isFollowing: myFollowsSet.has(p.id)
+        }))
+      }
+
+      setFollowingList(followingWithStatus)
+    } catch (error) {
+      console.error('Error fetching following list:', error)
+    } finally {
+      setFollowingListLoading(false)
+    }
+  }
+
+  const fetchRecentActivity = async (userId?: string) => {
+    const targetId = userId || profile?.id
+    if (!targetId) return
+    // setLoadingRecentActivity(true) // removed, use setLoading if needed
+    try {
+      const { data, error } = await supabase
+        .from('media_entries')
+        .select('*')
+        .eq('user_id', targetId)
+        .neq('status', 'logged')
+        .order('updated_at', { ascending: false })
+        .limit(5)
+
+      if (error) throw error
+      setRecentActivity(data as MediaEntry[])
+      setRecentActivityLoaded(true)
+    } catch (error) {
+      console.error('Error fetching recent activity:', error)
+    } finally {
+      // setLoadingRecentActivity(false) // removed, use setLoading if needed
+    }
+  }
+
+  const fetchPosts = async (userId?: string) => {
+    const targetId = userId || profile?.id
+    if (!targetId) return
+    setLoading(true)
+    try {
+      const { data: postsData, error: postsError } = await supabase
+        .from('posts')
+        .select(`*, profiles:user_id(username, avatar_url), media_entries:media_entry_id(title, media_type, rating, cover_image_url), likes:post_likes(count), comments:post_comments(count)`)
+        .eq('user_id', targetId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (postsError) throw postsError
+
+      const rawPosts = postsData
+      const postIds = rawPosts.map(p => p.id)
+      let likedPostIds = new Set<string>()
+
+      if (currentUser && postIds.length > 0) {
+        const { data: userLikes } = await supabase.from('post_likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds)
+        if (userLikes) userLikes.forEach(like => likedPostIds.add(like.post_id))
+      }
+
+      setPosts(rawPosts.map((post: any) => ({
+        ...post,
+        likes_count: post.likes?.[0]?.count || 0,
+        comments_count: post.comments?.[0]?.count || 0,
+        user_liked: likedPostIds.has(post.id)
+      })))
+      setPostsLoaded(true)
+    } catch (error) {
+      console.error('Error fetching posts:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const fetchUserProfile = async () => {
     if (!username) return
     setLoading(true)
+    
+    // Only reset profile if we don't have one (optimistic or otherwise)
+    // Or if the username doesn't match the current profile (navigation)
+    if (!profile || profile.username !== username) {
+       // If we have an optimistic profile from location state, we use it, otherwise null
+       const initialProfile = location.state?.initialProfile
+       if (initialProfile && initialProfile.username === username) {
+         // Already set in initial state, but if we are navigating, we might need to reset
+         // logic is handled by initial state for first load, but for updates:
+         setProfile({
+            id: initialProfile.id,
+            username: initialProfile.username,
+            full_name: initialProfile.full_name || null,
+            bio: initialProfile.bio || null,
+            avatar_url: initialProfile.avatar_url || null,
+            bg_url: null,
+            bg_opacity: null,
+            created_at: new Date().toISOString()
+         })
+         // Don't show skeleton if we have optimistic data
+         setInitialLoading(false)
+       } else {
+         setProfile(null)
+       }
+    }
+    
+    setFullLibrary([])
+    setFollowersList([])
+    setFollowingList([])
+    setPosts([])
+    setRecentActivity([])
+    setPostsLoaded(false)
+    setRecentActivityLoaded(false)
 
     try {
       // 1. Fetch Profile
@@ -108,80 +415,45 @@ export default function UserProfilePage() {
 
       if (profileError) throw profileError
       setProfile(profileData)
+      
+      // FIX: Turn off skeleton here so profile card shows immediately
+      setInitialLoading(false)
 
-      // 2. Parallel Fetch
+      // 2. Parallel Fetch (Optimized - Excludes Posts & Recent Activity)
       const [
         badgesResult,
-        postsResult,
         followersResult,
         followingResult,
         currentUserFollowResult,
-        favoritesResult,
-        mediaResult,
-        followersListResult,
-        followingListResult
+        favoritesResult
       ] = await Promise.all([
         supabase.from('user_badges').select('*, badges(*)').eq('user_id', profileData.id),
-        supabase.from('posts')
-          .select(`*, profiles:user_id(username, avatar_url), media_entries:media_entry_id(title, media_type, rating, cover_image_url), likes:post_likes(count), comments:post_comments(count)`)
-          .eq('user_id', profileData.id)
-          .order('created_at', { ascending: false })
-          .limit(20),
-        supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileData.id),
-        supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profileData.id),
-        currentUser ? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id).eq('following_id', profileData.id) : Promise.resolve({ count: 0, error: null }),
+        supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileData.id),
+        supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', profileData.id),
+        currentUser ? supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', currentUser.id).eq('following_id', profileData.id) : Promise.resolve({ count: 0, error: null }),
         supabase.from('profile_favorites')
           .select('*, media_entry:media_entries(*)')
           .eq('user_id', profileData.id)
-          .order('created_at', { ascending: true }),
-        supabase.from('media_entries')
-          .select('*')
-          .eq('user_id', profileData.id)
-          .order('updated_at', { ascending: false }),
-        // Followers list (users who follow this user)
-        supabase.from('follows').select('follower_id, profiles:profiles!follower_id(*)').eq('following_id', profileData.id),
-        // Following list (users this user follows)
-        supabase.from('follows').select('following_id, profiles:profiles!following_id(*)').eq('follower_id', profileData.id)
+          .order('created_at', { ascending: true })
       ])
 
       // 3. Set State
       if (badgesResult.data) setUserBadges(badgesResult.data as UserBadge[])
       
-      setFollowersCount(followersResult.count || 0)
-      setFollowingCount(followingResult.count || 0)
-      setIsFollowing((currentUserFollowResult.count || 0) > 0)
+      // console.log('Followers Result:', followersResult)
+      // console.log('Following Result:', followingResult)
+
+      setFollowersCount(followersResult.count ?? 0)
+      setFollowingCount(followingResult.count ?? 0)
+      setIsFollowing((currentUserFollowResult.count ?? 0) > 0)
 
       if (favoritesResult.data) setFavorites(favoritesResult.data as any[])
-
-      if (mediaResult.data) {
-        const allMedia = mediaResult.data as MediaEntry[]
-        setFullLibrary(allMedia)
-        // Recent activity: items recently updated/added, excluding 'logged'
-        setRecentActivity(allMedia.filter(e => e.status !== 'logged').slice(0, 5))
-      }
-
-      // Set followers/following lists
-      if (followersListResult.data) setFollowersList(followersListResult.data.map((f: any) => f.profiles).filter(Boolean))
-      if (followingListResult.data) setFollowingList(followingListResult.data.map((f: any) => f.profiles).filter(Boolean))
-
-      // Process Posts
-      if (postsResult.data) {
-        const rawPosts = postsResult.data
-        const postIds = rawPosts.map(p => p.id)
-        let likedPostIds = new Set<string>()
-
-        if (currentUser && postIds.length > 0) {
-          const { data: userLikes } = await supabase.from('post_likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds)
-          if (userLikes) userLikes.forEach(like => likedPostIds.add(like.post_id))
-        }
-
-        setPosts(rawPosts.map((post: any) => ({
-          ...post,
-          likes_count: post.likes?.[0]?.count || 0,
-          comments_count: post.comments?.[0]?.count || 0,
-          user_liked: likedPostIds.has(post.id)
-        })))
-      }
+      
+      // 4. Trigger "Lazy" Loads Immediately (Parallel)
+      // We call these here so they start fetching immediately after profile is found
+      // This satisfies "load everything from start" without blocking the initial render of the profile header
+      fetchRecentActivity(profileData.id)
+      fetchPosts(profileData.id)
 
     } catch (error) {
       console.error('Error fetching user profile:', error)
@@ -252,11 +524,7 @@ export default function UserProfilePage() {
   })
 
   if (initialLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-red-500 animate-spin" />
-      </div>
-    )
+    return <ProfileSkeleton />
   }
 
   if (!profile) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">User not found</div>
@@ -301,88 +569,35 @@ export default function UserProfilePage() {
                 {/* Followers/Following/Entries/Favorites */}
                 <div className="flex gap-6 justify-center mt-4">
                   <button className="text-center focus:outline-none" onClick={() => setShowFollowersModal(true)}>
-                    <span className="block text-lg font-bold text-white">{followersCount}</span>
+                    {loading ? (
+                      <div className="h-7 w-8 bg-gray-700 rounded animate-pulse mx-auto mb-1"></div>
+                    ) : (
+                      <span className="block text-lg font-bold text-white">{followersCount}</span>
+                    )}
                     <span className="text-xs text-gray-400">Followers</span>
                   </button>
                   <button className="text-center focus:outline-none" onClick={() => setShowFollowingModal(true)}>
-                    <span className="block text-lg font-bold text-white">{followingCount}</span>
+                    {loading ? (
+                      <div className="h-7 w-8 bg-gray-700 rounded animate-pulse mx-auto mb-1"></div>
+                    ) : (
+                      <span className="block text-lg font-bold text-white">{followingCount}</span>
+                    )}
                     <span className="text-xs text-gray-400">Following</span>
                   </button>
-                      {/* --- FOLLOWERS MODAL --- */}
-                      {showFollowersModal && (
-                        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
-                          <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-2xl relative shadow-2xl flex flex-col max-h-[85vh]">
-                            <div className="flex items-center justify-between p-6 border-b border-gray-800">
-                              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                <Users className="w-5 h-5 text-blue-400" />
-                                Followers
-                              </h2>
-                              <button onClick={() => setShowFollowersModal(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
-                                <X className="w-5 h-5" />
-                              </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-4">
-                              {followersList.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500">No followers yet.</div>
-                              ) : (
-                                <ul className="divide-y divide-gray-800">
-                                  {followersList.map((user) => (
-                                    <li key={user.id} className="flex items-center gap-3 py-3">
-                                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center">
-                                        {user.avatar_url ? <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : user.username.charAt(0).toUpperCase()}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <span className="font-semibold text-white">@{user.username}</span>
-                                        {user.full_name && <span className="ml-2 text-gray-400 text-sm">{user.full_name}</span>}
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
-                      {/* --- FOLLOWING MODAL --- */}
-                      {showFollowingModal && (
-                        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
-                          <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-2xl relative shadow-2xl flex flex-col max-h-[85vh]">
-                            <div className="flex items-center justify-between p-6 border-b border-gray-800">
-                              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                <Users className="w-5 h-5 text-blue-400" />
-                                Following
-                              </h2>
-                              <button onClick={() => setShowFollowingModal(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
-                                <X className="w-5 h-5" />
-                              </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-4">
-                              {followingList.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500">Not following anyone yet.</div>
-                              ) : (
-                                <ul className="divide-y divide-gray-800">
-                                  {followingList.map((user) => (
-                                    <li key={user.id} className="flex items-center gap-3 py-3">
-                                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center">
-                                        {user.avatar_url ? <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : user.username.charAt(0).toUpperCase()}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <span className="font-semibold text-white">@{user.username}</span>
-                                        {user.full_name && <span className="ml-2 text-gray-400 text-sm">{user.full_name}</span>}
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
                 </div>
               </div>
               {/* === BADGES SECTION === */}
-              {userBadges.length > 0 && (
+              {loading ? (
+                <div className="space-y-4">
+                  <div className="h-12 bg-gray-800 rounded-xl animate-pulse"></div>
+                  <div className="flex gap-3">
+                    <div className="h-20 w-16 bg-gray-800 rounded-lg animate-pulse"></div>
+                    <div className="h-20 w-16 bg-gray-800 rounded-lg animate-pulse"></div>
+                    <div className="h-20 w-16 bg-gray-800 rounded-lg animate-pulse"></div>
+                  </div>
+                </div>
+              ) : userBadges.length > 0 && (
                 <div className="space-y-4">
                   {/* 1. CREATOR BADGE SUB-SECTION */}
                   {creatorBadge && (
@@ -503,7 +718,17 @@ export default function UserProfilePage() {
         </div>
 
         {/* --- TOP FAVORITES SHELF --- */}
-        {favorites.length > 0 && (
+        {loading ? (
+          <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="h-6 w-40 bg-gray-800 rounded mb-4 animate-pulse"></div>
+             <div className="flex gap-4 overflow-hidden">
+                <div className="h-36 w-24 bg-gray-800 rounded-lg animate-pulse flex-shrink-0"></div>
+                <div className="h-36 w-24 bg-gray-800 rounded-lg animate-pulse flex-shrink-0"></div>
+                <div className="h-36 w-24 bg-gray-800 rounded-lg animate-pulse flex-shrink-0"></div>
+                <div className="h-36 w-24 bg-gray-800 rounded-lg animate-pulse flex-shrink-0"></div>
+             </div>
+          </div>
+        ) : favorites.length > 0 && (
           <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h3 className="text-xl font-bold flex items-center gap-2 mb-4">
               <Star className="w-5 h-5 text-yellow-400 fill-current" /> Top Favorites
@@ -552,8 +777,13 @@ export default function UserProfilePage() {
           <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
             <Calendar className="w-5 h-5 text-red-400" /> Recent Activity
           </h3>
-          {recentActivity.length > 0 ? (
-            <div className="space-y-3">
+          
+          {!recentActivityLoaded ? (
+             <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+             </div>
+          ) : recentActivity.length > 0 ? (
+            <div className="space-y-3 animate-in fade-in duration-300">
               {recentActivity.map((entry) => {
                 const Icon = getMediaIcon(entry.media_type)
                 return (
@@ -584,7 +814,7 @@ export default function UserProfilePage() {
               })}
             </div>
           ) : (
-            <div className="text-gray-500 italic text-sm p-4 bg-gray-800/20 rounded-lg text-center">No recent activity.</div>
+            <div className="text-gray-500 italic text-sm p-4 bg-gray-800/20 rounded-lg text-center animate-in fade-in duration-300">No recent activity.</div>
           )}
         </div>
 
@@ -594,10 +824,14 @@ export default function UserProfilePage() {
             <MessageCircle className="w-5 h-5 text-purple-400" /> Posts
           </h3>
           
-          {posts.length === 0 ? (
-            <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-8 text-center text-gray-500">No posts yet</div>
+          {!postsLoaded ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="bg-gray-800/30 border border-gray-700 rounded-xl p-8 text-center text-gray-500 animate-in fade-in duration-300">No posts yet</div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in duration-300">
               {posts.map((post) => (
                 <div key={post.id} className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6">
                   <div className="flex items-start gap-3">
@@ -696,7 +930,9 @@ export default function UserProfilePage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              {getFilteredLibrary().length === 0 ? (
+              {libraryLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="w-10 h-10 animate-spin text-blue-500" /></div>
+              ) : getFilteredLibrary().length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   <p>No matching entries found.</p>
                 </div>
@@ -820,6 +1056,124 @@ export default function UserProfilePage() {
                   Last updated {new Date(inspectedEntry.updated_at).toLocaleDateString()}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- FOLLOWERS MODAL --- */}
+      {showFollowersModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-2xl relative shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-800">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-400" />
+                Followers
+              </h2>
+              <button onClick={() => setShowFollowersModal(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 min-h-0">
+              {followersListLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-gray-500" /></div>
+              ) : followersList.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No followers yet.</div>
+              ) : (
+                <ul className="divide-y divide-gray-800">
+                  {followersList.map((user) => (
+                    <li key={user.id} className="flex items-center gap-3 py-3 group">
+                      <div 
+                        className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => navigateToProfile(user.username)}
+                      >
+                        {user.avatar_url ? <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : user.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div 
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigateToProfile(user.username)}
+                      >
+                        <span className="font-semibold text-white group-hover:text-blue-400 transition-colors">@{user.username}</span>
+                        {user.full_name && <span className="ml-2 text-gray-400 text-sm">{user.full_name}</span>}
+                      </div>
+                      {currentUser && currentUser.id !== user.id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleFollowUser(user.id, user.isFollowing, 'followers')
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                            user.isFollowing 
+                              ? 'bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 border border-gray-700' 
+                              : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20'
+                          }`}
+                        >
+                          {user.isFollowing ? 'Unfollow' : 'Follow'}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- FOLLOWING MODAL --- */}
+      {showFollowingModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-2xl relative shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-800">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-400" />
+                Following
+              </h2>
+              <button onClick={() => setShowFollowingModal(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 min-h-0">
+              {followingListLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-gray-500" /></div>
+              ) : followingList.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Not following anyone yet.</div>
+              ) : (
+                <ul className="divide-y divide-gray-800">
+                  {followingList.map((user) => (
+                    <li key={user.id} className="flex items-center gap-3 py-3 group">
+                      <div 
+                        className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => navigateToProfile(user.username)}
+                      >
+                        {user.avatar_url ? <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : user.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div 
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigateToProfile(user.username)}
+                      >
+                        <span className="font-semibold text-white group-hover:text-blue-400 transition-colors">@{user.username}</span>
+                        {user.full_name && <span className="ml-2 text-gray-400 text-sm">{user.full_name}</span>}
+                      </div>
+                      {currentUser && currentUser.id !== user.id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleFollowUser(user.id, user.isFollowing, 'following')
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                            user.isFollowing 
+                              ? 'bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 border border-gray-700' 
+                              : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20'
+                          }`}
+                        >
+                          {user.isFollowing ? 'Unfollow' : 'Follow'}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
