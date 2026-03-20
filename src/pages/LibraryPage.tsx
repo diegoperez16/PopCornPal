@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Star, Edit2, X, Trash2, Loader2, Search, Library, Calendar, Tag, Clock } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Star, Edit2, X, Trash2, Loader2, Search, Calendar, Tag, Clock } from 'lucide-react'
 
 export default function LibraryPage() {
   const { user } = useAuthStore()
@@ -131,38 +131,31 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="min-h-screen bg-gray-950 text-white pb-20 md:pb-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8">
         
-        {/* Header & Search */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-          <div>
-            <h1 className="text-4xl font-bold flex items-center gap-3 mb-2 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              <Library className="w-8 h-8 text-red-500" />
-              My Library
-            </h1>
-            <p className="text-gray-400 text-lg">Your curated collection of media.</p>
-          </div>
-
-          <div className="relative w-full md:w-80 group">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search titles, genres..."
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-10 pr-10 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1 hover:bg-gray-800 rounded-full transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+        {/* Search Bar */}
+        <div className="relative mb-8 group">
+          <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+          <div className="relative bg-gray-800/50 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-600 transition-colors shadow-lg">
+            <div className="pl-4 text-gray-500 group-focus-within:text-red-400 transition-colors">
+              <Search className="w-5 h-5" />
             </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search your library…"
+              className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 

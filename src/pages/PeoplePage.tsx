@@ -1,5 +1,5 @@
 import { useState, useEffect,useLayoutEffect } from 'react'
-import { Search, UserPlus, UserCheck, Loader2, RefreshCw, Users } from 'lucide-react'
+import { Search, UserPlus, UserCheck, Loader2, Users, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore, type ProfileWithFollowStatus } from '../store/socialStore'
@@ -29,7 +29,9 @@ export default function PeoplePage() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
-  
+  const [exploreUsers, setExploreUsers] = useState<ProfileWithFollowStatus[]>([])
+  const [exploreLoading, setExploreLoading] = useState(false)
+
   const [refreshing, setRefreshing] = useState(false)
 
   useLayoutEffect(() => {
@@ -41,34 +43,25 @@ export default function PeoplePage() {
     }
   }, [peopleScrollPos, setPeopleScrollPos])
 
-  // Fetch followers and following on mount
   useEffect(() => {
-    if (user) {
-      // Fetch counts immediately
-      fetchPeopleCounts(user.id)
+    if (!user) return
 
-      // Only refresh lists if they are empty or if we explicitly want to refresh
-      // If peopleLoaded is true, it means we have data in the store
-      if (!peopleLoaded) {
-        setRefreshing(true)
-        Promise.all([fetchFollowers(user.id), fetchFollowing(user.id)])
-          .finally(() => {
-            setRefreshing(false)
-          })
-      } else {
-        // If data is already loaded, we can just fetch quietly in the background if needed
-        // But to fix the "loading state too long" issue, we don't set refreshing=true here
-        // We just let the existing data show.
-        // Optionally, we could trigger a background update without the UI spinner
-        fetchFollowers(user.id)
-        fetchFollowing(user.id)
-      }
+    fetchPeopleCounts(user.id)
+
+    if (!peopleLoaded) {
+      setRefreshing(true)
+      Promise.all([fetchFollowers(user.id), fetchFollowing(user.id)])
+        .finally(() => setRefreshing(false))
+    } else {
+      fetchFollowers(user.id)
+      fetchFollowing(user.id)
     }
 
-    // Handle tab visibility - background refresh
+    // Safety timer — if fetches hang, never stay stuck
+    const safetyTimer = setTimeout(() => setRefreshing(false), 8000)
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user) {
-        // Silent update on visibility change
+      if (document.visibilityState === 'visible') {
         fetchPeopleCounts(user.id)
         fetchFollowers(user.id)
         fetchFollowing(user.id)
@@ -76,41 +69,18 @@ export default function PeoplePage() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Set up real-time subscription for follows changes
-    if (!user) return
-
     const followsChannel = supabase
       .channel('follows-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'follows',
-          filter: `follower_id=eq.${user.id}`
-        },
-        () => {
-          fetchFollowing(user.id)
-          fetchPeopleCounts(user.id)
-        }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${user.id}` },
+        () => { fetchFollowing(user.id); fetchPeopleCounts(user.id) }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'follows',
-          filter: `following_id=eq.${user.id}`
-        },
-        () => {
-          fetchFollowers(user.id)
-          fetchPeopleCounts(user.id)
-        }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${user.id}` },
+        () => { fetchFollowers(user.id); fetchPeopleCounts(user.id) }
       )
       .subscribe()
 
-    // Cleanup subscription on unmount
     return () => {
+      clearTimeout(safetyTimer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(followsChannel)
     }
@@ -194,6 +164,9 @@ export default function PeoplePage() {
         )
       )
 
+      // Remove from explore list since they're now followed
+      setExploreUsers(prev => prev.filter(p => p.id !== profileId))
+
       // Refresh following list
       fetchFollowing(user.id)
     } catch (error) {
@@ -232,115 +205,162 @@ export default function PeoplePage() {
     }
   }
 
+  const fetchExploreUsers = async () => {
+    if (!user) return
+    setExploreLoading(true)
+    try {
+      // Get IDs the current user already follows
+      const { data: followingData } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id)
+
+      const followingIds = new Set(followingData?.map(f => f.following_id) ?? [])
+      followingIds.add(user.id) // exclude self
+
+      // Fetch profiles not in that set, ordered by most recent activity (created_at)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, bio')
+        .order('created_at', { ascending: false })
+        .limit(40)
+
+      if (!profiles) return
+
+      const notFollowing = profiles.filter(p => !followingIds.has(p.id))
+
+      // Check which of them follow us back (so we can show "Follows you")
+      const candidateIds = notFollowing.map(p => p.id)
+      const { data: theirFollows } = await supabase
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', user.id)
+        .in('follower_id', candidateIds)
+
+      const theirFollowSet = new Set(theirFollows?.map(f => f.follower_id) ?? [])
+
+      setExploreUsers(
+        notFollowing.map(p => ({
+          ...p,
+          isFollowing: false,
+          isFollower: theirFollowSet.has(p.id),
+        }))
+      )
+    } catch (err) {
+      console.error('Explore fetch error:', err)
+    } finally {
+      setExploreLoading(false)
+    }
+  }
+
   const renderProfileCard = (profile: ProfileWithFollowStatus) => (
     <div
       key={profile.id}
-      className="group bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-5 hover:bg-gray-800 hover:border-gray-600 transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
+      className="group flex items-center gap-3 p-3.5 bg-gray-800/40 border border-gray-700/50 rounded-2xl hover:bg-gray-800/70 hover:border-gray-600 transition-all duration-200"
     >
-      <div className="flex items-center justify-between gap-4">
-        <Link 
-          to={`/profile/${profile.username}`}
-          state={{ initialProfile: profile }}
-          className="flex items-center gap-4 flex-1 min-w-0"
-        >
-          {/* Avatar with Status Ring */}
-          <div className="relative">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0 overflow-hidden shadow-lg shadow-red-900/20 ring-2 ring-gray-800 group-hover:ring-red-500/30 transition-all">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
-              ) : (
-                profile.username.charAt(0).toUpperCase()
-              )}
-            </div>
-          </div>
-
-          {/* Profile Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-lg text-white group-hover:text-red-400 transition-colors truncate">
-                {profile.username}
-              </h3>
-              {profile.isFollowing && profile.isFollower && (
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30">
-                  Friends
-                </span>
-              )}
-            </div>
-            
-            {profile.bio ? (
-              <p className="text-sm text-gray-400 line-clamp-1 mt-0.5 font-medium">{profile.bio}</p>
-            ) : (
-              <p className="text-sm text-gray-500 italic mt-0.5">No bio</p>
+      <Link
+        to={`/profile/${profile.username}`}
+        state={{ initialProfile: profile }}
+        className="flex items-center gap-3 flex-1 min-w-0"
+      >
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+          ) : (
+            profile.username.charAt(0).toUpperCase()
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white group-hover:text-red-400 transition-colors truncate text-sm">
+              {profile.username}
+            </span>
+            {profile.isFollowing && profile.isFollower && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30 flex-shrink-0">
+                Friends
+              </span>
+            )}
+            {!profile.isFollowing && profile.isFollower && (
+              <span className="text-[10px] text-gray-500 flex-shrink-0">Follows you</span>
             )}
           </div>
-        </Link>
-
-        {/* Follow Button */}
-        <button
-          onClick={() =>
-            profile.isFollowing ? handleUnfollow(profile.id) : handleFollow(profile.id)
-          }
-          className={`flex-shrink-0 h-10 px-5 rounded-xl font-semibold text-sm transition-all duration-200 shadow-lg ${
-            profile.isFollowing
-              ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:text-white'
-              : 'bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500 hover:shadow-red-900/20 active:scale-95'
-          }`}
-        >
-          {profile.isFollowing ? (
-            <div className="flex items-center gap-2">
-              <UserCheck className="w-4 h-4" />
-              <span>Following</span>
-            </div>
+          {profile.bio ? (
+            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{profile.bio}</p>
           ) : (
-            <div className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              <span>Follow</span>
-            </div>
+            <p className="text-xs text-gray-600 italic mt-0.5">No bio</p>
           )}
-        </button>
-      </div>
+        </div>
+      </Link>
+
+      <button
+        onClick={() => profile.isFollowing ? handleUnfollow(profile.id) : handleFollow(profile.id)}
+        className={`flex-shrink-0 h-9 px-4 rounded-full font-bold text-xs transition-all duration-200 active:scale-95 ${
+          profile.isFollowing
+            ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:text-white'
+            : 'bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500'
+        }`}
+      >
+        {profile.isFollowing ? (
+          <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> Following</span>
+        ) : (
+          <span className="flex items-center gap-1"><UserPlus className="w-3.5 h-3.5" /> Follow</span>
+        )}
+      </button>
+    </div>
+  )
+
+  const renderExploreCard = (profile: ProfileWithFollowStatus) => (
+    <div
+      key={profile.id}
+      className="group bg-gray-800/40 border border-gray-700/50 rounded-2xl p-4 hover:bg-gray-800/70 hover:border-gray-600 transition-all duration-200 flex flex-col items-center text-center"
+    >
+      <Link
+        to={`/profile/${profile.username}`}
+        state={{ initialProfile: profile }}
+        className="flex flex-col items-center mb-3 w-full"
+      >
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+          ) : (
+            profile.username.charAt(0).toUpperCase()
+          )}
+        </div>
+        <h3 className="font-bold text-white truncate w-full group-hover:text-red-400 transition-colors text-sm">
+          {profile.username}
+        </h3>
+        {profile.isFollower && (
+          <span className="text-[10px] text-gray-500 mt-0.5">Follows you</span>
+        )}
+        {profile.bio ? (
+          <p className="text-xs text-gray-500 line-clamp-2 mt-1 leading-relaxed">{profile.bio}</p>
+        ) : (
+          <p className="text-xs text-gray-600 italic mt-1">No bio</p>
+        )}
+      </Link>
+      <button
+        onClick={() => handleFollow(profile.id)}
+        className="w-full py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500 active:scale-95 transition-all shadow-sm"
+      >
+        Follow
+      </button>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20">
-      {/* Loading Bar */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-24">
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-gray-800">
-          <div className="h-full bg-gradient-to-r from-red-500 to-pink-600 animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+          <div className="h-full bg-gradient-to-r from-red-500 to-pink-600 w-2/5 animate-pulse" />
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-4xl font-black tracking-tight mb-2 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              People
-            </h1>
-            <p className="text-gray-400 font-medium">
-              Discover people, manage your network, and find new friends.
-            </p>
-          </div>
-          
-          <button
-            onClick={() => {
-              if (user) {
-                setRefreshing(true)
-                Promise.all([fetchFollowers(user.id), fetchFollowing(user.id)]).finally(() => setRefreshing(false))
-              }
-            }}
-            className="p-2.5 bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-xl transition-all border border-gray-700 hover:border-gray-600 active:scale-95"
-            title="Refresh List"
-          >
-            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        {/* Tabs - Segmented Control */}
-        <div className="p-1 bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl mb-8 flex gap-1 relative overflow-hidden">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Tab Bar */}
+        <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 scrollbar-hide">
           {[
-            { id: 'search', label: 'Find People' },
+            { id: 'search', label: 'Search' },
+            { id: 'explore', label: 'Discover' },
             { id: 'followers', label: 'Followers', count: followersCount },
             { id: 'following', label: 'Following', count: followingCount },
           ].map((tab) => {
@@ -348,95 +368,133 @@ export default function PeoplePage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setPeopleActiveTab(tab.id as typeof peopleActiveTab)}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all duration-200 relative group overflow-hidden ${
+                onClick={() => {
+                  setPeopleActiveTab(tab.id as typeof peopleActiveTab)
+                  if (tab.id === 'explore' && exploreUsers.length === 0) {
+                    fetchExploreUsers()
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
                   isActive
-                    ? 'text-white shadow-lg bg-gray-700'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                    ? 'bg-white text-black'
+                    : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700/50'
                 }`}
               >
-                <div className="relative z-10 flex items-center justify-center gap-2">
-                  <span>{tab.label}</span>
-                  {tab.count !== undefined && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-                      isActive ? 'bg-white text-black' : 'bg-gray-800 text-gray-400 group-hover:bg-gray-700 group-hover:text-white'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </div>
-                {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-tr from-gray-700 via-gray-600/50 to-gray-700 opacity-100" />
+                {tab.label}
+                {tab.count !== undefined && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center ${
+                    isActive ? 'bg-black/20 text-black/70' : 'bg-gray-700 text-gray-400'
+                  }`}>
+                    {tab.count}
+                  </span>
                 )}
               </button>
             )
           })}
         </div>
 
-        {/* Content Area */}
+        {/* Content */}
         <div className="min-h-[400px]">
+
           {/* Search Tab */}
           {peopleActiveTab === 'search' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {/* Search Bar */}
-              <div className="relative mb-8 group">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-pink-500/20 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
-                <div className="relative bg-gray-800/50 border border-gray-700 rounded-2xl flex items-center shadow-lg group-focus-within:border-gray-600 transition-colors">
-                  <div className="pl-4 text-gray-500 group-focus-within:text-red-500 transition-colors">
+            <div className="animate-in fade-in duration-200">
+              <div className="relative mb-6 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+                <div className="relative bg-gray-800/60 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-500 transition-colors">
+                  <div className="pl-4 text-gray-500 group-focus-within:text-white transition-colors">
                     <Search className="w-5 h-5" />
                   </div>
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => handleSearch(e.target.value)}
-                    placeholder="Search by username..."
-                    className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-lg font-medium"
+                    placeholder="Search by username…"
+                    className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
                     autoFocus
                   />
+                  {searchQuery && (
+                    <button onClick={() => { setSearchQuery(''); setSearchResults([]) }} className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
+                      <Search className="w-4 h-4 opacity-0 absolute" />
+                      <span className="text-sm">✕</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Search Results */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
-                  <div className="col-span-full text-center py-20 bg-gray-800/30 rounded-3xl border border-gray-700/50 border-dashed">
-                    <p className="text-gray-400 text-lg font-medium">No users found matching "{searchQuery}"</p>
-                    <p className="text-gray-500 mt-2">Try checking for typos or searching another name.</p>
+              {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
+                <div className="text-center py-20">
+                  <p className="text-gray-400 font-semibold">No users found for "{searchQuery}"</p>
+                  <p className="text-gray-600 text-sm mt-1">Try a different username</p>
+                </div>
+              )}
+              {searchResults.length === 0 && searchQuery.trim().length < 2 && (
+                <div className="text-center py-24">
+                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-7 h-7 text-gray-600" />
                   </div>
-                )}
-                {searchResults.length === 0 && searchQuery.trim().length < 2 && (
-                  <div className="col-span-full text-center py-20">
-                    <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6 border border-gray-700 shadow-xl">
-                      <Search className="w-8 h-8 text-gray-500" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2">Find your friends</h3>
-                    <p className="text-gray-400 max-w-sm mx-auto">
-                      Search for people to follow and build your movie-watching network.
-                    </p>
-                  </div>
-                )}
+                  <p className="text-gray-400 font-semibold">Find people you know</p>
+                  <p className="text-gray-600 text-sm mt-1">Search by username to connect with friends</p>
+                </div>
+              )}
+              <div className="space-y-3">
                 {searchResults.map(renderProfileCard)}
               </div>
             </div>
           )}
 
-          {/* Followers Tab */}
-          {peopleActiveTab === 'followers' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {!peopleLoaded ? (
-                <div className="flex justify-center py-20">
-                  <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
+          {/* Discover Tab */}
+          {peopleActiveTab === 'explore' && (
+            <div className="animate-in fade-in duration-200">
+              {exploreLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 animate-pulse">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="bg-gray-800/40 rounded-2xl p-4 flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-gray-700" />
+                      <div className="h-3 bg-gray-700 rounded-full w-20" />
+                      <div className="h-2 bg-gray-700/60 rounded-full w-16" />
+                      <div className="h-8 bg-gray-700 rounded-xl w-full" />
+                    </div>
+                  ))}
                 </div>
-              ) : followers.length === 0 ? (
-                <div className="text-center py-20 bg-gray-800/30 rounded-3xl border border-gray-700/50 border-dashed">
+              ) : exploreUsers.length === 0 ? (
+                <div className="text-center py-24">
                   <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Users className="w-8 h-8 text-gray-500" />
+                    <Compass className="w-7 h-7 text-gray-600" />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1">No followers yet</h3>
-                  <p className="text-gray-400">When people follow you, they'll show up here.</p>
+                  <p className="text-gray-400 font-semibold">You follow everyone!</p>
+                  <p className="text-gray-600 text-sm mt-1">No new users to discover right now.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {exploreUsers.map(profile => renderExploreCard({
+                    ...profile,
+                    isFollowing: exploreUsers.find(u => u.id === profile.id)?.isFollowing ?? false,
+                  }))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Followers Tab */}
+          {peopleActiveTab === 'followers' && (
+            <div className="animate-in fade-in duration-200">
+              {!peopleLoaded ? (
+                <div className="space-y-3 animate-pulse">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-20 bg-gray-800/40 rounded-2xl" />
+                  ))}
+                </div>
+              ) : followers.length === 0 ? (
+                <div className="text-center py-24">
+                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-7 h-7 text-gray-600" />
+                  </div>
+                  <p className="text-gray-400 font-semibold">No followers yet</p>
+                  <p className="text-gray-600 text-sm mt-1">Share your profile to get your first follower</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
                   {followers.map(renderProfileCard)}
                 </div>
               )}
@@ -445,27 +503,29 @@ export default function PeoplePage() {
 
           {/* Following Tab */}
           {peopleActiveTab === 'following' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="animate-in fade-in duration-200">
               {!peopleLoaded ? (
-                <div className="flex justify-center py-20">
-                  <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
+                <div className="space-y-3 animate-pulse">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-20 bg-gray-800/40 rounded-2xl" />
+                  ))}
                 </div>
               ) : following.length === 0 ? (
-                <div className="text-center py-20 bg-gray-800/30 rounded-3xl border border-gray-700/50 border-dashed">
+                <div className="text-center py-24">
                   <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <UserPlus className="w-8 h-8 text-gray-500" />
+                    <UserPlus className="w-7 h-7 text-gray-600" />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1">Not following anyone</h3>
-                  <p className="text-gray-400 mb-6">Start following people to see their activity.</p>
-                  <button 
-                    onClick={() => setPeopleActiveTab('search')}
-                    className="px-6 py-2 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                  <p className="text-gray-400 font-semibold">Not following anyone</p>
+                  <p className="text-gray-600 text-sm mt-1 mb-6">Discover people to follow</p>
+                  <button
+                    onClick={() => { setPeopleActiveTab('explore'); fetchExploreUsers() }}
+                    className="px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-gray-100 transition-colors"
                   >
-                    Find People
+                    Discover people
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   {following.map(renderProfileCard)}
                 </div>
               )}

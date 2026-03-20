@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Star, Calendar, Activity, ArrowUpRight } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Star, Calendar, ArrowUpRight } from 'lucide-react'
 
 interface GroupedEntries {
   [date: string]: MediaEntry[]
@@ -19,11 +19,12 @@ export default function ActivityPage() {
       navigate('/auth')
       return
     }
+    // Respects 5-min staleness cache; pass force=true only if needed
     fetchEntries(user.id)
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        fetchEntries(user.id)
+        fetchEntries(user.id) // respects 5-min TTL, no forced refetch
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -119,34 +120,23 @@ export default function ActivityPage() {
   const daysActive = sortedDates.length
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white pb-24 md:pb-12">
+    <div className="min-h-screen bg-gray-950 text-white pb-24 md:pb-12">
       {/* Background Gradient Mesh */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
         <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-purple-900/40 to-transparent"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-gradient-to-t from-red-900/20 to-transparent rounded-full blur-3xl"></div>
       </div>
 
-      <main className="relative z-10 max-w-3xl mx-auto px-4 py-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent inline-flex items-center gap-3">
-              <Activity className="w-8 h-8 text-red-500" />
-              Timeline
-            </h1>
-            <p className="text-gray-400 mt-2 text-lg">Your entertainment journey, day by day.</p>
+      <main className="relative z-10 max-w-3xl mx-auto px-4 pt-6 pb-8">
+        {/* Quick Stats */}
+        <div className="flex gap-3 mb-8">
+          <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
+            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total</div>
+            <div className="text-xl font-bold text-white">{totalEntriesCount}</div>
           </div>
-          
-          {/* Quick Stats */}
-          <div className="flex gap-4">
-            <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
-              <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total</div>
-              <div className="text-xl font-bold text-white">{totalEntriesCount}</div>
-            </div>
-            <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
-              <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Days</div>
-              <div className="text-xl font-bold text-white">{daysActive}</div>
-            </div>
+          <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
+            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Days</div>
+            <div className="text-xl font-bold text-white">{daysActive}</div>
           </div>
         </div>
 

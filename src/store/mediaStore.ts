@@ -1,7 +1,22 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { supabase } from '../lib/supabase'
 // Add Badge and UserBadge to imports
 import type { Badge, UserBadge } from '../lib/supabase'
+
+const safeLocalStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch (e) {
+      console.warn('localStorage quota exceeded — clearing media cache', e)
+      localStorage.removeItem('popcorn-media')
+      try { localStorage.setItem(key, value) } catch { /* give up silently */ }
+    }
+  },
+  removeItem: (key: string) => localStorage.removeItem(key),
+}
 
 export interface MediaEntry {
   id: string
@@ -45,9 +60,10 @@ interface MediaState {
   availableBadges: Badge[]
   profileLoaded: boolean
   profileScrollPos: number
+  entriesLastFetched: number
 
   // ... existing actions ...
-  fetchEntries: (userId: string) => Promise<void>
+  fetchEntries: (userId: string, force?: boolean) => Promise<void>
   fetchUserStats: (userId: string) => Promise<void>
   addEntry: (entry: Omit<MediaEntry, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>
   deleteEntry: (id: string) => Promise<void>
@@ -59,9 +75,12 @@ interface MediaState {
   setAvailableBadges: (badges: Badge[]) => void
   setProfileLoaded: (loaded: boolean) => void
   setProfileScrollPos: (pos: number) => void
+  resetMediaStore: () => void
 }
 
-export const useMediaStore = create<MediaState>((set, get) => ({
+export const useMediaStore = create<MediaState>()(
+  persist(
+  (set, get) => ({
   entries: [],
   userStats: null,
   loading: false,
@@ -72,8 +91,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   availableBadges: [],
   profileLoaded: false,
   profileScrollPos: 0,
+  entriesLastFetched: 0,
 
-  fetchEntries: async (userId: string) => {
+  fetchEntries: async (userId: string, force = false) => {
+    const { entriesLastFetched } = get()
+    const STALE_MS = 5 * 60 * 1000 // 5 minutes
+    if (!force && entriesLastFetched && Date.now() - entriesLastFetched < STALE_MS) return
+
     set({ loading: true, error: null })
     try {
       const { data, error } = await supabase
@@ -83,7 +107,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      set({ entries: data as MediaEntry[] })
+      set({ entries: data as MediaEntry[], entriesLastFetched: Date.now() })
     } catch (error) {
       set({ error: (error as Error).message })
     } finally {
@@ -192,4 +216,29 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   setAvailableBadges: (availableBadges) => set({ availableBadges }),
   setProfileLoaded: (profileLoaded) => set({ profileLoaded }),
   setProfileScrollPos: (profileScrollPos) => set({ profileScrollPos }),
-}))
+
+  resetMediaStore: () => set({
+    entries: [],
+    userStats: null,
+    favorites: [],
+    userBadges: [],
+    availableBadges: [],
+    profileLoaded: false,
+    profileScrollPos: 0,
+    entriesLastFetched: 0,
+  }),
+  }),
+  {
+    name: 'popcorn-media',
+    storage: createJSONStorage(() => safeLocalStorage),
+    partialize: (state) => ({
+      entries: state.entries,
+      favorites: state.favorites,
+      userBadges: state.userBadges,
+      availableBadges: state.availableBadges,
+      profileLoaded: state.profileLoaded,
+      profileScrollPos: state.profileScrollPos,
+      entriesLastFetched: state.entriesLastFetched,
+    }),
+  }
+))

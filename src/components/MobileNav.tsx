@@ -1,5 +1,6 @@
 import { Plus, User, Users, UserPlus } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import NotificationBell from './NotificationBell'
 
 export default function MobileNav() {
   const navigate = useNavigate()
@@ -18,14 +19,14 @@ export default function MobileNav() {
         {navItems.map((item) => {
           const isActive = location.pathname === item.path
           const Icon = item.icon
-          
+
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 ${
-                isActive 
-                  ? 'text-white' 
+                isActive
+                  ? 'text-white'
                   : 'text-gray-500 active:scale-95'
               }`}
             >
@@ -43,6 +44,12 @@ export default function MobileNav() {
             </button>
           )
         })}
+
+        {/* Notification bell */}
+        <div className="flex flex-col items-center justify-center flex-1 h-full relative">
+          <NotificationBell dropUp />
+          <span className="text-xs mt-1 font-medium text-gray-500">Alerts</span>
+        </div>
       </div>
     </nav>
   )

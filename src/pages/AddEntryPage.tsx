@@ -173,143 +173,152 @@ export default function AddEntryPage() {
   }
 
   const tabs = [
-    { id: 'movie', label: 'Movies', icon: Film },
-    { id: 'show', label: 'TV Shows', icon: Tv },
-    { id: 'game', label: 'Games', icon: Gamepad2 },
-    { id: 'book', label: 'Books', icon: Book },
+    { id: 'movie', label: 'Movies', icon: Film, gradient: 'from-red-500 to-rose-600', glow: 'shadow-red-500/30' },
+    { id: 'show', label: 'TV Shows', icon: Tv, gradient: 'from-violet-500 to-purple-600', glow: 'shadow-violet-500/30' },
+    { id: 'game', label: 'Games', icon: Gamepad2, gradient: 'from-blue-500 to-cyan-600', glow: 'shadow-blue-500/30' },
+    { id: 'book', label: 'Books', icon: Book, gradient: 'from-emerald-500 to-green-600', glow: 'shadow-emerald-500/30' },
   ] as const
 
+  const activeTabData = tabs.find(t => t.id === activeTab)!
+  const ActiveIcon = activeTabData.icon
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-4 pb-20">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Add New Entry</h1>
-          <button 
-            onClick={() => {
-              clearPersistence()
-              navigate(-1)
-            }}
-            className="p-2 hover:bg-gray-800 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white px-4 pt-6 pb-24">
+      <div className="max-w-4xl mx-auto">
+
+        {/* Type Selector */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id)
+                  setResults([])
+                  setQuery('')
+                  setSelectedItem(null)
+                }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
+                  isActive
+                    ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg ${tab.glow}`
+                    : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700/50'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id)
-                setResults([])
-                setQuery('')
-                setSelectedItem(null)
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Search - SLEEKER & RESPONSIVE */}
-        <form onSubmit={handleSearch} className="mb-8">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+        {/* Search */}
+        <form onSubmit={handleSearch} className="mb-6">
+          <div className="relative group">
+            <div className={`absolute inset-0 bg-gradient-to-r ${activeTabData.gradient} rounded-2xl blur-xl opacity-0 group-focus-within:opacity-20 transition-opacity duration-500`} />
+            <div className="relative bg-gray-800/60 border border-gray-700/60 rounded-2xl flex items-center shadow-lg group-focus-within:border-gray-500 transition-colors">
+              <div className="pl-4 text-gray-500 group-focus-within:text-white transition-colors flex-shrink-0">
+                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+              </div>
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search for ${activeTab}s...`}
-                className="w-full pl-12 pr-12 py-4 bg-gray-800/50 border border-gray-700 rounded-xl focus:outline-none focus:border-red-500 transition-colors text-lg"
+                placeholder={`Search ${activeTab}s…`}
+                className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
                 autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearch(e)
-                }}
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
               {query && (
                 <button
                   type="button"
                   onClick={() => setQuery('')}
-                  className="absolute right-2 inset-y-0 my-auto flex items-center justify-center rounded-full bg-gray-700/60 hover:bg-gray-600/80 text-gray-300 hover:text-white transition-colors w-10 h-10 md:w-8 md:h-8 z-10 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{ touchAction: 'manipulation' }}
-                  aria-label="Clear search"
+                  className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
                 >
-                  <X className="w-5 h-5 pointer-events-none" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
-            <button
-              type="button"
-              onClick={handleSearch}
-              disabled={searching || !query.trim()}
-              className="bg-gray-700 hover:bg-gray-600 h-[56px] w-[56px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 mt-2 sm:mt-0"
-              tabIndex={0}
-              aria-label="Search"
-            >
-              {searching ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-7 h-7 text-white" />}
-            </button>
           </div>
         </form>
 
-        {/* Results */}
-        <div className="space-y-4">
-          {results.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => {
-                setSelectedItem(item)
-                if (!selectedItem || selectedItem.id !== item.id) {
+        {/* Results Grid */}
+        {searching && results.length === 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 animate-pulse">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i}>
+                <div className="aspect-[2/3] rounded-xl bg-gray-800" />
+                <div className="h-2.5 bg-gray-800 rounded-full mt-2 mx-1" />
+                <div className="h-2 bg-gray-800/60 rounded-full mt-1.5 mx-3" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            {results.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => {
+                  setSelectedItem(item)
+                  if (!selectedItem || selectedItem.id !== item.id) {
                     setRating(0)
                     setStatus('completed')
                     setNotes('')
-                }
-              }}
-              className="flex gap-4 p-4 bg-gray-800/30 border border-gray-700/50 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer group"
-            >
-              <div className="w-20 h-28 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 relative">
-                {item.image ? (
-                  <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-600">
-                    {(() => {
-                      const Icon = tabs.find(t => t.id === activeTab)?.icon
-                      return Icon ? <Icon className="w-8 h-8" /> : null
-                    })()}
+                  }
+                }}
+                className="group relative cursor-pointer"
+              >
+                <div className="aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 shadow-md group-hover:shadow-xl group-hover:shadow-black/50 transition-all duration-300 group-hover:-translate-y-1 ring-1 ring-white/5 group-hover:ring-white/20 relative">
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 gap-2 bg-gradient-to-br from-gray-800 to-gray-900">
+                      <ActiveIcon className="w-8 h-8 opacity-30" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 flex items-center justify-center transition-all duration-200">
+                    <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all duration-200 border border-white/30">
+                      <Plus className="w-5 h-5 text-white" />
+                    </div>
                   </div>
-                )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Plus className="w-8 h-8 text-white" />
                 </div>
+                <p className="text-xs font-semibold text-gray-300 mt-2 truncate px-0.5 group-hover:text-white transition-colors">{item.title}</p>
+                <p className="text-[10px] text-gray-600 truncate px-0.5">{item.year || ''}</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold truncate pr-4">{item.title}</h3>
-                <p className="text-gray-400 text-sm mb-2">{item.year || 'Unknown Year'}</p>
-                <p className="text-gray-500 text-sm line-clamp-2">{item.description}</p>
-              </div>
-            </div>
-          ))}
-          
-          {results.length === 0 && query && !searching && (
-            <div className="text-center text-gray-500 py-12">
-              No results found. Try a different search.
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* --- NEW RESPONSIVE MODAL --- */}
+        {results.length === 0 && query && !searching && (
+          <div className="text-center py-24">
+            <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="w-7 h-7 text-gray-600" />
+            </div>
+            <p className="text-gray-400 font-semibold">No results for "{query}"</p>
+            <p className="text-gray-600 text-sm mt-1">Try different keywords</p>
+          </div>
+        )}
+
+        {results.length === 0 && !query && !searching && (
+          <div className="text-center py-24">
+            <div className={`w-20 h-20 bg-gradient-to-br ${activeTabData.gradient} rounded-2xl flex items-center justify-center mx-auto mb-5 opacity-20`}>
+              <ActiveIcon className="w-10 h-10 text-white" />
+            </div>
+            <p className="text-gray-400 font-semibold text-lg">Search for {activeTab}s</p>
+            <p className="text-gray-600 text-sm mt-1">Find what you've been watching, playing, or reading</p>
+          </div>
+        )}
+
+        {/* Detail Modal */}
         {selectedItem && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-gray-900 border border-gray-700 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
-              
+            <div className="bg-gray-900 border border-gray-800 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
+
               {/* Close Button */}
               <button
                 onClick={handleCloseModal}
@@ -318,22 +327,19 @@ export default function AddEntryPage() {
                 <X className="w-5 h-5" />
               </button>
 
-              {/* --- LEFT (Desktop) / TOP (Mobile): Poster & Backdrop --- */}
+              {/* Left: Poster */}
               <div className="w-full h-48 md:h-auto md:w-2/5 bg-black relative flex-shrink-0">
                 {selectedItem.image ? (
                   <>
-                    {/* Blurred Backdrop */}
                     <div className="absolute inset-0 overflow-hidden">
                       <img src={selectedItem.image} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
                       <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent md:bg-gradient-to-r" />
                     </div>
-                    
-                    {/* Actual Poster Image */}
                     <div className="relative h-full w-full flex items-center justify-center p-6 md:p-8">
-                      <img 
-                        src={selectedItem.image} 
-                        alt={selectedItem.title} 
-                        className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36" 
+                      <img
+                        src={selectedItem.image}
+                        alt={selectedItem.title}
+                        className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36"
                       />
                     </div>
                   </>
@@ -344,13 +350,11 @@ export default function AddEntryPage() {
                 )}
               </div>
 
-              {/* --- RIGHT (Desktop) / BOTTOM (Mobile): Details & Form --- */}
+              {/* Right: Form */}
               <div className="flex-1 overflow-y-auto bg-gray-900 p-5 md:p-8 flex flex-col">
-                
-                {/* Media Info Section */}
-                <div className="mb-8 border-b border-gray-800 pb-6">
+                <div className="mb-6 border-b border-gray-800 pb-6">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className="px-2.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                    <span className={`px-2.5 py-0.5 rounded-full bg-gradient-to-r ${activeTabData.gradient} text-[10px] font-bold uppercase tracking-wider text-white`}>
                       {selectedItem.type}
                     </span>
                     {selectedItem.year && (
@@ -360,15 +364,12 @@ export default function AddEntryPage() {
                       </span>
                     )}
                   </div>
-                  
                   <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight mb-3">
                     {selectedItem.title}
                   </h2>
-                  
-                  {/* Duplicate Error Alert */}
                   {duplicateError && (
-                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-4 flex items-start gap-3">
-                      <span className="text-red-500 flex-shrink-0 mt-0.5">⚠️</span>
+                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg flex items-start gap-3">
+                      <span className="flex-shrink-0 mt-0.5">⚠️</span>
                       <div className="flex-1 text-sm">
                         <p className="font-medium mb-1">Already in your library</p>
                         <p className="text-red-400/80">"{selectedItem.title}" is already in your library. Try a different status.</p>
@@ -377,16 +378,15 @@ export default function AddEntryPage() {
                   )}
                 </div>
 
-                {/* Form Section */}
                 <div className="space-y-6">
-                  {/* Status Selector */}
+                  {/* Status */}
                   <div>
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Status</label>
                     <div className="flex flex-wrap gap-2">
                       {[
                         { value: 'completed', label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-                        { value: 'in-progress', label: 'In-progress', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-                        { value: 'planned', label: 'Plan to Watch', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+                        { value: 'in-progress', label: 'In Progress', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+                        { value: 'planned', label: 'Plan to', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
                         { value: 'logged', label: 'Logged', color: 'text-gray-400', bg: 'bg-gray-800', border: 'border-gray-700' },
                       ].map((s) => (
                         <button
@@ -398,12 +398,11 @@ export default function AddEntryPage() {
                               setNotes('')
                             }
                           }}
-                          className={`
-                            px-3 py-2 rounded-lg text-xs md:text-sm font-medium border transition-all duration-200 flex-1 md:flex-none text-center
-                            ${status === s.value
+                          className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium border transition-all duration-200 flex-1 md:flex-none text-center ${
+                            status === s.value
                               ? `${s.bg} ${s.border} ${s.color} shadow-sm ring-1 ring-inset ring-white/10`
-                              : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white'}
-                          `}
+                              : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white'
+                          }`}
                         >
                           {s.label}
                         </button>
@@ -411,67 +410,50 @@ export default function AddEntryPage() {
                     </div>
                   </div>
 
-                  {/* Rating with Slider & Stars */}
+                  {/* Rating */}
                   {(status === 'completed' || status === 'logged') && (
                     <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
                       <div className="flex justify-between items-center mb-3">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rating</label>
                         <span className="text-xl font-bold text-white flex items-baseline gap-1">
-                          {rating > 0 ? rating : '-'} <span className="text-gray-600 text-sm font-normal">/ 5</span>
+                          {rating > 0 ? rating : '—'} <span className="text-gray-600 text-sm font-normal">/ 5</span>
                         </span>
                       </div>
-                      
-                      {/* Star Display (Visual + Click) */}
                       <div className="flex gap-1 mb-4 justify-center md:justify-start">
                         {[1, 2, 3, 4, 5].map((star) => (
-                          <Star 
-                            key={star} 
-                            className={`w-8 h-8 md:w-9 md:h-9 transition-colors cursor-pointer ${rating >= star ? 'text-yellow-400 fill-yellow-400' : rating >= star - 0.5 ? 'text-yellow-400 fill-yellow-400/50' : 'text-gray-700'}`} 
-                            onClick={() => setRating(star)} 
+                          <Star
+                            key={star}
+                            className={`w-8 h-8 md:w-9 md:h-9 transition-colors cursor-pointer ${rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-700 hover:text-yellow-400/50'}`}
+                            onClick={() => setRating(star)}
                           />
                         ))}
                       </div>
-                      
-                      {/* Smooth Slider Control */}
-                      <div className="relative w-full h-6 flex items-center group">
-                        {/* Track */}
+                      <div className="relative w-full h-6 flex items-center">
                         <div className="absolute w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                             <div 
-                                className="h-full bg-yellow-400 transition-all duration-75 ease-out"
-                                style={{ width: `${(rating / 5) * 100}%` }}
-                             />
+                          <div className="h-full bg-yellow-400 transition-all duration-75 ease-out" style={{ width: `${(rating / 5) * 100}%` }} />
                         </div>
-                        {/* Invisible Input for interaction */}
                         <input
-                          type="range"
-                          min="0"
-                          max="10"
-                          step="1"
+                          type="range" min="0" max="10" step="1"
                           value={rating * 2}
                           onChange={(e) => setRating(parseFloat(e.target.value) / 2)}
                           className="absolute w-full h-full opacity-0 cursor-pointer z-10"
                         />
-                        {/* Thumb Visual */}
-                        <div 
-                            className="absolute h-5 w-5 bg-white border-2 border-yellow-400 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
-                            style={{ 
-                                left: `calc(${(rating / 5) * 100}% - 10px)` 
-                            }}
+                        <div
+                          className="absolute h-5 w-5 bg-white border-2 border-yellow-400 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
+                          style={{ left: `calc(${(rating / 5) * 100}% - 10px)` }}
                         />
                       </div>
                     </div>
                   )}
 
-                  {/* Notes / Review */}
+                  {/* Notes */}
                   {(status === 'completed' || status === 'logged') && (
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Review</label>
                       <textarea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        onBlur={() => {
-                          if (window.visualViewport) window.scrollTo(0, 0)
-                        }}
+                        onBlur={() => { if (window.visualViewport) window.scrollTo(0, 0) }}
                         rows={4}
                         className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all resize-none text-sm leading-relaxed"
                         placeholder="What did you think about it?"
@@ -482,7 +464,7 @@ export default function AddEntryPage() {
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-red-900/20 transition-all disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
+                    className={`w-full bg-gradient-to-r ${activeTabData.gradient} text-white font-bold py-3.5 rounded-xl shadow-lg transition-all disabled:opacity-50 mt-4 flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98]`}
                   >
                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Add to Library'}
                   </button>
