@@ -12,7 +12,7 @@ import ThreadModal from '../components/feed/ThreadModal'
 import MediaSelectorModal from '../components/feed/MediaSelectorModal'
 import { type Comment, formatTimeAgo, findImageLink, wasEdited } from '../components/feed/feedTypes'
 
-const FEED_STALE_MS = 10 * 60 * 1000 // 10 minutes
+const FEED_STALE_MS = 5 * 60 * 1000 // 5 minutes
 
 export default function FeedPage() {
   const { user, profile } = useAuthStore()
@@ -211,7 +211,7 @@ export default function FeedPage() {
     } else {
       setInitialLoading(false)
       // Silent background refresh if data is stale
-      if (Date.now() - feedLastFetchedRef.current > FEED_STALE_MS && !isOffline) {
+      if (Date.now() - feedLastFetchedRef.current > FEED_STALE_MS) {
         fetchFeed(false, true)
       }
     }
@@ -232,16 +232,21 @@ export default function FeedPage() {
     const handleVisibilityChange = () => {
       // Always clear any stuck loading state when tab becomes visible
       setInitialLoading(false)
-      if (document.visibilityState === 'visible' && !isOffline) {
-        if (Date.now() - feedLastFetchedRef.current > FEED_STALE_MS) {
-          // Ping auth first — browsers throttle background timers so Supabase's
-          // internal token-refresh timer may not have fired. getSession() triggers
-          // a refresh if the access token is stale, ensuring the data fetch succeeds.
-          supabase.auth.getSession().finally(() => fetchFeed(false, true))
+      if (document.visibilityState === 'visible') {
+        const isStale = Date.now() - feedLastFetchedRef.current > FEED_STALE_MS
+        const isEmpty = postsLengthRef.current === 0
+        if (isStale || isEmpty) {
+          // getUser() does a server round-trip and fully refreshes the JWT before
+          // the data fetch runs. getSession() only returns the cached session and
+          // would race with Supabase's lazy token refresh inside fetchFeed, often
+          // causing the first RPC call to fail on mobile after inactivity.
+          supabase.auth.getUser().finally(() => fetchFeed(false, true))
         }
-        // Do NOT call subscribeToFeed here — Supabase WebSocket reconnects automatically.
-        // Re-subscribing on every tab focus tears down and rebuilds the channel, which
-        // interferes with in-flight data fetches and causes the "wonky" loading state.
+        // Re-subscribe to realtime on every return from background. Browsers
+        // (especially iOS Safari and Android Chrome) kill WebSocket connections
+        // when the app is backgrounded for ~5+ minutes. Supabase's auto-reconnect
+        // relies on its heartbeat timer, which can't fire while JS is suspended.
+        if (!isOffline) subscribeToFeed(user!.id)
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -277,7 +282,7 @@ export default function FeedPage() {
   }, [user?.id, isOffline])
 
   const fetchFeed = async (loadMore = false, silent = false) => {
-    if (!user || isOffline) return
+    if (!user) return
 
     if (loadMore) {
       setLoadingMore(true)
