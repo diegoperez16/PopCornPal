@@ -21,6 +21,7 @@ export default function ProfilePage() {
     bio,
     setBio,
     avatarUrl,
+    setAvatarUrl,
     uploadedAvatar,
     setUploadedAvatar,
     savingProfile,

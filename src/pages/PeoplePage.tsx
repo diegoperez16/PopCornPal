@@ -1,5 +1,5 @@
 import { useState, useEffect,useLayoutEffect } from 'react'
-import { Search, UserPlus, UserCheck, Loader2, Users, Compass } from 'lucide-react'
+import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore, type ProfileWithFollowStatus } from '../store/socialStore'

@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useSocialStore, type Post } from '../store/socialStore'
 import { useNavigate, Link } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, WifiOff, Pencil } from 'lucide-react'
+import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, WifiOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import GifPicker from '../components/GifPicker'
 import FeedSkeleton from '../components/FeedSkeleton'
@@ -368,27 +368,6 @@ export default function FeedPage() {
     setCommentText(value)
   }
 
-  const handleReplyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    
-    // Auto-resize
-    e.target.style.height = 'auto'
-    e.target.style.height = `${e.target.scrollHeight}px`
-    
-    // GIF Link Detection
-    if (!replyImageUrl && !uploadedReplyImage) {
-      const result = findImageLink(value)
-      
-      if (result) {
-        setReplyImageUrl(result.renderableUrl)
-        // Remove link from text
-        const newValue = value.replace(result.foundLink, '').trim()
-        setReplyText(newValue)
-        return
-      }
-    }
-    setReplyText(value)
-  }
 
   const handleCreatePost = async () => {
     if (!user || !newPost.trim()) return

@@ -1,9 +1,8 @@
 import { useParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Film, Tv, Gamepad2, Book, Users, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library } from 'lucide-react'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import { useUserProfilePage } from '../hooks/useUserProfilePage'
-import type { MediaEntry } from '../hooks/useUserProfilePage'
 
 export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>()
