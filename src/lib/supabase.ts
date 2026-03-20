@@ -12,12 +12,18 @@ export const isSupabaseConfigured = Boolean(
   !supabaseAnonKey.includes('your_supabase')
 )
 
-// Hard timeout for ALL Supabase network requests (aborts the underlying fetch)
-const REQUEST_TIMEOUT_MS = 60000
+// Auth token refreshes need more time (mobile networks can be slow on resume)
+// Data queries get a tighter limit so the UI doesn't hang
+const AUTH_TIMEOUT_MS = 30000
+const DATA_TIMEOUT_MS = 12000
 
 const fetchWithTimeout: typeof fetch = async (input, init) => {
+  const url = typeof input === 'string' ? input : (input as Request).url
+  const isAuth = url.includes('/auth/v1/')
+  const timeoutMs = isAuth ? AUTH_TIMEOUT_MS : DATA_TIMEOUT_MS
+
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     return await fetch(input, {
@@ -62,6 +68,24 @@ export type Profile = {
   updated_at: string
   bg_url: string | null
   bg_opacity: number | null
+  bg_crop?: BackgroundCrop | null
+}
+
+export type BackgroundCrop = {
+  desktop: CropSettings
+  mobile: CropSettings
+}
+
+export type CropSettings = {
+  x: number
+  y: number
+  scale: number
+}
+
+export type AvatarCrop = {
+  x: number
+  y: number
+  scale: number
 }
 
 export type Badge = {

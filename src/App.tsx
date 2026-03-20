@@ -15,7 +15,6 @@ import LibraryPage from './pages/LibraryPage'
 import AdminBadgePanel from './pages/AdminBadgePanel'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
-import NotificationBanner from './components/NotificationBanner'
 import SplashLoader from './components/SplashLoader'
 
 function RedirectToProfile() {
@@ -119,45 +118,40 @@ function HomePage() {
 }
 
 function App() {
-  const { initialize, resumeSession } = useAuthStore()
-  const [appLoading, setAppLoading] = useState(true)
+  const { initialize, resumeSession, user } = useAuthStore()
+  const [appReady, setAppReady] = useState(false)
 
   useEffect(() => {
     const init = async () => {
       if (isSupabaseConfigured) {
         await initialize()
       }
-      setAppLoading(false)
+      setAppReady(true)
     }
-    
     init()
   }, [initialize])
 
-  // Silent Rehydration: Check session in background without setting global loading
+  // When the app returns from background: silently recheck session.
+  // Data staleness is handled by each page's own TTL checks — no reload needed.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('Tab active: checking session health (silent)...')
         resumeSession()
       }
     }
-    
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [resumeSession])
 
   if (!isSupabaseConfigured) return <SetupMessage />
 
+  // Only block on splash if there's no cached user — returning users see the app instantly
+  if (!appReady && !user) return <SplashLoader />
+
   return (
-    <>
-      {appLoading ? (
-        <SplashLoader />
-      ) : (
-        <Router>
-          <AppContent />
-        </Router>
-      )}
-    </>
+    <Router>
+      <AppContent />
+    </Router>
   )
 }
 
@@ -169,7 +163,6 @@ function AppContent() {
   return (
     <>
       {showNav && <DesktopNav />}
-      {showNav && <NotificationBanner />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />

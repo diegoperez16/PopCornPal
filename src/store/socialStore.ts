@@ -1,5 +1,23 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+
+// Wraps localStorage so a QuotaExceededError never crashes the app
+const safeLocalStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch (e) {
+      console.warn('localStorage quota exceeded — clearing feed cache', e)
+      // Free up space by removing the biggest cache key, then retry once
+      localStorage.removeItem('popcorn-social')
+      try { localStorage.setItem(key, value) } catch { /* give up silently */ }
+    }
+  },
+  removeItem: (key: string) => localStorage.removeItem(key),
+}
 
 // ... (Post and ProfileWithFollowStatus interfaces remain the same) ...
 export interface Post {
@@ -9,6 +27,7 @@ export interface Post {
   media_entry_id: string | null
   image_url: string | null
   created_at: string
+  updated_at?: string | null
   profiles: {
     username: string
     avatar_url: string | null
@@ -40,6 +59,7 @@ interface SocialState {
   feedScrollPos: number
   feedVisibleCount: number
   hasMore: boolean
+  feedLastFetched: number
 
   // People Data
   followers: ProfileWithFollowStatus[]
@@ -69,16 +89,27 @@ interface SocialState {
   setPeopleActiveTab: (tab: any) => void
   
   toggleLike: (postId: string, userId: string) => Promise<void>
+  subscribeToFeed: (userId: string) => void
+  unsubscribeFromFeed: () => void
 
   resetSocialStore: () => void
 }
 
-export const useSocialStore = create<SocialState>((set, get) => ({
+// Lives outside the store so it doesn't trigger re-renders
+let feedChannel: RealtimeChannel | null = null
+let feedRetryCount = 0
+let feedRetryTimer: ReturnType<typeof setTimeout> | null = null
+const FEED_MAX_RETRIES = 3
+
+export const useSocialStore = create<SocialState>()(
+  persist(
+  (set, get) => ({
   feedPosts: [],
   feedLoaded: false,
   feedScrollPos: 0,
   feedVisibleCount: 5,
   hasMore: true,
+  feedLastFetched: 0,
 
   followers: [],
   following: [],
@@ -115,6 +146,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
           media_entry_id: p.media_entry_id,
           image_url: p.image_url,
           created_at: p.created_at,
+          updated_at: p.updated_at ?? null,
           profiles: {
             username: p.username,
             avatar_url: p.avatar_url
@@ -136,11 +168,23 @@ export const useSocialStore = create<SocialState>((set, get) => ({
           set({ feedPosts: formattedPosts })
         }
         
-        set({ hasMore: rpcData.length === limit, feedLoaded: true })
+        set({ hasMore: rpcData.length === limit, feedLoaded: true, feedLastFetched: Date.now() })
         return
       }
 
-      // 2. Fallback to Standard Query
+      // Network/timeout error — skip fallback (it would fail too) and bail out fast
+      const isNetworkError = rpcError && (
+        rpcError.message?.toLowerCase().includes('abort') ||
+        rpcError.message?.toLowerCase().includes('fetch') ||
+        rpcError.message?.toLowerCase().includes('network') ||
+        rpcError.message?.toLowerCase().includes('failed')
+      )
+      if (isNetworkError) {
+        console.warn('fetchFeed: network error, skipping fallback')
+        return
+      }
+
+      // 2. Fallback to Standard Query (RPC not found / misconfigured)
       console.warn('RPC fetch failed, using fallback query', rpcError)
       
       const { data: followingData } = await supabase
@@ -156,49 +200,38 @@ export const useSocialStore = create<SocialState>((set, get) => ({
         .select(`
           *,
           profiles:user_id (username, avatar_url),
-          media_entries:media_entry_id (title, media_type, rating, cover_image_url)
+          media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+          likes_count:post_likes(count),
+          comments_count:post_comments(count)
         `)
         .in('user_id', [...limitedFollowingIds, userId])
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
       if (error) throw error
-      
+
       if (!data || data.length === 0) {
         if (offset === 0) set({ feedPosts: [] })
         set({ hasMore: false, feedLoaded: true })
         return
       }
 
-      const postIds = data.map(p => p.id)
-      const { data: allLikes } = await supabase.from('post_likes').select('post_id, user_id').in('post_id', postIds)
-      const { data: allComments } = await supabase.from('post_comments').select('post_id').in('post_id', postIds)
-      
-      const likesMap = new Map()
-      const commentsMap = new Map()
-      
-      postIds.forEach(id => {
-        likesMap.set(id, { count: 0, userLiked: false })
-        commentsMap.set(id, 0)
-      })
-      
-      allLikes?.forEach((like: any) => {
-        const curr = likesMap.get(like.post_id)
-        if (curr) {
-          curr.count++
-          if (like.user_id === userId) curr.userLiked = true
-        }
-      })
-      
-      allComments?.forEach((c: any) => {
-        commentsMap.set(c.post_id, (commentsMap.get(c.post_id) || 0) + 1)
-      })
+      const postIds = data.map((p: any) => p.id)
+
+      // Single query for this user's likes on these posts (to get is_liked)
+      const { data: userLikes } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', userId)
+        .in('post_id', postIds)
+
+      const likedSet = new Set(userLikes?.map((l: any) => l.post_id))
 
       const postsWithCounts: Post[] = data.map((post: any) => ({
         ...post,
-        likes_count: likesMap.get(post.id)?.count || 0,
-        comments_count: commentsMap.get(post.id) || 0,
-        is_liked: likesMap.get(post.id)?.userLiked || false
+        likes_count: post.likes_count?.[0]?.count ?? 0,
+        comments_count: post.comments_count?.[0]?.count ?? 0,
+        is_liked: likedSet.has(post.id)
       }))
 
       if (offset > 0) {
@@ -206,7 +239,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       } else {
         set({ feedPosts: postsWithCounts })
       }
-      set({ hasMore: data.length === limit, feedLoaded: true })
+      set({ hasMore: data.length === limit, feedLoaded: true, feedLastFetched: Date.now() })
 
     } catch (error) {
       console.error('Error fetching feed:', error)
@@ -267,7 +300,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       }))
 
       if (offset > 0) {
-        set((state) => ({ 
+        set((state) => ({
           followers: [...state.followers, ...newFollowers],
           peopleLoaded: true
         }))
@@ -279,6 +312,8 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error fetching followers:', error)
+      // Always mark loaded so the skeleton doesn't stay forever on network errors
+      if (get().followers.length === 0) set({ peopleLoaded: true })
     }
   },
 
@@ -320,7 +355,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       }))
 
       if (offset > 0) {
-        set((state) => ({ 
+        set((state) => ({
           following: [...state.following, ...newFollowing],
           peopleLoaded: true
         }))
@@ -332,6 +367,8 @@ export const useSocialStore = create<SocialState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error fetching following:', error)
+      // Always mark loaded so the skeleton doesn't stay forever on network errors
+      if (get().following.length === 0) set({ peopleLoaded: true })
     }
   },
 
@@ -396,15 +433,158 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     }
   },
 
-  resetSocialStore: () => set({ 
-    feedPosts: [], 
-    feedLoaded: false, 
+  subscribeToFeed: (userId: string) => {
+    if (feedChannel) {
+      feedChannel.unsubscribe()
+      feedChannel = null
+    }
+    if (feedRetryTimer) {
+      clearTimeout(feedRetryTimer)
+      feedRetryTimer = null
+    }
+    feedRetryCount = 0
+
+    const connect = () => {
+      try {
+        const handlePostChange = async (payload: any) => {
+          const { eventType, new: newRecord, old: oldRecord } = payload
+
+          if (eventType === 'INSERT') {
+            const postUserId = newRecord.user_id
+            const isOwnPost = postUserId === userId
+            let shouldInclude = isOwnPost
+
+            if (!shouldInclude) {
+              const { data: followData } = await supabase
+                .from('follows')
+                .select('following_id')
+                .eq('follower_id', userId)
+                .eq('following_id', postUserId)
+                .maybeSingle()
+              shouldInclude = !!followData
+            }
+            if (!shouldInclude) return
+
+            const { data: fullPost } = await supabase
+              .from('posts')
+              .select(`*, profiles:user_id (username, avatar_url), media_entries:media_entry_id (title, media_type, rating, cover_image_url)`)
+              .eq('id', newRecord.id)
+              .maybeSingle()
+            if (!fullPost) return
+
+            const post: Post = { ...fullPost, likes_count: 0, comments_count: 0, is_liked: false }
+            set((state) => ({ feedPosts: [post, ...state.feedPosts] }))
+
+          } else if (eventType === 'DELETE') {
+            set((state) => ({ feedPosts: state.feedPosts.filter(p => p.id !== oldRecord.id) }))
+
+          } else if (eventType === 'UPDATE') {
+            set((state) => ({
+              feedPosts: state.feedPosts.map(p =>
+                p.id === newRecord.id
+                  ? { ...p, content: newRecord.content, image_url: newRecord.image_url }
+                  : p
+              )
+            }))
+          }
+        }
+
+        const handleLikeChange = async (payload: any) => {
+          const { eventType, new: newRecord, old: oldRecord } = payload
+          const record = eventType === 'DELETE' ? oldRecord : newRecord
+          const postId = record.post_id
+
+          const { count } = await supabase
+            .from('post_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', postId)
+
+          const { data: userLike } = await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('post_id', postId)
+            .eq('user_id', userId)
+            .maybeSingle()
+
+          set((state) => ({
+            feedPosts: state.feedPosts.map(p =>
+              p.id === postId
+                ? { ...p, likes_count: count ?? p.likes_count, is_liked: !!userLike }
+                : p
+            )
+          }))
+        }
+
+        feedChannel = supabase
+          .channel(`feed-changes-${Date.now()}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, handlePostChange)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, handleLikeChange)
+          .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR') {
+              if (feedRetryCount < FEED_MAX_RETRIES) {
+                feedRetryCount++
+                const delay = Math.pow(2, feedRetryCount) * 2000 // 4s, 8s, 16s
+                console.warn(`Feed realtime error — retry ${feedRetryCount}/${FEED_MAX_RETRIES} in ${delay / 1000}s`)
+                feedChannel?.unsubscribe()
+                feedChannel = null
+                feedRetryTimer = setTimeout(connect, delay)
+              } else {
+                console.warn('Feed realtime unavailable — falling back to TTL-based refresh')
+                feedChannel?.unsubscribe()
+                feedChannel = null
+              }
+            } else if (status === 'SUBSCRIBED') {
+              feedRetryCount = 0
+            }
+          })
+      } catch (err) {
+        console.error('Failed to set up feed realtime subscription:', err)
+      }
+    }
+
+    connect()
+  },
+
+  unsubscribeFromFeed: () => {
+    if (feedRetryTimer) {
+      clearTimeout(feedRetryTimer)
+      feedRetryTimer = null
+    }
+    if (feedChannel) {
+      feedChannel.unsubscribe()
+      feedChannel = null
+    }
+    feedRetryCount = 0
+  },
+
+  resetSocialStore: () => set({
+    feedPosts: [],
+    feedLoaded: false,
     feedScrollPos: 0,
-    feedVisibleCount: 5, // <--- Reset to 5 on logout
-    followers: [], 
-    following: [], 
+    feedLastFetched: 0,
+    feedVisibleCount: 5,
+    hasMore: true,
+    followers: [],
+    following: [],
     peopleLoaded: false,
     peopleScrollPos: 0,
-    peopleActiveTab: 'search'
-  })
-}))
+    peopleActiveTab: 'search',
+    followersCount: 0,
+    followingCount: 0,
+  }),
+  }),
+  {
+    name: 'popcorn-social',
+    storage: createJSONStorage(() => safeLocalStorage),
+    partialize: (state) => ({
+      // feedPosts intentionally NOT persisted — too large, refetched via TTL
+      feedLoaded: state.feedLoaded,
+      feedLastFetched: state.feedLastFetched,
+      feedVisibleCount: state.feedVisibleCount,
+      feedScrollPos: state.feedScrollPos,
+      hasMore: state.hasMore,
+      peopleScrollPos: state.peopleScrollPos,
+      peopleActiveTab: state.peopleActiveTab,
+    }),
+  }
+))

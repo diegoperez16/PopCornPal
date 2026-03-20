@@ -1,29 +1,48 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { User } from '@supabase/supabase-js'
 import { supabase, resetSupabaseClient } from '../lib/supabase'
 import type { Profile } from '../lib/supabase'
+
+const safeLocalStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch (e) {
+      console.warn('localStorage quota exceeded — clearing auth cache', e)
+      localStorage.removeItem('popcorn-auth')
+      try { localStorage.setItem(key, value) } catch { /* give up silently */ }
+    }
+  },
+  removeItem: (key: string) => localStorage.removeItem(key),
+}
 
 interface AuthState {
   user: User | null
   profile: Profile | null
   loading: boolean
+  lastAuthCheck: number
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, username: string) => Promise<void>
   signOut: () => Promise<void>
   // New methods
   resetPasswordForEmail: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
-  
+
   fetchProfile: (userId: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   initialize: () => Promise<void>
   resumeSession: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+  (set, get) => ({
   user: null,
   profile: null,
-  loading: true,
+  loading: false,
+  lastAuthCheck: 0,
 
   initialize: async () => {
     try {
@@ -57,24 +76,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      // ... existing auth state change listener ...
-      supabase.auth.onAuthStateChange(async (_event, session) => {
-        const currentUser = get().user
-        if (session?.user?.id !== currentUser?.id) {
-          set({ user: session?.user ?? null })
-          if (session?.user) {
-            await get().fetchProfile(session.user.id)
-          } else {
-            set({ profile: null })
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+          set({ user: session?.user ?? null, lastAuthCheck: Date.now() })
+          if (session?.user) await get().fetchProfile(session.user.id)
+        } else if (event === 'SIGNED_OUT') {
+          set({ user: null, profile: null, lastAuthCheck: 0 })
+        } else {
+          const currentUser = get().user
+          if (session?.user?.id !== currentUser?.id) {
+            set({ user: session?.user ?? null })
+            if (session?.user) await get().fetchProfile(session.user.id)
+            else set({ profile: null })
           }
         }
       })
 
-      // ... existing session check ...
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
-        set({ user: session.user })
-        // Attempt to fetch profile, but don't block app load indefinitely (max 2s)
+        set({ user: session.user, lastAuthCheck: Date.now() })
         const fetchProfilePromise = get().fetchProfile(session.user.id)
         const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
         await Promise.race([fetchProfilePromise, timeoutPromise])
@@ -87,17 +107,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   resumeSession: async () => {
+    // Never clear user state here — a transient network error must not log the user out.
+    // The onAuthStateChange listener in initialize() handles legitimate SIGNED_OUT events.
     try {
+      const { user, lastAuthCheck, profile } = get()
+      if (!user) return // nothing to resume
+
+      const THIRTY_MINUTES = 30 * 60 * 1000
+      if (Date.now() - lastAuthCheck < THIRTY_MINUTES) return // still fresh
+
       const { data, error } = await supabase.auth.getSession()
-      if (error || !data.session) {
-        console.warn('Session invalid on resume, attempting silent refresh...')
-        resetSupabaseClient()
-        const { data: refreshData } = await supabase.auth.getSession()
-        if (refreshData.session?.user) {
-          set({ user: refreshData.session.user })
-        }
+
+      if (error) {
+        // Network / timeout — keep cached user, Supabase will refresh token on next API call
+        console.warn('resumeSession: session check failed, keeping cached state')
+        return
+      }
+
+      if (!data.session) {
+        // Refresh token is genuinely expired — let onAuthStateChange handle cleanup
+        // Don't forcibly clear here; the SIGNED_OUT event will fire
+        return
+      }
+
+      set({ user: data.session.user, lastAuthCheck: Date.now() })
+
+      if (!profile) {
+        const fetchProfilePromise = get().fetchProfile(data.session.user.id)
+        const timeout = new Promise(resolve => setTimeout(resolve, 5000))
+        await Promise.race([fetchProfilePromise, timeout])
       }
     } catch (err) {
+      // Never propagate — a crash here must not affect the app
       console.error('Resume session failed', err)
     }
   },
@@ -152,7 +193,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut()
-    set({ user: null, profile: null })
+    // Clear all persisted app data
+    const { useSocialStore } = await import('./socialStore')
+    const { useMediaStore } = await import('./mediaStore')
+    useSocialStore.getState().resetSocialStore()
+    useMediaStore.getState().resetMediaStore()
+    // Clear user-specific localStorage drafts
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('popcorn_') && k !== 'popcorn-auth' && k !== 'popcorn-media' && k !== 'popcorn-social')
+      .forEach(k => localStorage.removeItem(k))
+    set({ user: null, profile: null, lastAuthCheck: 0 })
   },
 
   fetchProfile: async (userId) => {
@@ -179,4 +229,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (error) throw error
     set({ profile: data })
   },
-}))
+  }),
+  {
+    name: 'popcorn-auth',
+    storage: createJSONStorage(() => safeLocalStorage),
+    partialize: (state) => ({
+      user: state.user,
+      profile: state.profile,
+      lastAuthCheck: state.lastAuthCheck,
+    }),
+  }
+))
