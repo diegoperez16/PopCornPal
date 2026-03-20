@@ -284,9 +284,38 @@ export default function CommentThread({
             </div>
           )}
 
-          {/* Show first-level replies only (depth 0), hide deeper nesting */}
+          {/* Inline replies — depth capped at 1 to avoid infinite nesting */}
           {comment.replies && comment.replies.length > 0 && depth === 0 && (
-            <div></div>
+            <div className="mt-3 space-y-3">
+              {comment.replies.map((reply) => (
+                <CommentThread
+                  key={reply.id}
+                  comment={reply}
+                  postId={postId}
+                  depth={1}
+                  onReply={onReply}
+                  replyingTo={replyingTo}
+                  replyText={replyText}
+                  setReplyText={setReplyText}
+                  onSubmitReply={onSubmitReply}
+                  postingComment={postingComment}
+                  replyImageUrl={replyImageUrl}
+                  setReplyImageUrl={setReplyImageUrl}
+                  onUploadReplyImage={onUploadReplyImage}
+                  uploadingReplyImage={uploadingReplyImage}
+                  setShowReplyGifPicker={setShowReplyGifPicker}
+                  currentUserId={currentUserId}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                  isEditing={isEditing}
+                  editText={editText}
+                  setEditText={setEditText}
+                  onUpdate={onUpdate}
+                  onCancelEdit={onCancelEdit}
+                  onLike={onLike}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
