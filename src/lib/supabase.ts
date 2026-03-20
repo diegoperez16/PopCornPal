@@ -13,9 +13,9 @@ export const isSupabaseConfigured = Boolean(
 )
 
 // Auth token refreshes need more time (mobile networks can be slow on resume)
-// Data queries get a tighter limit so the UI doesn't hang
+// Data queries get extra headroom for post-inactivity reconnection on mobile
 const AUTH_TIMEOUT_MS = 30000
-const DATA_TIMEOUT_MS = 12000
+const DATA_TIMEOUT_MS = 25000
 
 const fetchWithTimeout: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : (input as Request).url
@@ -26,10 +26,12 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    })
+    // Combine our timeout signal with any signal Supabase may have passed
+    const existingSignal = (init as RequestInit)?.signal
+    const signal = existingSignal
+      ? AbortSignal.any([controller.signal, existingSignal])
+      : controller.signal
+    return await fetch(input, { ...init, signal })
   } finally {
     clearTimeout(timeoutId)
   }
