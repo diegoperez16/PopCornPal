@@ -35,9 +35,10 @@ export default function FeedPage() {
 
   const navigate = useNavigate()
   
-  // Show skeleton only if we've never loaded feed data before.
-  // If feedLoaded=true (restored from localStorage), trust it — posts will populate momentarily.
-  const [initialLoading, setInitialLoading] = useState(!feedLoaded)
+  // Show skeleton whenever there's nothing in memory to display yet.
+  // feedLoaded=true means we fetched before, but posts aren't persisted — we still need to fetch
+  // and show a skeleton rather than flashing "Nothing here yet" while the request is in-flight.
+  const [initialLoading, setInitialLoading] = useState(posts.length === 0)
 
   // Refs so the effect can read latest values without re-running on every change
   const feedLoadedRef = useRef(feedLoaded)
