@@ -289,12 +289,18 @@ export default function FeedPage() {
     try {
       const offset = loadMore ? postsLengthRef.current : 0
       const limit = loadMore ? 20 : Math.max(5, visiblePostsCount)
+      const prevLength = postsLengthRef.current
 
       await storeFetchFeed(user.id, limit, offset)
 
-      // Auto-reveal newly loaded posts so user doesn't need to click "Show more"
+      // Auto-reveal newly loaded posts — but only if posts were actually added.
+      // storeFetchFeed swallows errors internally, so we check the count delta ourselves.
       if (loadMore) {
-        setVisiblePostsCount(prev => prev + 20)
+        const newLength = useSocialStore.getState().feedPosts.length
+        const added = newLength - prevLength
+        if (added > 0) {
+          setVisiblePostsCount(prev => prev + added)
+        }
       }
     } catch (error) {
       console.error('Error fetching feed:', error)
