@@ -36,7 +36,7 @@ interface ImageCropperProps {
 
 export default function ImageCropper({
   imageSrc,
-  userPreview,
+  userPreview: _userPreview,
   onCropComplete,
   onCancel,
   desktopAspectRatio: _desktopAspectRatio,

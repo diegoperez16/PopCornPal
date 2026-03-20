@@ -116,7 +116,7 @@ export type MediaEntry = {
   user_id: string
   media_type: MediaType
   title: string
-  rating: number
+  rating: number | null
   status: 'completed' | 'in-progress' | 'planned' | 'logged'
   completed_date: string | null
   notes: string | null

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { User } from '@supabase/supabase-js'
-import { supabase, resetSupabaseClient } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import type { Profile } from '../lib/supabase'
 
 const safeLocalStorage = {
