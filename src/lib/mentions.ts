@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { supabase } from './supabase'
 
 /** Render text with @mentions as clickable profile links */
-export function renderMentionText(text: string): React.ReactNode {
+export function renderMentionText(text: string | null | undefined): React.ReactNode {
+  if (!text) return text ?? ''
   const parts = text.split(/(@[a-zA-Z0-9_]+)/g)
   return parts.map((part, i) => {
     if (/^@[a-zA-Z0-9_]+$/.test(part)) {

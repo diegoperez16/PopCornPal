@@ -234,7 +234,7 @@ export function useCreatePost(userId: string) {
       const { data, error } = await supabase.from('posts').insert({ user_id: userId, ...variables }).select('id').single()
       if (error) throw error
       if (data?.id && variables.content) {
-        sendMentionNotifications(variables.content, userId, data.id)
+        sendMentionNotifications(variables.content, userId, data.id).catch(console.error)
       }
     },
     onSuccess: () => {
@@ -274,7 +274,7 @@ export function useCreateComment(userId: string) {
       })
       if (error) throw error
       if (variables.content) {
-        sendMentionNotifications(variables.content, userId, variables.postId)
+        sendMentionNotifications(variables.content, userId, variables.postId).catch(console.error)
       }
     },
     onSuccess: (_data, variables) => {
