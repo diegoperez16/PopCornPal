@@ -93,12 +93,10 @@ export default function PeoplePage() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // getUser() does a server round-trip to refresh the JWT before fetches run.
-        // getSession() only returns the cached token and races with Supabase's lazy
-        // refresh, causing queries to fail with expired JWTs after inactivity.
-        // Both fetches and realtime re-subscribe need a fresh token.
+        // getSession() refreshes the access token if expired (getUser() only validates
+        // the current token without refreshing it, so expired tokens stay broken).
         // Run everything inside .finally() so the JWT is refreshed first.
-        supabase.auth.getUser().finally(() => {
+        supabase.auth.getSession().finally(() => {
           fetchPeopleCounts(user.id)
           fetchFollowers(user.id)
           fetchFollowing(user.id)

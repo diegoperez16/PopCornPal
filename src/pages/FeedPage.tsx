@@ -239,13 +239,15 @@ export default function FeedPage() {
 
     // Visibility change: when PWA returns from background, fetch only the delta
     // (posts created while backgrounded) instead of refetching everything.
-    // getUser() forces a JWT refresh so both the delta fetch and the realtime
-    // re-subscribe authenticate with a fresh token.
+    // getSession() refreshes the access token if expired so both the delta fetch
+    // and the realtime re-subscribe authenticate with a fresh token.
+    // We use navigator.onLine instead of the captured isOffline to avoid stale
+    // closure values (isOffline may be true from a brief network drop on resume).
     const handleVisibilityChange = () => {
       setInitialLoading(false)
       if (document.visibilityState === 'visible') {
-        supabase.auth.getUser().finally(() => {
-          if (!isOffline) {
+        supabase.auth.getSession().finally(() => {
+          if (navigator.onLine) {
             if (postsLengthRef.current === 0) fetchFeed(false, true)
             else fetchFeedDelta(user!.id)
             subscribeToFeed(user!.id)
@@ -269,7 +271,7 @@ export default function FeedPage() {
       const { comment, postId } = event.detail
       setThreadModalComment(comment)
       setThreadModalPostId(postId)
-      if (!isOffline) {
+      if (navigator.onLine) {
         const result = await fetchComments(postId)
         if (result && result.commentsMap) {
           const freshComment = result.commentsMap.get(comment.id)

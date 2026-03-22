@@ -26,7 +26,7 @@ export default function ActivityPage() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        supabase.auth.getUser().finally(() => fetchEntries(user.id))
+        supabase.auth.getSession().finally(() => fetchEntries(user.id))
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
