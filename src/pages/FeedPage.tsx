@@ -25,6 +25,9 @@ import CommentThread from '../components/feed/CommentThread'
 import ThreadModal from '../components/feed/ThreadModal'
 import MediaSelectorModal from '../components/feed/MediaSelectorModal'
 import { type Comment, formatTimeAgo, findImageLink, wasEdited } from '../components/feed/feedTypes'
+import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete'
+import MentionDropdown from '../components/MentionDropdown'
+import { renderMentionText } from '../lib/mentions'
 
 
 export default function FeedPage() {
@@ -103,6 +106,11 @@ export default function FeedPage() {
   const [mediaFilterType, setMediaFilterType] = useState<'all' | 'movie' | 'show' | 'game' | 'book'>('all')
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+
+  // Mention autocomplete for each input
+  const postMention = useMentionAutocomplete()
+  const commentMention = useMentionAutocomplete()
+  const replyMention = useMentionAutocomplete()
 
   // 1. Restore scroll position on mount
   useLayoutEffect(() => {
@@ -303,6 +311,7 @@ export default function FeedPage() {
     const value = e.target.value
     e.target.style.height = 'auto'
     e.target.style.height = `${e.target.scrollHeight}px`
+    commentMention.handleTextChange(value, e.target.selectionStart ?? value.length)
     if (!commentImageUrl && !uploadedCommentImage) {
       const result = findImageLink(value)
       if (result) {
@@ -456,6 +465,7 @@ export default function FeedPage() {
     const value = e.target.value
     e.target.style.height = 'auto'
     e.target.style.height = `${e.target.scrollHeight}px`
+    postMention.handleTextChange(value, e.target.selectionStart ?? value.length)
     if (!imageUrl && !uploadedImage) {
       const result = findImageLink(value)
       if (result) {
@@ -554,14 +564,33 @@ export default function FeedPage() {
               )}
             </div>
             <div className="flex-1">
-              <textarea
-                value={newPost}
-                onChange={handlePostChange}
-                onPaste={handlePaste}
-                placeholder="What's on your mind?"
-                className="w-full bg-transparent border-none text-white placeholder-gray-500 focus:ring-0 resize-none text-lg min-h-[60px]"
-                rows={2}
-              />
+              <div className="relative">
+                <MentionDropdown
+                  users={postMention.mention.users}
+                  loading={postMention.mention.loading}
+                  query={postMention.mention.query}
+                  selectedIndex={postMention.mention.selectedIndex}
+                  onSelect={(username) => setNewPost(postMention.selectUser(newPost, username))}
+                />
+                <textarea
+                  value={newPost}
+                  onChange={handlePostChange}
+                  onPaste={handlePaste}
+                  onKeyDown={(e) => {
+                    if (!postMention.mention.isOpen) return
+                    if (e.key === 'ArrowUp') { e.preventDefault(); postMention.moveUp() }
+                    else if (e.key === 'ArrowDown') { e.preventDefault(); postMention.moveDown() }
+                    else if (e.key === 'Enter' && postMention.mention.users.length > 0) {
+                      e.preventDefault()
+                      setNewPost(postMention.selectUser(newPost, postMention.mention.users[postMention.mention.selectedIndex].username))
+                    }
+                    else if (e.key === 'Escape') postMention.close()
+                  }}
+                  placeholder="What's on your mind?"
+                  className="w-full bg-transparent border-none text-white placeholder-gray-500 focus:ring-0 resize-none text-lg min-h-[60px]"
+                  rows={2}
+                />
+              </div>
 
               {selectedMediaEntry && (() => {
                 const entry = entries.find(e => e.id === selectedMediaEntry)
@@ -681,7 +710,7 @@ export default function FeedPage() {
                 </div>
 
                 {/* Post Content */}
-                <p className="text-gray-200 leading-relaxed mb-2.5 whitespace-pre-wrap text-sm">{post.content}</p>
+                <p className="text-gray-200 leading-relaxed mb-2.5 whitespace-pre-wrap text-sm">{renderMentionText(post.content)}</p>
 
                 {/* Image */}
                 {post.image_url && (
@@ -790,11 +819,28 @@ export default function FeedPage() {
                     {/* Comment Input */}
                     <div className="mt-3 pl-3 border-l-2 border-gray-700/50">
                       <div className="flex items-end gap-2 bg-gray-900/50 border border-gray-600 rounded-3xl p-2 relative transition-all focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+                        <MentionDropdown
+                          users={commentMention.mention.users}
+                          loading={commentMention.mention.loading}
+                          query={commentMention.mention.query}
+                          selectedIndex={commentMention.mention.selectedIndex}
+                          onSelect={(username) => setCommentText(commentMention.selectUser(commentText, username))}
+                        />
                         <div className="flex-1 min-w-0">
                           <textarea
                             value={commentText}
                             onChange={handleCommentChange}
                             onKeyDown={(e) => {
+                              if (commentMention.mention.isOpen) {
+                                if (e.key === 'ArrowUp') { e.preventDefault(); commentMention.moveUp(); return }
+                                if (e.key === 'ArrowDown') { e.preventDefault(); commentMention.moveDown(); return }
+                                if (e.key === 'Enter' && commentMention.mention.users.length > 0) {
+                                  e.preventDefault()
+                                  setCommentText(commentMention.selectUser(commentText, commentMention.mention.users[commentMention.mention.selectedIndex].username))
+                                  return
+                                }
+                                if (e.key === 'Escape') { commentMention.close(); return }
+                              }
                               if (e.key === 'Enter' && !e.shiftKey && !postingComment && commentText.trim()) {
                                 e.preventDefault()
                                 handleComment(post.id, null)

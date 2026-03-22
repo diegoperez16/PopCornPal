@@ -395,11 +395,16 @@ export function useProfilePage() {
   const fetchUserBadges = async () => {
     if (!user) return
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('user_badges')
       .select('*, badges(*)')
       .eq('user_id', user.id)
 
+    if (error) {
+      console.error('[fetchUserBadges] error:', error)
+      return
+    }
+    console.log('[fetchUserBadges] data:', data)
     if (data) {
       setUserBadges(data as UserBadge[])
       if (localStorage.getItem('popcorn_profile_is_editing') !== 'true') {

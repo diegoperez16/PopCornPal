@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Bell, X, Heart, MessageCircle, UserPlus, Megaphone, Check } from 'lucide-react'
+import { Bell, X, Heart, MessageCircle, UserPlus, Megaphone, Check, AtSign } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -8,7 +8,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 
 type AppNotification = {
   id: string
-  type: 'like' | 'comment' | 'reply' | 'follow' | 'system'
+  type: 'like' | 'comment' | 'reply' | 'follow' | 'system' | 'mention'
   from_user_id: string
   related_id: string | null
   read: boolean
@@ -38,6 +38,7 @@ function notificationText(n: AppNotification): string {
     case 'comment': return `@${username} commented on your post`
     case 'reply':   return `@${username} replied to your comment`
     case 'follow':  return `@${username} started following you`
+    case 'mention': return `@${username} mentioned you`
     case 'system':  return n.from_profile ? `@${username}: system update` : 'System update'
     default:        return 'New notification'
   }
@@ -50,6 +51,7 @@ function NotifIcon({ type }: { type: AppNotification['type'] }) {
     case 'comment': return <MessageCircle className={`${cls} text-blue-400`} />
     case 'reply':   return <MessageCircle className={`${cls} text-purple-400`} />
     case 'follow':  return <UserPlus className={`${cls} text-green-400`} />
+    case 'mention': return <AtSign className={`${cls} text-cyan-400`} />
     case 'system':  return <Megaphone className={`${cls} text-yellow-400`} />
     default:        return <Bell className={`${cls} text-gray-400`} />
   }

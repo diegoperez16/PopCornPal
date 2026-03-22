@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
 import { Trash2, Pencil, MessageCircle, ArrowUp, Image as ImageIcon, X, Heart } from 'lucide-react'
 import { type Comment, formatTimeAgo, findImageLink, wasEdited } from './feedTypes'
+import { useMentionAutocomplete } from '../../hooks/useMentionAutocomplete'
+import MentionDropdown from '../MentionDropdown'
+import { renderMentionText } from '../../lib/mentions'
 
 export type CommentThreadProps = {
   comment: Comment
@@ -54,6 +57,7 @@ export default function CommentThread({
   onLike,
 }: CommentThreadProps) {
   const hasReplies = comment.replies && comment.replies.length > 0
+  const replyMention = useMentionAutocomplete()
 
   const handleReplyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
@@ -61,6 +65,8 @@ export default function CommentThread({
     // Auto-resize
     e.target.style.height = 'auto'
     e.target.style.height = `${e.target.scrollHeight}px`
+
+    replyMention.handleTextChange(value, e.target.selectionStart ?? value.length)
 
     // GIF Link Detection
     if (!replyImageUrl && !uploadingReplyImage) {
@@ -127,7 +133,7 @@ export default function CommentThread({
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-300 break-all max-w-full whitespace-pre-wrap">{comment.content}</p>
+              <p className="text-sm text-gray-300 break-all max-w-full whitespace-pre-wrap">{renderMentionText(comment.content)}</p>
             )}
 
             {/* Comment Image */}
@@ -204,11 +210,28 @@ export default function CommentThread({
           {replyingTo === comment.id && (
             <div className="mt-3 pl-3 border-l-2 border-gray-700/50">
               <div className="flex items-end gap-2 bg-gray-900/50 border border-gray-600 rounded-3xl p-2 relative transition-all focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+                <MentionDropdown
+                  users={replyMention.mention.users}
+                  loading={replyMention.mention.loading}
+                  query={replyMention.mention.query}
+                  selectedIndex={replyMention.mention.selectedIndex}
+                  onSelect={(username) => setReplyText(replyMention.selectUser(replyText, username))}
+                />
                 <div className="flex-1 min-w-0">
                   <textarea
                     value={replyText}
                     onChange={handleReplyChange}
                     onKeyDown={(e) => {
+                      if (replyMention.mention.isOpen) {
+                        if (e.key === 'ArrowUp') { e.preventDefault(); replyMention.moveUp(); return }
+                        if (e.key === 'ArrowDown') { e.preventDefault(); replyMention.moveDown(); return }
+                        if (e.key === 'Enter' && replyMention.mention.users.length > 0) {
+                          e.preventDefault()
+                          setReplyText(replyMention.selectUser(replyText, replyMention.mention.users[replyMention.mention.selectedIndex].username))
+                          return
+                        }
+                        if (e.key === 'Escape') { replyMention.close(); return }
+                      }
                       if (e.key === 'Enter' && !e.shiftKey && !postingComment && replyText.trim()) {
                         e.preventDefault()
                         onSubmitReply(postId, comment.id)

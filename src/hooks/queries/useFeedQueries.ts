@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { feedKeys } from '../../lib/queryClient'
+import { sendMentionNotifications } from '../../lib/mentions'
 import type { Post } from '../../store/socialStore'
 import type { Comment } from '../../components/feed/feedTypes'
 
@@ -230,8 +231,11 @@ export function useCreatePost(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (variables: { content: string; media_entry_id: string | null; image_url: string | null }) => {
-      const { error } = await supabase.from('posts').insert({ user_id: userId, ...variables })
+      const { data, error } = await supabase.from('posts').insert({ user_id: userId, ...variables }).select('id').single()
       if (error) throw error
+      if (data?.id && variables.content) {
+        sendMentionNotifications(variables.content, userId, data.id)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: feedKeys.list(userId) })
@@ -269,6 +273,9 @@ export function useCreateComment(userId: string) {
         image_url: variables.image_url,
       })
       if (error) throw error
+      if (variables.content) {
+        sendMentionNotifications(variables.content, userId, variables.postId)
+      }
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
