@@ -8,6 +8,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // injectManifest lets us write a custom SW (src/sw.ts) with push +
+      // background-sync handlers while still injecting the Workbox precache manifest.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'PopcornPal',
@@ -38,49 +44,15 @@ export default defineConfig({
           }
         ]
       },
-      workbox: {
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
-        // Take over all tabs immediately when a new SW version is installed
-        clientsClaim: true,
-        skipWaiting: true,
-        runtimeCaching: [
-          {
-            // Google Fonts
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          },
-          {
-            // Supabase Storage public assets (post images, avatars, cover art).
-            // These are immutable once uploaded so CacheFirst is safe.
-            urlPattern: /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'supabase-storage',
-              expiration: {
-                maxEntries: 300,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          },
-          {
-            // Supabase Auth, REST, and Realtime APIs must always go to the network.
-            // Caching auth responses would cause stale tokens; caching data responses
-            // would serve outdated feed content.
-            urlPattern: /^https:\/\/[^/]+\.supabase\.co\/(auth|rest|realtime)\/.*/i,
-            handler: 'NetworkOnly',
-          }
-        ]
-      }
+      // injectManifest: Workbox only injects __WB_MANIFEST into src/sw.ts.
+      // All caching strategy code lives in that file.
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+      },
+      devOptions: {
+        enabled: false, // SW is production-only; dev uses Vite's HMR
+        type: 'module',
+      },
     })
   ],
   server: {
