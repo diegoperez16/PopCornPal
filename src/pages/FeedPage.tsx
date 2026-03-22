@@ -110,7 +110,6 @@ export default function FeedPage() {
   // Mention autocomplete for each input
   const postMention = useMentionAutocomplete()
   const commentMention = useMentionAutocomplete()
-  const replyMention = useMentionAutocomplete()
 
   // 1. Restore scroll position on mount
   useLayoutEffect(() => {
