@@ -17,6 +17,7 @@ import {
   useUpdateComment,
   useToggleCommentLike,
   useComments,
+  fetchSinglePost,
 } from '../hooks/queries/useFeedQueries'
 import { useMediaEntries } from '../hooks/queries/useMediaQueries'
 import GifPicker from '../components/GifPicker'
@@ -256,21 +257,99 @@ export default function FeedPage() {
     }
   }, [user?.id, navigate, queryClient])
 
-  // Realtime: invalidate queries when posts/likes change
+  // Realtime: seamlessly update the feed cache without full refetches
   useEffect(() => {
     if (!user) return
+
+    const handleInsert = async (payload: any) => {
+      const row = payload.new
+      if (!row?.id || !row?.user_id) return
+      // Own posts are already prepended by the createPost mutation
+      if (row.user_id === user.id) return
+
+      // Only show posts from people we follow
+      const { data: follow } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id)
+        .eq('following_id', row.user_id)
+        .maybeSingle()
+      if (!follow) return
+
+      const post = await fetchSinglePost(row.id, user.id)
+      if (!post) return
+
+      queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
+        if (!old?.pages?.length) return old
+        // Deduplicate
+        if (old.pages[0].posts.some((p: any) => p.id === post.id)) return old
+        return {
+          ...old,
+          pages: [
+            { ...old.pages[0], posts: [post, ...old.pages[0].posts] },
+            ...old.pages.slice(1),
+          ],
+        }
+      })
+    }
+
+    const handleDelete = (payload: any) => {
+      const deletedId = payload.old?.id
+      if (!deletedId) return
+      queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.filter((p: any) => p.id !== deletedId),
+          })),
+        }
+      })
+    }
+
+    const handleLikeInsert = (payload: any) => {
+      const postId = payload.new?.post_id
+      if (!postId || payload.new?.user_id === user.id) return // own likes handled optimistically
+      queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.map((p: any) =>
+              p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p
+            ),
+          })),
+        }
+      })
+    }
+
+    const handleLikeDelete = (payload: any) => {
+      const postId = payload.old?.post_id
+      if (!postId || payload.old?.user_id === user.id) return // own unlikes handled optimistically
+      queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.map((p: any) =>
+              p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p
+            ),
+          })),
+        }
+      })
+    }
+
     const channel = supabase
       .channel(`feed-realtime-${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
-        queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, () => {
-        queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, () => {
-        queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleInsert)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, handleDelete)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_likes' }, handleLikeInsert)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_likes' }, handleLikeDelete)
       .subscribe()
+
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, queryClient])
 

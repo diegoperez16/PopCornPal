@@ -7,6 +7,36 @@ import type { Comment } from '../../components/feed/feedTypes'
 
 const PAGE_SIZE = 20
 
+// ─── Single post fetch (for realtime prepend) ───────────────────────────────
+
+export async function fetchSinglePost(postId: string, currentUserId: string): Promise<Post | null> {
+  const { data, error } = await supabase
+    .from('posts')
+    .select(`
+      *,
+      profiles:user_id (username, avatar_url),
+      media_entries:media_entry_id (title, media_type, rating, cover_image_url)
+    `)
+    .eq('id', postId)
+    .single()
+
+  if (error || !data) return null
+
+  const { data: likeData } = await supabase
+    .from('post_likes')
+    .select('post_id')
+    .eq('user_id', currentUserId)
+    .eq('post_id', postId)
+    .maybeSingle()
+
+  return {
+    ...data,
+    likes_count: 0,
+    comments_count: 0,
+    is_liked: !!likeData,
+  } as Post
+}
+
 // ─── Feed ───────────────────────────────────────────────────────────────────
 
 async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: Post[]; hasMore: boolean }> {
