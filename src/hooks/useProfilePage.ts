@@ -390,7 +390,7 @@ export function useProfilePage() {
         // Clear any stuck skeleton when returning to the tab —
         // background tabs have throttled timers that may never fire
         setInitialLoading(false)
-        supabase.auth.getUser().finally(() => Promise.all([
+        supabase.auth.getSession().finally(() => Promise.all([
           fetchEntries(user.id),
           fetchBadges(),
           fetchUserBadges(),
