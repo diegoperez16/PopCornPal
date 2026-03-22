@@ -40,7 +40,7 @@ persistQueryClient({
 // Refresh the session token before every query — this is the single place
 // that handles token expiry, replacing all the per-page getSession() calls.
 export async function authedQuery<T>(
-  fn: () => Promise<{ data: T | null; error: any }>
+  fn: () => PromiseLike<{ data: T | null; error: any }>
 ): Promise<T> {
   await supabase.auth.getSession()
   const { data, error } = await fn()

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase, type UserBadge, type BackgroundCrop } from '../lib/supabase'
 import {
   useUserProfile,
@@ -52,7 +52,6 @@ export function useUserProfilePage(
   currentUser: { id: string } | null
 ) {
   const navigate = useNavigate()
-  const location = useLocation()
 
   const currentUserId = currentUser?.id ?? null
 
