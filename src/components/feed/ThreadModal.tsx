@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { X, RefreshCw, Pencil, Trash2, ArrowUp, Image as ImageIcon, MessageCircle, Heart } from 'lucide-react'
 import GifPicker from '../GifPicker'
 import { type Comment, formatTimeAgo, findImageLink } from './feedTypes'
+import UserAvatar from '../UserAvatar'
 
 type ThreadModalProps = {
   comment: Comment
@@ -156,9 +157,8 @@ export default function ThreadModal({
               return parentChain.map((parentComment) => (
                 <div key={parentComment.id} className="flex gap-3 opacity-60 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center flex-shrink-0 overflow-hidden min-w-0">
-                    {parentComment.profiles.avatar_url ? (
-                      <img loading="lazy" decoding="async" src={parentComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
+                    <UserAvatar avatarUrl={parentComment.profiles.avatar_url} avatarCrop={parentComment.profiles.avatar_crop} username={parentComment.profiles.username} />
+                    {!parentComment.profiles.avatar_url && (
                       <span className="text-white text-xs font-bold">
                         {parentComment.profiles.username.charAt(0).toUpperCase()}
                       </span>
@@ -198,9 +198,8 @@ export default function ThreadModal({
             {/* Focused Comment */}
             <div className="flex gap-3 border-l-2 border-red-500 pl-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {threadModalComment.profiles.avatar_url ? (
-                  <img loading="lazy" decoding="async" src={threadModalComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
+                <UserAvatar avatarUrl={threadModalComment.profiles.avatar_url} avatarCrop={threadModalComment.profiles.avatar_crop} username={threadModalComment.profiles.username} />
+                {!threadModalComment.profiles.avatar_url && (
                   <span className="text-white text-sm font-bold">
                     {threadModalComment.profiles.username.charAt(0).toUpperCase()}
                   </span>
@@ -395,9 +394,8 @@ export default function ThreadModal({
                     {threadModalComment.replies.map((reply) => (
                       <div key={reply.id} className="flex gap-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          {reply.profiles.avatar_url ? (
-                            <img loading="lazy" decoding="async" src={reply.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                          ) : (
+                          <UserAvatar avatarUrl={reply.profiles.avatar_url} avatarCrop={reply.profiles.avatar_crop} username={reply.profiles.username} />
+                          {!reply.profiles.avatar_url && (
                             <span className="text-white text-xs font-bold">
                               {reply.profiles.username.charAt(0).toUpperCase()}
                             </span>

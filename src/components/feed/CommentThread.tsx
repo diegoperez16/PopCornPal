@@ -4,6 +4,7 @@ import { type Comment, formatTimeAgo, findImageLink, wasEdited } from './feedTyp
 import { useMentionAutocomplete } from '../../hooks/useMentionAutocomplete'
 import MentionDropdown from '../MentionDropdown'
 import { renderMentionText } from '../../lib/mentions'
+import UserAvatar from '../UserAvatar'
 
 export type CommentThreadProps = {
   comment: Comment
@@ -86,9 +87,8 @@ export default function CommentThread({
     <div className={`${depth > 0 ? 'ml-6 mt-3' : ''}`}>
       <div className="flex gap-3">
         <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
-          {comment.profiles.avatar_url ? (
-            <img loading="lazy" decoding="async" src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-          ) : (
+          <UserAvatar avatarUrl={comment.profiles.avatar_url} avatarCrop={comment.profiles.avatar_crop} username={comment.profiles.username} />
+          {!comment.profiles.avatar_url && (
             <span className="text-white text-xs font-bold">
               {comment.profiles.username.charAt(0).toUpperCase()}
             </span>

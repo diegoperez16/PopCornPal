@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import NotificationBell from './NotificationBell'
+import UserAvatar from './UserAvatar'
 
 export default function DesktopNav() {
   const navigate = useNavigate()
@@ -68,11 +69,8 @@ export default function DesktopNav() {
               title={profile?.username}
             >
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold overflow-hidden">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  (profile?.username?.[0] ?? '?').toUpperCase()
-                )}
+                <UserAvatar avatarUrl={profile?.avatar_url} avatarCrop={profile?.avatar_crop} username={profile?.username ?? ''} />
+                {!profile?.avatar_url && (profile?.username?.[0] ?? '?').toUpperCase()}
               </div>
               <span className="text-sm font-medium text-gray-300">{profile?.username}</span>
             </button>

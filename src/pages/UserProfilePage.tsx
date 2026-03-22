@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library } from 'lucide-react'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import { useUserProfilePage } from '../hooks/useUserProfilePage'
+import UserAvatar from '../components/UserAvatar'
 
 export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>()
@@ -125,7 +126,8 @@ export default function UserProfilePage() {
   const renderUserListItem = (user: any, listType: 'followers' | 'following') => (
     <li key={user.id} className="flex items-center gap-3 py-3">
       <button className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity" onClick={() => navigateToProfile(user.username)}>
-        {user.avatar_url ? <img loading="lazy" decoding="async" src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : <span className="text-sm font-bold text-white">{user.username.charAt(0).toUpperCase()}</span>}
+        <UserAvatar avatarUrl={user.avatar_url} avatarCrop={user.avatar_crop} username={user.username} />
+        {!user.avatar_url && <span className="text-sm font-bold text-white">{user.username.charAt(0).toUpperCase()}</span>}
       </button>
       <button className="flex-1 min-w-0 text-left" onClick={() => navigateToProfile(user.username)}>
         <span className="font-semibold text-white hover:text-red-400 transition-colors text-sm">@{user.username}</span>
@@ -189,9 +191,8 @@ export default function UserProfilePage() {
           <div className={`px-4 sm:px-6 relative z-10 ${profile.bg_url ? '' : 'pt-4'}`}>
             <div className={`flex items-end justify-between ${profile.bg_url ? '-mt-10 sm:-mt-14' : ''} mb-3`}>
               <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-3xl sm:text-4xl font-bold border-4 border-gray-900 shadow-xl flex-shrink-0">
-                {profile.avatar_url
-                  ? <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover"/>
-                  : profile.username.charAt(0).toUpperCase()}
+                <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
+                {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
               </div>
               {!isOwnProfile && currentUser && (
                 <button onClick={handleFollow} disabled={followLoading}
@@ -315,7 +316,8 @@ export default function UserProfilePage() {
                   <div key={post.id} className="bg-gray-800/30 border border-gray-700/40 rounded-2xl p-4">
                     <div className="flex items-center gap-2.5 mb-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {profile.avatar_url ? <img loading="lazy" decoding="async" src={profile.avatar_url} className="w-full h-full object-cover"/> : profile.username.charAt(0).toUpperCase()}
+                        <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
+                        {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
                       </div>
                       <span className="font-semibold text-sm text-white">@{profile.username}</span>
                       <span className="text-gray-600 text-xs ml-auto">{new Date(post.created_at).toLocaleDateString()}</span>

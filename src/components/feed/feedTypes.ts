@@ -9,6 +9,7 @@ export interface Comment {
   profiles: {
     username: string
     avatar_url: string | null
+    avatar_crop?: { x: number; y: number; scale: number } | null
   }
   replies?: Comment[]
   likes_count?: number

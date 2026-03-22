@@ -47,6 +47,7 @@ export type Post = {
   profiles: {
     username: string
     avatar_url: string | null
+    avatar_crop?: { x: number; y: number; scale: number } | null
     badges?: string[]
   }
   media_entries?: {

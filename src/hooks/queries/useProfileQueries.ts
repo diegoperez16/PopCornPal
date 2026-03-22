@@ -11,6 +11,7 @@ export type UserProfile = {
   full_name: string | null
   bio: string | null
   avatar_url: string | null
+  avatar_crop?: { x: number; y: number; scale: number } | null
   bg_url: string | null
   bg_opacity: number | null
   bg_crop?: any | null
@@ -138,7 +139,7 @@ async function fetchUserPosts(profileUserId: string, currentUserId: string | nul
   await supabase.auth.getSession()
   const { data: postsData, error: postsError } = await supabase
     .from('posts')
-    .select(`*, profiles:user_id(username, avatar_url), media_entries:media_entry_id(title, media_type, rating, cover_image_url), likes:post_likes(count), comments:post_comments(count)`)
+    .select(`*, profiles:user_id(username, avatar_url, avatar_crop), media_entries:media_entry_id(title, media_type, rating, cover_image_url), likes:post_likes(count), comments:post_comments(count)`)
     .eq('user_id', profileUserId)
     .order('created_at', { ascending: false })
     .limit(20)

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import UserAvatar from '../components/UserAvatar'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore } from '../store/socialStore'
@@ -225,7 +226,7 @@ export default function FeedPage() {
             await supabase.auth.getSession()
             const { data, error } = await supabase
               .from('post_comments')
-              .select(`*, profiles:user_id (username, avatar_url)`)
+              .select(`*, profiles:user_id (username, avatar_url, avatar_crop)`)
               .eq('post_id', postId)
               .order('created_at', { ascending: true })
             if (error) throw error
@@ -634,9 +635,9 @@ export default function FeedPage() {
         {/* Create Post */}
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 mb-6">
           <div className="flex gap-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
               {profile?.avatar_url ? (
-                <img loading="lazy" decoding="async" src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
               ) : (
                 <User className="w-5 h-5 text-white" />
               )}
@@ -763,7 +764,7 @@ export default function FeedPage() {
                 <div className="flex items-center gap-2.5 mb-2.5">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {post.profiles.avatar_url ? (
-                      <img loading="lazy" decoding="async" src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <UserAvatar avatarUrl={post.profiles.avatar_url} avatarCrop={post.profiles.avatar_crop} username={post.profiles.username} />
                     ) : (
                       <User className="w-5 h-5" />
                     )}

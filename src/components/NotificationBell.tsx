@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Bell, X, Heart, MessageCircle, UserPlus, Megaphone, Check, AtSign } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import UserAvatar from './UserAvatar'
 import { useAuthStore } from '../store/authStore'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -16,6 +17,7 @@ type AppNotification = {
   from_profile: {
     username: string
     avatar_url: string | null
+    avatar_crop?: { x: number; y: number; scale: number } | null
   } | null
 }
 
@@ -95,7 +97,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
     if (!user) return
     const { data, error } = await supabase
       .from('notifications')
-      .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url)`)
+      .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url, avatar_crop)`)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -121,7 +123,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
           // Fetch the full notification with profile join
           const { data } = await supabase
             .from('notifications')
-            .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url)`)
+            .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url, avatar_crop)`)
             .eq('id', payload.new.id)
             .single()
 
@@ -229,11 +231,8 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                     }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
-                      {n.from_profile?.avatar_url ? (
-                        <img loading="lazy" decoding="async" src={n.from_profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        (n.from_profile?.username?.[0] ?? '?').toUpperCase()
-                      )}
+                      <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
+                      {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-1.5">
@@ -290,11 +289,8 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                   }`}
                 >
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
-                    {n.from_profile?.avatar_url ? (
-                      <img loading="lazy" decoding="async" src={n.from_profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      (n.from_profile?.username?.[0] ?? '?').toUpperCase()
-                    )}
+                    <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
+                    {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-1.5">

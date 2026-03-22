@@ -18,6 +18,7 @@ export type UserProfile = {
   full_name: string | null
   bio: string | null
   avatar_url: string | null
+  avatar_crop?: { x: number; y: number; scale: number } | null
   bg_url: string | null
   bg_opacity: number | null
   bg_crop?: BackgroundCrop | null
@@ -193,7 +194,7 @@ export function useUserProfilePage(
       await supabase.auth.getSession()
       const { data: followsData, error: followsError } = await supabase
         .from('follows')
-        .select(`follower_id, follower:profiles!follower_id (id, username, full_name, avatar_url, bio)`)
+        .select(`follower_id, follower:profiles!follower_id (id, username, full_name, avatar_url, avatar_crop, bio)`)
         .eq('following_id', profileUserId)
         .limit(100)
       if (followsError) throw followsError
@@ -221,7 +222,7 @@ export function useUserProfilePage(
       await supabase.auth.getSession()
       const { data: followsData, error: followsError } = await supabase
         .from('follows')
-        .select(`following_id, following:profiles!following_id (id, username, full_name, avatar_url, bio)`)
+        .select(`following_id, following:profiles!following_id (id, username, full_name, avatar_url, avatar_crop, bio)`)
         .eq('follower_id', profileUserId)
         .limit(100)
       if (followsError) throw followsError
