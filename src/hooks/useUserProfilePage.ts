@@ -397,17 +397,14 @@ export function useUserProfilePage(
       // when returning to the app after token expiry
       await supabase.auth.getSession()
 
-      const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('fetch timeout')), ms)
-        )
-        return Promise.race([promise, timeout])
-      }
-
-      const { data: profileData, error: profileError } = await withTimeout(
-        supabase.from('profiles').select('*').eq('username', username).single(),
-        10000
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('fetch timeout')), 10000)
       )
+
+      const { data: profileData, error: profileError } = await Promise.race([
+        supabase.from('profiles').select('*').eq('username', username).single().then(r => r),
+        timeoutPromise,
+      ])
 
       if (profileError) throw profileError
       setProfile(profileData)
