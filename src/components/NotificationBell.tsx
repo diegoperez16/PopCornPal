@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Bell, X, Heart, MessageCircle, UserPlus, Megaphone, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -178,12 +179,12 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       </button>
 
       {/* Panel — full-screen sheet on mobile nav, dropdown on desktop */}
-      {open && dropUp ? (
-        /* Mobile: full-screen bottom sheet */
-        <div className="fixed inset-0 z-[300] flex flex-col animate-in fade-in duration-150" style={{ bottom: 0 }}>
+      {open && dropUp ? createPortal(
+        /* Mobile: full-screen bottom sheet — rendered via portal to escape backdrop-filter stacking context */
+        <div className="fixed inset-0 z-[300] flex flex-col animate-in fade-in duration-150">
           {/* Backdrop */}
           <div className="flex-1 bg-black/60" onClick={() => setOpen(false)} />
-          {/* Sheet — explicit height so flex-1 on the list actually works */}
+          {/* Sheet */}
           <div className="bg-gray-900 border-t border-gray-700 rounded-t-3xl flex flex-col h-[75vh] animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
@@ -245,7 +246,8 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : open ? (
         /* Desktop: dropdown */
         <div className="absolute right-0 mt-2 w-80 max-h-[480px] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-[200] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
