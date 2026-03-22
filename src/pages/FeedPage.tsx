@@ -13,7 +13,6 @@ import ThreadModal from '../components/feed/ThreadModal'
 import MediaSelectorModal from '../components/feed/MediaSelectorModal'
 import { type Comment, formatTimeAgo, findImageLink, wasEdited } from '../components/feed/feedTypes'
 
-const FEED_STALE_MS = 5 * 60 * 1000 // 5 minutes
 
 export default function FeedPage() {
   const { user, profile } = useAuthStore(useShallow(s => ({ user: s.user, profile: s.profile })))
@@ -22,13 +21,13 @@ export default function FeedPage() {
     posts,
     setPosts,
     feedLoaded,
-    feedLastFetched,
     feedScrollPos,
     setFeedScrollPos,
     visiblePostsCount,
     setVisiblePostsCount,
     storeHasMore,
     storeFetchFeed,
+    fetchFeedDelta,
     toggleLike,
     subscribeToFeed,
     unsubscribeFromFeed,
@@ -36,13 +35,13 @@ export default function FeedPage() {
     posts: s.feedPosts,
     setPosts: s.setFeedPosts,
     feedLoaded: s.feedLoaded,
-    feedLastFetched: s.feedLastFetched,
     feedScrollPos: s.feedScrollPos,
     setFeedScrollPos: s.setFeedScrollPos,
     visiblePostsCount: s.feedVisibleCount,
     setVisiblePostsCount: s.setFeedVisibleCount,
     storeHasMore: s.hasMore,
     storeFetchFeed: s.fetchFeed,
+    fetchFeedDelta: s.fetchFeedDelta,
     toggleLike: s.toggleLike,
     subscribeToFeed: s.subscribeToFeed,
     unsubscribeFromFeed: s.unsubscribeFromFeed,
@@ -50,17 +49,14 @@ export default function FeedPage() {
 
   const navigate = useNavigate()
   
-  // Show skeleton whenever there's nothing in memory to display yet.
-  // feedLoaded=true means we fetched before, but posts aren't persisted — we still need to fetch
-  // and show a skeleton rather than flashing "Nothing here yet" while the request is in-flight.
+  // Show skeleton only on cold start (no cached posts). With persistence,
+  // posts are restored from localStorage so this is false on warm starts.
   const [initialLoading, setInitialLoading] = useState(posts.length === 0)
 
   // Refs so the effect can read latest values without re-running on every change
   const feedLoadedRef = useRef(feedLoaded)
-  const feedLastFetchedRef = useRef(feedLastFetched)
   const postsLengthRef = useRef(posts.length)
   feedLoadedRef.current = feedLoaded
-  feedLastFetchedRef.current = feedLastFetched
   postsLengthRef.current = posts.length
   
   const [refreshing, setRefreshing] = useState(false)
@@ -220,18 +216,13 @@ export default function FeedPage() {
       return
     }
 
-    const needsFetch = !feedLoadedRef.current || postsLengthRef.current === 0
-    if (needsFetch) {
+    if (postsLengthRef.current === 0) {
+      // Cold start (no cache) — full fetch with loading skeleton
       fetchFeed().finally(() => setInitialLoading(false))
     } else {
+      // Warm start — show cached posts immediately, then silently fill in the gap
       setInitialLoading(false)
-      // Silent background refresh if data is stale. Use getUser() to force a
-      // server round-trip and refresh the JWT before the fetch — otherwise the
-      // first RPC call races with Supabase's lazy token refresh and often fails
-      // on mobile after the app has been idle for more than the token TTL.
-      if (Date.now() - feedLastFetchedRef.current > FEED_STALE_MS) {
-        supabase.auth.getUser().finally(() => fetchFeed(false, true))
-      }
+      if (!isOffline) fetchFeedDelta(user.id)
     }
 
     // Safety timer: never stay stuck in any loading state more than 8 seconds
@@ -246,20 +237,19 @@ export default function FeedPage() {
     // Fetch the user's media library in parallel — no reason to wait for feed first
     if (!isOffline) fetchEntries(user.id)
 
-    // Visibility change: when PWA returns from background, check staleness
+    // Visibility change: when PWA returns from background, fetch only the delta
+    // (posts created while backgrounded) instead of refetching everything.
+    // getUser() forces a JWT refresh so both the delta fetch and the realtime
+    // re-subscribe authenticate with a fresh token.
     const handleVisibilityChange = () => {
-      // Always clear any stuck loading state when tab becomes visible
       setInitialLoading(false)
       if (document.visibilityState === 'visible') {
-        const isStale = Date.now() - feedLastFetchedRef.current > FEED_STALE_MS
-        const isEmpty = postsLengthRef.current === 0
-        // getUser() forces a server round-trip to refresh the JWT. Both the fetch
-        // AND the realtime re-subscribe need a fresh token — subscribing with an
-        // expired JWT causes CHANNEL_ERROR immediately. Do both inside .finally()
-        // so the token is guaranteed fresh before either runs.
         supabase.auth.getUser().finally(() => {
-          if (isStale || isEmpty) fetchFeed(false, true)
-          if (!isOffline) subscribeToFeed(user!.id)
+          if (!isOffline) {
+            if (postsLengthRef.current === 0) fetchFeed(false, true)
+            else fetchFeedDelta(user!.id)
+            subscribeToFeed(user!.id)
+          }
         })
       }
     }

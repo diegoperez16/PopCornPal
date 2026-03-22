@@ -77,6 +77,7 @@ interface SocialState {
   setHasMore: (hasMore: boolean) => void
 
   fetchFeed: (userId: string, limit?: number, offset?: number) => Promise<void>
+  fetchFeedDelta: (userId: string) => Promise<void>
 
   fetchFollowers: (userId: string, limit?: number, offset?: number) => Promise<void>
   fetchFollowing: (userId: string, limit?: number, offset?: number) => Promise<void>
@@ -243,6 +244,65 @@ export const useSocialStore = create<SocialState>()(
 
     } catch (error) {
       console.error('Error fetching feed:', error)
+    }
+  },
+
+  // Fetches only posts newer than the most recent cached post and prepends them.
+  // Used instead of a full refetch on resume/navigation so cached posts are
+  // shown instantly and only the gap (posts created while offline/backgrounded)
+  // is fetched. Falls back to a no-op if there's nothing cached to delta against.
+  fetchFeedDelta: async (userId: string) => {
+    const { feedPosts, following } = get()
+    const newestPost = feedPosts[0]
+    if (!newestPost) return // nothing cached — caller should use fetchFeed instead
+
+    try {
+      // Use cached following list if loaded, otherwise fetch it
+      const followingIds = following.length > 0
+        ? following.map(f => f.id)
+        : (await supabase.from('follows').select('following_id').eq('follower_id', userId))
+            .data?.map(f => f.following_id) ?? []
+
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          profiles:user_id (username, avatar_url),
+          media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+          likes_count:post_likes(count),
+          comments_count:post_comments(count)
+        `)
+        .in('user_id', [...followingIds, userId])
+        .gt('created_at', newestPost.created_at)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error || !data || data.length === 0) return
+
+      const postIds = data.map((p: any) => p.id)
+      const { data: userLikes } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', userId)
+        .in('post_id', postIds)
+
+      const likedSet = new Set(userLikes?.map((l: any) => l.post_id))
+
+      const newPosts: Post[] = data.map((post: any) => ({
+        ...post,
+        likes_count: post.likes_count?.[0]?.count ?? 0,
+        comments_count: post.comments_count?.[0]?.count ?? 0,
+        is_liked: likedSet.has(post.id),
+      }))
+
+      set(state => {
+        const existingIds = new Set(state.feedPosts.map(p => p.id))
+        const unique = newPosts.filter(p => !existingIds.has(p.id))
+        if (unique.length === 0) return state
+        return { feedPosts: [...unique, ...state.feedPosts], feedLastFetched: Date.now() }
+      })
+    } catch (err) {
+      console.error('fetchFeedDelta error:', err)
     }
   },
 
@@ -578,7 +638,8 @@ export const useSocialStore = create<SocialState>()(
     name: 'popcorn-social',
     storage: createJSONStorage(() => safeLocalStorage),
     partialize: (state) => ({
-      // feedPosts intentionally NOT persisted — too large, refetched via TTL
+      // Cap at 30 posts so localStorage stays small; delta fetch fills the gap on resume
+      feedPosts: state.feedPosts.slice(0, 30),
       feedLoaded: state.feedLoaded,
       feedLastFetched: state.feedLastFetched,
       feedVisibleCount: state.feedVisibleCount,
