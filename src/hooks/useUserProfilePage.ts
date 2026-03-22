@@ -393,11 +393,21 @@ export function useUserProfilePage(
     setRecentActivityLoaded(false)
 
     try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', username)
-        .single()
+      // Ensure session is fresh before fetching — prevents silent hangs
+      // when returning to the app after token expiry
+      await supabase.auth.getSession()
+
+      const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('fetch timeout')), ms)
+        )
+        return Promise.race([promise, timeout])
+      }
+
+      const { data: profileData, error: profileError } = await withTimeout(
+        supabase.from('profiles').select('*').eq('username', username).single(),
+        10000
+      )
 
       if (profileError) throw profileError
       setProfile(profileData)
