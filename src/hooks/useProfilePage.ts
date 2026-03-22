@@ -421,6 +421,7 @@ export function useProfilePage() {
           return ub?.badges?.admin_only
         })])]
       })
+    }
   }
 
   useEffect(() => {
