@@ -280,7 +280,7 @@ export default function AdminBadges() {
               {/* Badge Preview */}
               <div className="aspect-video bg-gray-900/50 rounded-xl mb-4 overflow-hidden relative flex items-center justify-center border border-gray-700/50">
                 {badge.gif_url ? (
-                  <img src={badge.gif_url} alt="" className="w-full h-full object-cover" style={{ opacity: (badge.opacity || 80) / 100 }} />
+                  <img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover" style={{ opacity: (badge.opacity || 80) / 100 }} />
                 ) : (
                   <div className={`w-full h-full bg-gradient-to-br from-${badge.color.split('-')[0]}-600 to-${badge.color.split('-')[0]}-400 opacity-50`} />
                 )}
@@ -433,7 +433,7 @@ export default function AdminBadges() {
 
               {formData.gif_url && (
                 <div className="rounded-xl overflow-hidden border border-gray-700 relative h-32 bg-black/50">
-                  <img src={formData.gif_url} className="w-full h-full object-cover" style={{ opacity: formData.opacity / 100 }} alt="Preview" />
+                  <img loading="lazy" decoding="async" src={formData.gif_url} className="w-full h-full object-cover" style={{ opacity: formData.opacity / 100 }} alt="Preview" />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <span className="bg-black/60 px-3 py-1 rounded-full text-xs font-bold uppercase backdrop-blur-sm">Preview</span>
                   </div>
@@ -532,7 +532,7 @@ export default function AdminBadges() {
                       >
                         <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex-shrink-0">
                           {user.avatar_url ? (
-                            <img src={user.avatar_url} className="w-full h-full object-cover" alt="" />
+                            <img loading="lazy" decoding="async" src={user.avatar_url} className="w-full h-full object-cover" alt="" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-xs font-bold">
                               {user.username[0].toUpperCase()}
@@ -572,7 +572,7 @@ export default function AdminBadges() {
                     <div key={holder.id} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/30">
                       <div className="w-8 h-8 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
                          {holder.profiles?.avatar_url ? (
-                            <img src={holder.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
+                            <img loading="lazy" decoding="async" src={holder.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-xs font-bold">
                               {holder.profiles?.username?.[0]?.toUpperCase() || '?'}

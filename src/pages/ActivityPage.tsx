@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
@@ -10,8 +11,8 @@ interface GroupedEntries {
 }
 
 export default function ActivityPage() {
-  const { user } = useAuthStore()
-  const { entries, fetchEntries } = useMediaStore()
+  const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
+  const { entries, fetchEntries } = useMediaStore(useShallow(s => ({ entries: s.entries, fetchEntries: s.fetchEntries })))
   const navigate = useNavigate()
   const [groupedEntries, setGroupedEntries] = useState<GroupedEntries>({})
 
@@ -190,7 +191,7 @@ export default function ActivityPage() {
                           <div className="flex-shrink-0">
                             {entry.cover_image_url ? (
                               <div className="w-16 h-24 rounded-lg overflow-hidden shadow-md bg-gray-900">
-                                <img src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
+                                <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
                               </div>
                             ) : (
                               <div className={`w-16 h-24 rounded-lg ${style.bg} flex items-center justify-center border ${style.border}`}>

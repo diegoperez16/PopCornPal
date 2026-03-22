@@ -81,7 +81,7 @@ export default function CommentThread({
       <div className="flex gap-3">
         <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
           {comment.profiles.avatar_url ? (
-            <img src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
           ) : (
             <span className="text-white text-xs font-bold">
               {comment.profiles.username.charAt(0).toUpperCase()}
@@ -133,7 +133,7 @@ export default function CommentThread({
             {/* Comment Image */}
             {comment.image_url && !isEditing && (
               <div className="mt-2">
-                <img
+                <img loading="lazy" decoding="async"
                   src={comment.image_url}
                   alt="Comment attachment"
                   className="max-w-full rounded-lg max-h-64 object-contain"
@@ -266,7 +266,7 @@ export default function CommentThread({
                     </div>
                   ) : (
                     <div className="relative inline-block group">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={replyImageUrl}
                         alt="Reply attachment"
                         className="h-20 rounded-lg border border-gray-700"

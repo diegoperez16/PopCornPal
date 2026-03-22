@@ -1,21 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-// Removed unused imports
 import { isSupabaseConfigured } from './lib/supabase'
-import AuthPage from './pages/AuthPage'
-import UpdatePasswordPage from './pages/UpdatePasswordPage'
-import ProfilePage from './pages/ProfilePage'
-import UserProfilePage from './pages/UserProfilePage'
-import AddEntryPage from './pages/AddEntryPage'
-import FeedPage from './pages/FeedPage'
-import PeoplePage from './pages/PeoplePage'
-import ActivityPage from './pages/ActivityPage'
-import LibraryPage from './pages/LibraryPage'
-import AdminBadgePanel from './pages/AdminBadgePanel'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
 import SplashLoader from './components/SplashLoader'
+
+// Auth pages load immediately — needed before any session exists
+import AuthPage from './pages/AuthPage'
+import UpdatePasswordPage from './pages/UpdatePasswordPage'
+
+// App pages are lazy-loaded — each becomes its own JS chunk downloaded only when visited
+const FeedPage = lazy(() => import('./pages/FeedPage'))
+const PeoplePage = lazy(() => import('./pages/PeoplePage'))
+const ActivityPage = lazy(() => import('./pages/ActivityPage'))
+const LibraryPage = lazy(() => import('./pages/LibraryPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
+const AddEntryPage = lazy(() => import('./pages/AddEntryPage'))
+const AdminBadgePanel = lazy(() => import('./pages/AdminBadgePanel'))
 
 function RedirectToProfile() {
   const { username } = useParams<{ username: string }>()
@@ -163,23 +166,25 @@ function AppContent() {
   return (
     <>
       {showNav && <DesktopNav />}
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/auth/callback" element={<AuthPage />} />
-        <Route path="/update-password" element={<UpdatePasswordPage />} />
-        <Route path="/feed" element={<FeedPage />} />
-        <Route path="/people" element={<PeoplePage />} />
-        <Route path="/activity" element={<ActivityPage />} />
-        <Route path="/library" element={<LibraryPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/profile/:username" element={<UserProfilePage />} />
-        {/* Legacy redirect for any old /user/ links */}
-        <Route path="/user/:username" element={<RedirectToProfile />} />
-        <Route path="/add" element={<AddEntryPage />} />
-        <Route path="/admin/badges" element={<AdminBadgePanel />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<SplashLoader />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/auth/callback" element={<AuthPage />} />
+          <Route path="/update-password" element={<UpdatePasswordPage />} />
+          <Route path="/feed" element={<FeedPage />} />
+          <Route path="/people" element={<PeoplePage />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/:username" element={<UserProfilePage />} />
+          {/* Legacy redirect for any old /user/ links */}
+          <Route path="/user/:username" element={<RedirectToProfile />} />
+          <Route path="/add" element={<AddEntryPage />} />
+          <Route path="/admin/badges" element={<AdminBadgePanel />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
       {showNav && <MobileNav />}
     </>
   )

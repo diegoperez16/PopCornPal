@@ -214,7 +214,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                   {/* Avatar */}
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
                     {n.from_profile?.avatar_url ? (
-                      <img src={n.from_profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={n.from_profile.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       (n.from_profile?.username?.[0] ?? '?').toUpperCase()
                     )}
