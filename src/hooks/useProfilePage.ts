@@ -696,6 +696,12 @@ export function useProfilePage() {
     if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
   }
 
+  const handleAvatarGifPickerSelect = (gifUrl: string) => {
+    setAvatarToCrop(gifUrl)
+    setShowAvatarCropper(true)
+    setShowAvatarGifPicker(false)
+  }
+
   const handleAvatarUrl = () => {
     const url = prompt('Enter image or GIF URL (supports Giphy, Tenor, direct image links):')
     if (url) {
@@ -921,6 +927,7 @@ export function useProfilePage() {
     handleAvatarUpload,
     handleAvatarCropComplete,
     handleAvatarCropCancel,
+    handleAvatarGifPickerSelect,
     handleAvatarUrl,
     handleRemoveAvatar,
     handleUpdateEntry,

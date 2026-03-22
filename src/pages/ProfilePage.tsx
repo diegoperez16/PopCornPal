@@ -21,7 +21,6 @@ export default function ProfilePage() {
     bio,
     setBio,
     avatarUrl,
-    setAvatarUrl,
     uploadedAvatar,
     setUploadedAvatar,
     savingProfile,
@@ -94,6 +93,7 @@ export default function ProfilePage() {
     handleAvatarUpload,
     handleAvatarCropComplete,
     handleAvatarCropCancel,
+    handleAvatarGifPickerSelect,
     handleAvatarUrl,
     handleRemoveAvatar,
     handleUpdateEntry,
@@ -196,21 +196,27 @@ export default function ProfilePage() {
               <div className="relative">
                 <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-gray-900 overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-3xl sm:text-4xl font-bold shadow-lg shadow-black/40">
                   {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
-                    <img
-                      src={uploadedAvatar || avatarUrl || profile.avatar_url || ''}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                      style={pendingAvatarGifCrop ? {
-                        objectFit: 'cover',
-                        objectPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
-                        transform: `scale(${Math.max(1, pendingAvatarGifCrop.scale / 100)})`,
-                        transformOrigin: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
-                      } : undefined}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                        e.currentTarget.parentElement!.innerHTML = profile.username.charAt(0).toUpperCase()
-                      }}
-                    />
+                    pendingAvatarGifCrop ? (
+                      <div
+                        className="w-full h-full"
+                        style={{
+                          backgroundImage: `url(${uploadedAvatar || avatarUrl || profile.avatar_url})`,
+                          backgroundSize: `${pendingAvatarGifCrop.scale}%`,
+                          backgroundPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
+                          backgroundRepeat: 'no-repeat',
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={uploadedAvatar || avatarUrl || profile.avatar_url || ''}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                          e.currentTarget.parentElement!.innerHTML = profile.username.charAt(0).toUpperCase()
+                        }}
+                      />
+                    )
                   ) : (
                     profile.username.charAt(0).toUpperCase()
                   )}
@@ -382,7 +388,19 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-xl font-bold flex-shrink-0">
                         {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
-                          <img loading="lazy" decoding="async" src={uploadedAvatar || avatarUrl || profile.avatar_url || ''} alt="" className="w-full h-full object-cover" />
+                          pendingAvatarGifCrop ? (
+                            <div
+                              className="w-full h-full"
+                              style={{
+                                backgroundImage: `url(${uploadedAvatar || avatarUrl || profile.avatar_url})`,
+                                backgroundSize: `${pendingAvatarGifCrop.scale}%`,
+                                backgroundPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
+                                backgroundRepeat: 'no-repeat',
+                              }}
+                            />
+                          ) : (
+                            <img loading="lazy" decoding="async" src={uploadedAvatar || avatarUrl || profile.avatar_url || ''} alt="" className="w-full h-full object-cover" />
+                          )
                         ) : (
                           profile.username.charAt(0).toUpperCase()
                         )}
@@ -769,7 +787,7 @@ export default function ProfilePage() {
 
       {/* Modals and GIF Pickers */}
       {showGifPickerModal && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowGifPickerModal(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleGifPickerSelect} onClose={() => setShowGifPickerModal(false)} /></div></div>}
-      {showAvatarGifPicker && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowAvatarGifPicker(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={(gifUrl) => { setAvatarUrl(gifUrl); setUploadedAvatar(null); setShowAvatarGifPicker(false) }} onClose={() => setShowAvatarGifPicker(false)} /></div></div>}
+      {showAvatarGifPicker && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowAvatarGifPicker(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleAvatarGifPickerSelect} onClose={() => setShowAvatarGifPicker(false)} /></div></div>}
       {selectedEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-gray-900 border border-gray-700 w-full max-w-sm rounded-2xl p-5 relative shadow-2xl">
