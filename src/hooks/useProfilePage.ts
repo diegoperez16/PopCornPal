@@ -2,7 +2,9 @@ import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { useMediaStore, type MediaEntry } from '../store/mediaStore'
+import { useMediaStore } from '../store/mediaStore'
+import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMediaQueries'
+import type { MediaEntry } from './queries/useMediaQueries'
 import { supabase, type UserBadge } from '../lib/supabase'
 import type { CropData } from '../components/ImageCropper'
 import type { AvatarCrop } from '../lib/supabase'
@@ -14,37 +16,27 @@ export function useProfilePage() {
     updateProfile: s.updateProfile,
     signOut: s.signOut,
   })))
-  const {
-    entries,
-    fetchEntries,
-    updateEntry,
-    deleteEntry,
-    favorites,
-    userBadges,
-    availableBadges,
-    profileLoaded,
-    profileScrollPos,
-    setFavorites,
-    setUserBadges,
-    setAvailableBadges,
-    setProfileLoaded,
-    setProfileScrollPos
-  } = useMediaStore(useShallow(s => ({
-    entries: s.entries,
-    fetchEntries: s.fetchEntries,
-    updateEntry: s.updateEntry,
-    deleteEntry: s.deleteEntry,
-    favorites: s.favorites,
-    userBadges: s.userBadges,
-    availableBadges: s.availableBadges,
-    profileLoaded: s.profileLoaded,
+  const { profileScrollPos, setProfileScrollPos } = useMediaStore(useShallow(s => ({
     profileScrollPos: s.profileScrollPos,
-    setFavorites: s.setFavorites,
-    setUserBadges: s.setUserBadges,
-    setAvailableBadges: s.setAvailableBadges,
-    setProfileLoaded: s.setProfileLoaded,
     setProfileScrollPos: s.setProfileScrollPos,
   })))
+
+  // TanStack Query for server data
+  const { data: entries = [] } = useMediaEntries(user?.id ?? '')
+  const { mutate: updateEntryMutation } = useUpdateEntry(user?.id ?? '')
+  const { mutate: deleteEntryMutation } = useDeleteEntry(user?.id ?? '')
+
+  // Local state for profile-specific data not in TQ
+  const [favorites, setFavorites] = useState<any[]>([])
+  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
+  const [availableBadges, setAvailableBadges] = useState<any[]>([])
+  const [profileLoaded, setProfileLoaded] = useState(false)
+
+  // Compat shims so existing code that calls updateEntry/deleteEntry still works
+  const updateEntry = (id: string, updates: Partial<MediaEntry>) =>
+    updateEntryMutation({ id, updates })
+  const deleteEntry = (id: string) =>
+    deleteEntryMutation(id)
 
   const navigate = useNavigate()
 
@@ -374,8 +366,8 @@ export function useProfilePage() {
 
     const safetyTimer = setTimeout(() => setInitialLoading(false), 3000)
 
+    // entries are handled by TQ (useMediaEntries), only fetch badges/favorites here
     Promise.all([
-      fetchEntries(user.id),
       fetchBadges(),
       fetchUserBadges(),
       fetchFavorites()
@@ -385,26 +377,10 @@ export function useProfilePage() {
       setProfileLoaded(true)
     })
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user) {
-        // Clear any stuck skeleton when returning to the tab —
-        // background tabs have throttled timers that may never fire
-        setInitialLoading(false)
-        supabase.auth.getSession().finally(() => Promise.all([
-          fetchEntries(user.id),
-          fetchBadges(),
-          fetchUserBadges(),
-          fetchFavorites()
-        ]))
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
     return () => {
       clearTimeout(safetyTimer)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [user, fetchEntries])
+  }, [user])
 
   const fetchBadges = async () => {
     const { data } = await supabase

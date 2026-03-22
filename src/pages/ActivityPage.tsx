@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { useMediaStore, type MediaEntry } from '../store/mediaStore'
+import { useActivity } from '../hooks/queries/useActivityQueries'
+import type { MediaEntry } from '../hooks/queries/useMediaQueries'
 import { useNavigate } from 'react-router-dom'
 import { Film, Tv, Gamepad2, Book, Star, Calendar, ArrowUpRight } from 'lucide-react'
 
@@ -12,7 +12,7 @@ interface GroupedEntries {
 
 export default function ActivityPage() {
   const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
-  const { entries, fetchEntries } = useMediaStore(useShallow(s => ({ entries: s.entries, fetchEntries: s.fetchEntries })))
+  const { data: entries = [] } = useActivity(user?.id ?? '')
   const navigate = useNavigate()
   const [groupedEntries, setGroupedEntries] = useState<GroupedEntries>({})
 
@@ -21,20 +21,7 @@ export default function ActivityPage() {
       navigate('/auth')
       return
     }
-    // Respects 5-min staleness cache; pass force=true only if needed
-    fetchEntries(user.id)
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user) {
-        supabase.auth.getSession().finally(() => fetchEntries(user.id))
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [user, navigate, fetchEntries])
+  }, [user, navigate])
 
   useEffect(() => {
     // Group entries by LOCAL date, excluding 'logged' status entries

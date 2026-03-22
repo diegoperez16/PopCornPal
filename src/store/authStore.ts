@@ -205,14 +205,13 @@ export const useAuthStore = create<AuthState>()(
     } finally {
       _signingOut = false
     }
-    // Clear all persisted app data
-    const { useSocialStore } = await import('./socialStore')
-    const { useMediaStore } = await import('./mediaStore')
-    useSocialStore.getState().resetSocialStore()
-    useMediaStore.getState().resetMediaStore()
+    // Clear TanStack Query cache and persisted cache
+    const { queryClient } = await import('../lib/queryClient')
+    queryClient.clear()
+    localStorage.removeItem('popcorn-query-cache')
     // Clear user-specific localStorage drafts
     Object.keys(localStorage)
-      .filter(k => k.startsWith('popcorn_') && k !== 'popcorn-auth' && k !== 'popcorn-media' && k !== 'popcorn-social')
+      .filter(k => k.startsWith('popcorn_') && k !== 'popcorn-auth')
       .forEach(k => localStorage.removeItem(k))
     set({ user: null, profile: null, lastAuthCheck: 0, sessionExpired: false })
   },

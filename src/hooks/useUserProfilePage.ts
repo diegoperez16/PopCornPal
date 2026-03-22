@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase, type UserBadge, type BackgroundCrop } from '../lib/supabase'
 
@@ -437,24 +437,7 @@ export function useUserProfilePage(
     }
   }
 
-  // Re-fetch when the tab returns from background.
-  // Placed after fetchUserProfile so the ref captures the declared function.
-  // getSession() refreshes the expired access token first, preventing the
-  // "refresh twice" issue after extended absence (e.g. 8 hours away).
-  const fetchUserProfileRef = useRef(fetchUserProfile)
-  fetchUserProfileRef.current = fetchUserProfile
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        supabase.auth.getSession().finally(() => {
-          if (navigator.onLine) fetchUserProfileRef.current()
-        })
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
+  // Visibility-change handler removed: TQ's refetchOnWindowFocus handles data refreshes globally.
 
   const handleFollow = async () => {
     if (!currentUser || !profile || followLoading) return

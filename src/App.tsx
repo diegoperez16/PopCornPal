@@ -1,7 +1,10 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { useAuthStore } from './store/authStore'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
+import { queryClient } from './lib/queryClient'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
 import SplashLoader from './components/SplashLoader'
@@ -157,9 +160,12 @@ function App() {
   if (!appReady && !user) return <SplashLoader />
 
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AppContent />
+      </Router>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   )
 }
 

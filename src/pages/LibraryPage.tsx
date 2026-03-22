@@ -1,47 +1,27 @@
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
-import { useMediaStore, type MediaEntry } from '../store/mediaStore'
+import { useMediaEntries, useUpdateEntry, useDeleteEntry } from '../hooks/queries/useMediaQueries'
+import type { MediaEntry } from '../hooks/queries/useMediaQueries'
 import { useNavigate } from 'react-router-dom'
 import { Film, Tv, Gamepad2, Book, Star, Edit2, X, Trash2, Loader2, Search, Calendar, Tag, Clock } from 'lucide-react'
 
 export default function LibraryPage() {
   const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
-  const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore(useShallow(s => ({
-    entries: s.entries,
-    fetchEntries: s.fetchEntries,
-    updateEntry: s.updateEntry,
-    deleteEntry: s.deleteEntry,
-  })))
+  const { data: entries = [] } = useMediaEntries(user?.id ?? '')
+  const { mutate: updateEntry } = useUpdateEntry(user?.id ?? '')
+  const { mutate: deleteEntry } = useDeleteEntry(user?.id ?? '')
   const navigate = useNavigate()
-  
+
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [filterType, setFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Edit Entry Form State
   const [editRating, setEditRating] = useState(0)
   const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('logged')
   const [editNotes, setEditNotes] = useState('')
-
-  useEffect(() => {
-    if (user) {
-      fetchEntries(user.id)
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user) {
-        supabase.auth.getSession().finally(() => fetchEntries(user.id))
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [user, fetchEntries])
 
   // Initialize edit form when entry is selected
   useEffect(() => {
@@ -55,34 +35,31 @@ export default function LibraryPage() {
   const handleUpdateEntry = async () => {
     if (!selectedEntry) return
     setIsUpdating(true)
-    try {
-      await updateEntry(selectedEntry.id, {
-        rating: editRating || null,
-        status: editStatus,
-        notes: editNotes.trim() || null,
-        completed_date: editStatus === 'completed' && selectedEntry.status !== 'completed' 
-          ? new Date().toISOString().split('T')[0] 
-          : selectedEntry.completed_date
-      })
-      setSelectedEntry(null)
-    } catch (error) {
-      console.error('Error updating entry:', error)
-    } finally {
-      setIsUpdating(false)
-    }
+    updateEntry(
+      {
+        id: selectedEntry.id,
+        updates: {
+          rating: editRating || null,
+          status: editStatus,
+          notes: editNotes.trim() || null,
+          completed_date: editStatus === 'completed' && selectedEntry.status !== 'completed'
+            ? new Date().toISOString().split('T')[0]
+            : selectedEntry.completed_date,
+        },
+      },
+      {
+        onSuccess: () => { setSelectedEntry(null); setIsUpdating(false) },
+        onError: (error) => { console.error('Error updating entry:', error); setIsUpdating(false) },
+      }
+    )
   }
 
   const handleDeleteEntry = async () => {
     if (!selectedEntry || !confirm('Are you sure you want to delete this entry?')) return
-    setIsUpdating(true)
-    try {
-      await deleteEntry(selectedEntry.id)
-      setSelectedEntry(null)
-    } catch (error) {
-      console.error('Error deleting entry:', error)
-    } finally {
-      setIsUpdating(false)
-    }
+    deleteEntry(selectedEntry.id, {
+      onSuccess: () => setSelectedEntry(null),
+      onError: (error) => console.error('Error deleting entry:', error),
+    })
   }
 
   const getIcon = (type: string) => {

@@ -1,52 +1,55 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore, type ProfileWithFollowStatus } from '../store/socialStore'
+import { useQueryClient } from '@tanstack/react-query'
+import { peopleKeys } from '../lib/queryClient'
+import {
+  usePeopleCounts,
+  useFollowers,
+  useFollowing,
+  useExploreUsers,
+  useFollowUser,
+  useUnfollowUser,
+  useSearchPeople,
+} from '../hooks/queries/usePeopleQueries'
 import { Link } from 'react-router-dom'
 
 
 export default function PeoplePage() {
   const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
   const {
-    followers,
-    following,
-    setFollowers,
-    setFollowing,
-    peopleLoaded,
     peopleScrollPos,
     setPeopleScrollPos,
     peopleActiveTab,
     setPeopleActiveTab,
-    followersCount,
-    followingCount,
-    fetchFollowers,
-    fetchFollowing,
-    fetchPeopleCounts
   } = useSocialStore(useShallow(s => ({
-    followers: s.followers,
-    following: s.following,
-    setFollowers: s.setFollowers,
-    setFollowing: s.setFollowing,
-    peopleLoaded: s.peopleLoaded,
     peopleScrollPos: s.peopleScrollPos,
     setPeopleScrollPos: s.setPeopleScrollPos,
     peopleActiveTab: s.peopleActiveTab,
     setPeopleActiveTab: s.setPeopleActiveTab,
-    followersCount: s.followersCount,
-    followingCount: s.followingCount,
-    fetchFollowers: s.fetchFollowers,
-    fetchFollowing: s.fetchFollowing,
-    fetchPeopleCounts: s.fetchPeopleCounts,
   })))
 
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
-  const [exploreUsers, setExploreUsers] = useState<ProfileWithFollowStatus[]>([])
-  const [exploreLoading, setExploreLoading] = useState(false)
 
-  const [refreshing, setRefreshing] = useState(false)
+  // TanStack Query data
+  const { data: counts } = usePeopleCounts(user?.id ?? '')
+  const { data: followersData = [], isLoading: followersLoading } = useFollowers(user?.id ?? '')
+  const { data: followingData = [], isLoading: followingLoading } = useFollowing(user?.id ?? '')
+  const { data: exploreData = [], isLoading: exploreLoading } = useExploreUsers(
+    peopleActiveTab === 'explore' ? (user?.id ?? '') : ''
+  )
+  const { data: searchResults = [] } = useSearchPeople(user?.id ?? '', searchQuery)
+
+  const { mutate: followUser } = useFollowUser(user?.id ?? '')
+  const { mutate: unfollowUser } = useUnfollowUser(user?.id ?? '')
+
+  const followersCount = counts?.followersCount ?? 0
+  const followingCount = counts?.followingCount ?? 0
+  const peopleLoaded = !followersLoading && !followingLoading
 
   useLayoutEffect(() => {
     if (peopleScrollPos > 0) {
@@ -57,230 +60,31 @@ export default function PeoplePage() {
     }
   }, [peopleScrollPos, setPeopleScrollPos])
 
-  const followsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
-
-  const subscribeFollows = (uid: string) => {
-    if (followsChannelRef.current) {
-      supabase.removeChannel(followsChannelRef.current)
-    }
-    followsChannelRef.current = supabase
-      .channel(`follows-changes-${uid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${uid}` },
-        () => { fetchFollowing(uid); fetchPeopleCounts(uid) }
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${uid}` },
-        () => { fetchFollowers(uid); fetchPeopleCounts(uid) }
-      )
-      .subscribe()
-  }
-
+  // Realtime subscriptions for follows table
   useEffect(() => {
     if (!user) return
+    const channel = supabase.channel(`follows-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${user.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: peopleKeys.counts(user.id) })
+        queryClient.invalidateQueries({ queryKey: peopleKeys.following(user.id) })
+        queryClient.invalidateQueries({ queryKey: peopleKeys.explore(user.id) })
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${user.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: peopleKeys.counts(user.id) })
+        queryClient.invalidateQueries({ queryKey: peopleKeys.followers(user.id) })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, queryClient])
 
-    // Run all three fetches in parallel — counts, followers, and following
-    // have no dependencies on each other
-    if (!peopleLoaded) setRefreshing(true)
-    Promise.all([
-      fetchPeopleCounts(user.id),
-      fetchFollowers(user.id),
-      fetchFollowing(user.id),
-    ]).finally(() => setRefreshing(false))
-
-    // Safety timer — if fetches hang, never stay stuck
-    const safetyTimer = setTimeout(() => setRefreshing(false), 8000)
-
-    subscribeFollows(user.id)
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // getSession() refreshes the access token if expired (getUser() only validates
-        // the current token without refreshing it, so expired tokens stay broken).
-        // Run everything inside .finally() so the JWT is refreshed first.
-        supabase.auth.getSession().finally(() => {
-          fetchPeopleCounts(user.id)
-          fetchFollowers(user.id)
-          fetchFollowing(user.id)
-          subscribeFollows(user.id)
-        })
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearTimeout(safetyTimer)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (followsChannelRef.current) {
-        supabase.removeChannel(followsChannelRef.current)
-        followsChannelRef.current = null
-      }
-    }
-  }, [user])
-
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query)
-
-    if (query.trim().length < 2) {
-      setSearchResults([])
-      return
-    }
-
-    try {
-      // Search profiles by username
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, bio')
-        .ilike('username', `%${query}%`)
-        .neq('id', user?.id || '')
-        .limit(20)
-
-      if (error) throw error
-
-      if (!profiles) {
-        setSearchResults([])
-        return
-      }
-
-      // Check follow status for each profile
-      const profileIds = profiles.map((p) => p.id)
-      
-      const { data: followingData } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user?.id || '')
-        .in('following_id', profileIds)
-
-      const { data: followersData } = await supabase
-        .from('follows')
-        .select('follower_id')
-        .eq('following_id', user?.id || '')
-        .in('follower_id', profileIds)
-
-      const followingIds = new Set(followingData?.map((f) => f.following_id) || [])
-      const followerIds = new Set(followersData?.map((f) => f.follower_id) || [])
-
-      const profilesWithStatus = profiles.map((profile) => ({
-        ...profile,
-        isFollowing: followingIds.has(profile.id),
-        isFollower: followerIds.has(profile.id),
-      }))
-
-      setSearchResults(profilesWithStatus)
-    } catch (error) {
-      console.error('Search error:', error)
-    }
+  const handleFollow = (profileId: string) => {
+    if (!user) return
+    followUser(profileId)
   }
 
-  const handleFollow = async (profileId: string) => {
+  const handleUnfollow = (profileId: string) => {
     if (!user) return
-
-    try {
-      const { error } = await supabase
-        .from('follows')
-        .insert({ follower_id: user.id, following_id: profileId })
-
-      if (error) throw error
-
-      // Update local search results
-      setSearchResults(
-        searchResults.map((p) =>
-          p.id === profileId ? { ...p, isFollowing: true } : p
-        )
-      )
-      
-      // Update store followers list optimistically
-      setFollowers(
-        followers.map((p) =>
-          p.id === profileId ? { ...p, isFollowing: true } : p
-        )
-      )
-
-      // Remove from explore list since they're now followed
-      setExploreUsers(prev => prev.filter(p => p.id !== profileId))
-
-      // Refresh following list
-      fetchFollowing(user.id)
-    } catch (error) {
-      console.error('Follow error:', error)
-    }
-  }
-
-  const handleUnfollow = async (profileId: string) => {
-    if (!user) return
-
-    try {
-      const { error } = await supabase
-        .from('follows')
-        .delete()
-        .eq('follower_id', user.id)
-        .eq('following_id', profileId)
-
-      if (error) throw error
-
-      // Update local search results
-      setSearchResults(
-        searchResults.map((p) =>
-          p.id === profileId ? { ...p, isFollowing: false } : p
-        )
-      )
-      
-      // Update store lists optimistically
-      setFollowing(following.filter((p) => p.id !== profileId))
-      setFollowers(
-        followers.map((p) =>
-          p.id === profileId ? { ...p, isFollowing: false } : p
-        )
-      )
-    } catch (error) {
-      console.error('Unfollow error:', error)
-    }
-  }
-
-  const fetchExploreUsers = async () => {
-    if (!user) return
-    setExploreLoading(true)
-    try {
-      // Get IDs the current user already follows
-      const { data: followingData } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id)
-
-      const followingIds = new Set(followingData?.map(f => f.following_id) ?? [])
-      followingIds.add(user.id) // exclude self
-
-      // Fetch profiles not in that set, ordered by most recent activity (created_at)
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, bio')
-        .order('created_at', { ascending: false })
-        .limit(40)
-
-      if (!profiles) return
-
-      const notFollowing = profiles.filter(p => !followingIds.has(p.id))
-
-      // Check which of them follow us back (so we can show "Follows you")
-      const candidateIds = notFollowing.map(p => p.id)
-      const { data: theirFollows } = await supabase
-        .from('follows')
-        .select('follower_id')
-        .eq('following_id', user.id)
-        .in('follower_id', candidateIds)
-
-      const theirFollowSet = new Set(theirFollows?.map(f => f.follower_id) ?? [])
-
-      setExploreUsers(
-        notFollowing.map(p => ({
-          ...p,
-          isFollowing: false,
-          isFollower: theirFollowSet.has(p.id),
-        }))
-      )
-    } catch (err) {
-      console.error('Explore fetch error:', err)
-    } finally {
-      setExploreLoading(false)
-    }
+    unfollowUser(profileId)
   }
 
   const renderProfileCard = (profile: ProfileWithFollowStatus) => (
@@ -379,12 +183,6 @@ export default function PeoplePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-24">
-      {refreshing && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-gray-800">
-          <div className="h-full bg-gradient-to-r from-red-500 to-pink-600 w-2/5 animate-pulse" />
-        </div>
-      )}
-
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Tab Bar */}
         <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 scrollbar-hide">
@@ -400,9 +198,6 @@ export default function PeoplePage() {
                 key={tab.id}
                 onClick={() => {
                   setPeopleActiveTab(tab.id as typeof peopleActiveTab)
-                  if (tab.id === 'explore' && exploreUsers.length === 0) {
-                    fetchExploreUsers()
-                  }
                 }}
                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
                   isActive
@@ -438,14 +233,13 @@ export default function PeoplePage() {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by username…"
                     className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
                     autoFocus
                   />
                   {searchQuery && (
-                    <button onClick={() => { setSearchQuery(''); setSearchResults([]) }} className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
-                      <Search className="w-4 h-4 opacity-0 absolute" />
+                    <button onClick={() => { setSearchQuery('') }} className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
                       <span className="text-sm">✕</span>
                     </button>
                   )}
@@ -487,7 +281,7 @@ export default function PeoplePage() {
                     </div>
                   ))}
                 </div>
-              ) : exploreUsers.length === 0 ? (
+              ) : exploreData.length === 0 ? (
                 <div className="text-center py-24">
                   <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Compass className="w-7 h-7 text-gray-600" />
@@ -497,10 +291,7 @@ export default function PeoplePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {exploreUsers.map(profile => renderExploreCard({
-                    ...profile,
-                    isFollowing: exploreUsers.find(u => u.id === profile.id)?.isFollowing ?? false,
-                  }))}
+                  {exploreData.map(profile => renderExploreCard(profile))}
                 </div>
               )}
             </div>
@@ -515,7 +306,7 @@ export default function PeoplePage() {
                     <div key={i} className="h-20 bg-gray-800/40 rounded-2xl" />
                   ))}
                 </div>
-              ) : followers.length === 0 ? (
+              ) : followersData.length === 0 ? (
                 <div className="text-center py-24">
                   <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Users className="w-7 h-7 text-gray-600" />
@@ -525,7 +316,7 @@ export default function PeoplePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {followers.map(renderProfileCard)}
+                  {followersData.map(renderProfileCard)}
                 </div>
               )}
             </div>
@@ -540,7 +331,7 @@ export default function PeoplePage() {
                     <div key={i} className="h-20 bg-gray-800/40 rounded-2xl" />
                   ))}
                 </div>
-              ) : following.length === 0 ? (
+              ) : followingData.length === 0 ? (
                 <div className="text-center py-24">
                   <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <UserPlus className="w-7 h-7 text-gray-600" />
@@ -548,7 +339,7 @@ export default function PeoplePage() {
                   <p className="text-gray-400 font-semibold">Not following anyone</p>
                   <p className="text-gray-600 text-sm mt-1 mb-6">Discover people to follow</p>
                   <button
-                    onClick={() => { setPeopleActiveTab('explore'); fetchExploreUsers() }}
+                    onClick={() => { setPeopleActiveTab('explore') }}
                     className="px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-gray-100 transition-colors"
                   >
                     Discover people
@@ -556,7 +347,7 @@ export default function PeoplePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {following.map(renderProfileCard)}
+                  {followingData.map(renderProfileCard)}
                 </div>
               )}
             </div>

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star, Calendar } from 'lucide-react'
 import { api, type SearchResult } from '../lib/api'
-import { useMediaStore } from '../store/mediaStore'
 import { useAuthStore } from '../store/authStore'
+import { useAddEntry } from '../hooks/queries/useMediaQueries'
 import { supabase } from '../lib/supabase'
 
 type MediaType = 'movie' | 'show' | 'game' | 'book'
@@ -20,8 +20,8 @@ const loadState = <T,>(key: string, fallback: T): T => {
 
 export default function AddEntryPage() {
   const navigate = useNavigate()
-  const { addEntry } = useMediaStore()
   const { user } = useAuthStore()
+  const { mutateAsync: addEntry } = useAddEntry(user?.id ?? '')
   
   // Initialize state
   const [activeTab, setActiveTab] = useState<MediaType>(() => loadState('popcorn_add_tab', 'movie'))
