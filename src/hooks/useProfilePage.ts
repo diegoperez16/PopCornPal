@@ -361,12 +361,12 @@ export function useProfilePage() {
         // Clear any stuck skeleton when returning to the tab —
         // background tabs have throttled timers that may never fire
         setInitialLoading(false)
-        Promise.all([
+        supabase.auth.getUser().finally(() => Promise.all([
           fetchEntries(user.id),
           fetchBadges(),
           fetchUserBadges(),
           fetchFavorites()
-        ])
+        ]))
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
