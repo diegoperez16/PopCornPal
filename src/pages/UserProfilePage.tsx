@@ -81,38 +81,39 @@ export default function UserProfilePage() {
     return (
       <div className="flex flex-wrap gap-2 mt-3">
         {creatorBadge && (
-          <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(236,72,153,0.6)] ring-2 ring-pink-500/40 h-7 flex-shrink-0">
+          <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(236,72,153,0.6)] ring-2 ring-pink-500/40">
             {creatorBadge.badges?.gif_url
               ? <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
               : <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500"/>}
-            <div className="relative h-full flex items-center gap-1 px-3">
-              <Crown className="w-3 h-3 text-white/90" />
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">Creator</span>
+            <div className="relative px-3 py-1 flex items-center gap-1.5">
+              <Crown className="w-3 h-3 text-yellow-300" />
+              <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">CREATOR</span>
             </div>
           </div>
         )}
         {alphaBadge && (
-          <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(34,211,238,0.5)] ring-2 ring-cyan-500/40 h-7 flex-shrink-0">
+          <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(34,211,238,0.5)] ring-2 ring-cyan-500/40">
             {alphaBadge.badges?.gif_url
               ? <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
               : <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500"/>}
-            <div className="relative h-full flex items-center gap-1 px-3">
-              <Beaker className="w-3 h-3 text-white/90" />
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">Alpha</span>
+            <div className="relative px-3 py-1 flex items-center gap-1.5">
+              <Beaker className="w-3 h-3 text-cyan-300" />
+              <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">ALPHA TESTER</span>
             </div>
           </div>
         )}
         {regularBadges.map((ub) => {
-          const badge = ub.badges!
+          if (!ub.badges) return null
+          const badge = ub.badges
           const fx = colorEffects[badge.color] || { gradient: 'from-gray-600 to-gray-500', glow: 'shadow-gray-500/40' }
           return (
-            <div key={ub.id} className={`relative overflow-hidden rounded-full shadow-sm ${fx.glow} h-7 flex-shrink-0`}>
+            <div key={ub.id} className={`relative overflow-hidden rounded-full shadow-sm ${fx.glow}`}>
               {badge.gif_url
                 ? <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover"/></div>
                 : <div className={`absolute inset-0 bg-gradient-to-br ${fx.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}/>}
-              <div className="relative h-full flex items-center gap-1 px-3">
-                <div className="w-1 h-1 rounded-full bg-white/80"/>
-                <span className="text-[10px] font-bold text-white uppercase tracking-wide">{badge.name}</span>
+              <div className="relative px-3 py-1 flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"/>
+                <span className="text-xs font-bold text-white uppercase tracking-wide drop-shadow-lg">{badge.name}</span>
               </div>
             </div>
           )

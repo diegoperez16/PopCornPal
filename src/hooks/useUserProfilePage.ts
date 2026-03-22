@@ -388,6 +388,7 @@ export function useUserProfilePage(
     setFollowingList([])
     setPosts([])
     setRecentActivity([])
+    setUserBadges([])
     setPostsLoaded(false)
     setRecentActivityLoaded(false)
 

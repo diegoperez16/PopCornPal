@@ -162,10 +162,14 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       {/* Bell button */}
       <button
         onClick={() => setOpen(prev => !prev)}
-        className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        className={`relative transition-colors ${
+          dropUp
+            ? 'p-1 text-gray-500 hover:text-white'
+            : 'p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800'
+        } ${open && dropUp ? 'text-white' : ''}`}
         aria-label="Notifications"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className={dropUp ? 'w-6 h-6' : 'w-5 h-5'} strokeWidth={open && dropUp ? 2.5 : 2} />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-full px-1">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -173,9 +177,78 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
         )}
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
-        <div className={`absolute ${dropUp ? 'bottom-full mb-2 right-0' : 'right-0 mt-2'} w-80 max-h-[480px] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-[200] flex flex-col overflow-hidden animate-in fade-in ${dropUp ? 'slide-in-from-bottom-2' : 'slide-in-from-top-2'} duration-150`}>
+      {/* Panel — full-screen sheet on mobile nav, dropdown on desktop */}
+      {open && dropUp ? (
+        /* Mobile: full-screen bottom sheet */
+        <div className="fixed inset-0 z-[300] flex flex-col animate-in fade-in duration-150" style={{ bottom: 0 }}>
+          {/* Backdrop */}
+          <div className="flex-1 bg-black/60" onClick={() => setOpen(false)} />
+          {/* Sheet */}
+          <div className="bg-gray-900 border-t border-gray-700 rounded-t-3xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full bg-gray-700" />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
+              <span className="font-bold text-white text-base">Notifications</span>
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllRead}
+                    className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    <Check className="w-4 h-4" />
+                    Mark all read
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white transition-colors p-1">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            {/* List */}
+            <div className="overflow-y-auto flex-1">
+              {notifications.length === 0 ? (
+                <div className="py-16 text-center text-gray-500">
+                  <Bell className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No notifications yet</p>
+                </div>
+              ) : (
+                notifications.map(n => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotifClick(n)}
+                    className={`w-full text-left flex items-start gap-4 px-5 py-4 hover:bg-gray-800 active:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0 ${
+                      !n.read ? 'bg-gray-800/40' : ''
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+                      {n.from_profile?.avatar_url ? (
+                        <img loading="lazy" decoding="async" src={n.from_profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        (n.from_profile?.username?.[0] ?? '?').toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-1.5">
+                        <NotifIcon type={n.type} />
+                        <p className="text-sm text-gray-200 leading-snug">{notificationText(n)}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{timeAgo(n.created_at)}</p>
+                    </div>
+                    {!n.read && (
+                      <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : open ? (
+        /* Desktop: dropdown */
+        <div className="absolute right-0 mt-2 w-80 max-h-[480px] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-[200] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 flex-shrink-0">
             <span className="font-bold text-white text-sm">Notifications</span>
@@ -194,7 +267,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
               </button>
             </div>
           </div>
-
           {/* List */}
           <div className="overflow-y-auto flex-1">
             {notifications.length === 0 ? (
@@ -211,7 +283,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                     !n.read ? 'bg-gray-800/40' : ''
                   }`}
                 >
-                  {/* Avatar */}
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
                     {n.from_profile?.avatar_url ? (
                       <img loading="lazy" decoding="async" src={n.from_profile.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -219,8 +290,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                       (n.from_profile?.username?.[0] ?? '?').toUpperCase()
                     )}
                   </div>
-
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-1.5">
                       <NotifIcon type={n.type} />
@@ -228,8 +297,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{timeAgo(n.created_at)}</p>
                   </div>
-
-                  {/* Unread dot */}
                   {!n.read && (
                     <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-1.5" />
                   )}
@@ -238,7 +305,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
             )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
