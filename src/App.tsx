@@ -1,4 +1,5 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, lazy, Suspense, Component } from 'react'
+import type { ReactNode, ErrorInfo } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
@@ -125,6 +126,45 @@ function HomePage() {
   )
 }
 
+// Catches failed lazy chunk loads (e.g. after a new deploy invalidates cached JS URLs)
+// and forces a full page reload so the browser fetches fresh chunks.
+class ChunkErrorBoundary extends Component<{ children: ReactNode }, { crashed: boolean }> {
+  state = { crashed: false }
+
+  componentDidCatch(error: Error, _info: ErrorInfo) {
+    const isChunkError =
+      error.message.includes('Failed to fetch dynamically imported module') ||
+      error.message.includes('Importing a module script failed') ||
+      error.name === 'ChunkLoadError'
+
+    if (isChunkError) {
+      window.location.reload()
+    } else {
+      this.setState({ crashed: true })
+      console.error('App error:', error)
+    }
+  }
+
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white text-center p-8">
+          <div>
+            <p className="text-lg font-semibold mb-2">Something went wrong</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition-colors"
+            >
+              Reload page
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function App() {
   const { initialize, resumeSession, user } = useAuthStore()
   const [appReady, setAppReady] = useState(false)
@@ -203,6 +243,7 @@ function AppContent() {
   return (
     <>
       {showNav && <DesktopNav />}
+      <ChunkErrorBoundary>
       <Suspense fallback={<SplashLoader />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -222,6 +263,7 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </ChunkErrorBoundary>
       {showNav && <MobileNav />}
 
       {/* Welcome / PWA onboarding modal */}

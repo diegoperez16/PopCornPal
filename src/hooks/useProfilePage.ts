@@ -407,10 +407,20 @@ export function useProfilePage() {
     console.log('[fetchUserBadges] data:', data)
     if (data) {
       setUserBadges(data as UserBadge[])
-      if (localStorage.getItem('popcorn_profile_is_editing') !== 'true') {
-        setSelectedBadgeIds(data.map(ub => ub.badge_id))
-      }
-    }
+      // Always sync selectedBadgeIds with DB — if editing, merge so admin badges
+      // are never missing from the selection (prevents them being deleted on save)
+      setSelectedBadgeIds(prev => {
+        const dbIds = data.map(ub => ub.badge_id)
+        if (localStorage.getItem('popcorn_profile_is_editing') !== 'true') {
+          return dbIds
+        }
+        // Editing mode: keep user's current picks but add any DB badges not present
+        // (especially admin-only badges the picker doesn't show)
+        return [...new Set([...prev, ...dbIds.filter(id => {
+          const ub = data.find(u => u.badge_id === id)
+          return ub?.badges?.admin_only
+        })])]
+      })
   }
 
   useEffect(() => {
@@ -496,9 +506,12 @@ export function useProfilePage() {
         bg_opacity: profileBgOpacity,
         bg_crop: bgCropToSave,
       })
-      const currentBadgeIds = userBadges.map(ub => ub.badge_id)
-      const badgesToAdd = selectedBadgeIds.filter(id => !currentBadgeIds.includes(id))
-      const badgesToRemove = currentBadgeIds.filter(id => !selectedBadgeIds.includes(id))
+      // Only manage non-admin badges here — admin badges can only be removed by admins
+      const adminBadgeIds = new Set(availableBadges.filter(b => b.admin_only).map(b => b.id))
+      const currentBadgeIds = userBadges.map(ub => ub.badge_id).filter(id => !adminBadgeIds.has(id))
+      const selectedNonAdminIds = selectedBadgeIds.filter(id => !adminBadgeIds.has(id))
+      const badgesToAdd = selectedNonAdminIds.filter(id => !currentBadgeIds.includes(id))
+      const badgesToRemove = currentBadgeIds.filter(id => !selectedNonAdminIds.includes(id))
       if (badgesToAdd.length > 0) {
         await supabase
           .from('user_badges')
