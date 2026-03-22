@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { Check, X, Eye, EyeOff } from 'lucide-react'
@@ -15,8 +15,11 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  const { signIn, signUp, resetPasswordForEmail } = useAuthStore()
+  const { signIn, signUp, resetPasswordForEmail, sessionExpired, clearSessionExpired } = useAuthStore()
   const navigate = useNavigate()
+
+  // Clear the flag once the user has seen the banner (on unmount or sign-in)
+  useEffect(() => () => clearSessionExpired(), [clearSessionExpired])
 
   const getPasswordStrength = (pass: string) => {
     let strength = 0
@@ -154,6 +157,13 @@ export default function AuthPage() {
             {mode === 'forgot' ? 'Reset your password' : 'Track what you watch, play, and read'}
           </p>
         </div>
+
+        {/* Session-expired notice */}
+        {sessionExpired && (
+          <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-400 text-sm text-center">
+            Your session expired — please sign in again.
+          </div>
+        )}
 
         {/* Auth Form */}
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">

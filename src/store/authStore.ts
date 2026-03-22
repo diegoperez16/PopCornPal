@@ -4,6 +4,10 @@ import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { Profile } from '../lib/supabase'
 
+// Set to true while signOut() is running so the SIGNED_OUT listener
+// knows it was intentional and doesn't show the "session expired" banner.
+let _signingOut = false
+
 const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
   setItem: (key: string, value: string) => {
@@ -23,13 +27,13 @@ interface AuthState {
   profile: Profile | null
   loading: boolean
   lastAuthCheck: number
+  sessionExpired: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, username: string) => Promise<void>
   signOut: () => Promise<void>
-  // New methods
+  clearSessionExpired: () => void
   resetPasswordForEmail: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
-
   fetchProfile: (userId: string) => Promise<void>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   initialize: () => Promise<void>
@@ -43,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
   profile: null,
   loading: false,
   lastAuthCheck: 0,
+  sessionExpired: false,
 
   initialize: async () => {
     try {
@@ -81,7 +86,9 @@ export const useAuthStore = create<AuthState>()(
           set({ user: session?.user ?? null, lastAuthCheck: Date.now() })
           if (session?.user) await get().fetchProfile(session.user.id)
         } else if (event === 'SIGNED_OUT') {
-          set({ user: null, profile: null, lastAuthCheck: 0 })
+          // Distinguish automatic expiry from manual sign-out so we can show
+          // the "session expired" banner only when the user didn't log out themselves.
+          set({ user: null, profile: null, lastAuthCheck: 0, sessionExpired: !_signingOut })
         } else {
           const currentUser = get().user
           if (session?.user?.id !== currentUser?.id) {
@@ -192,7 +199,12 @@ export const useAuthStore = create<AuthState>()(
   },
 
   signOut: async () => {
-    await supabase.auth.signOut()
+    _signingOut = true
+    try {
+      await supabase.auth.signOut()
+    } finally {
+      _signingOut = false
+    }
     // Clear all persisted app data
     const { useSocialStore } = await import('./socialStore')
     const { useMediaStore } = await import('./mediaStore')
@@ -202,8 +214,10 @@ export const useAuthStore = create<AuthState>()(
     Object.keys(localStorage)
       .filter(k => k.startsWith('popcorn_') && k !== 'popcorn-auth' && k !== 'popcorn-media' && k !== 'popcorn-social')
       .forEach(k => localStorage.removeItem(k))
-    set({ user: null, profile: null, lastAuthCheck: 0 })
+    set({ user: null, profile: null, lastAuthCheck: 0, sessionExpired: false })
   },
+
+  clearSessionExpired: () => set({ sessionExpired: false }),
 
   fetchProfile: async (userId) => {
     const { data } = await supabase

@@ -1,7 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { isSupabaseConfigured } from './lib/supabase'
+import { supabase, isSupabaseConfigured } from './lib/supabase'
 import MobileNav from './components/MobileNav'
 import DesktopNav from './components/DesktopNav'
 import SplashLoader from './components/SplashLoader'
@@ -134,12 +134,17 @@ function App() {
     init()
   }, [initialize])
 
-  // When the app returns from background: silently recheck session.
-  // Data staleness is handled by each page's own TTL checks — no reload needed.
+  // Manage Supabase's auto-refresh timer based on tab visibility.
+  // stopAutoRefresh() when hidden avoids wasted token-refresh calls in the background.
+  // startAutoRefresh() on return ensures the timer is running again and immediately
+  // refreshes the token if it expired while backgrounded, before resumeSession() runs.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        supabase.auth.startAutoRefresh()
         resumeSession()
+      } else {
+        supabase.auth.stopAutoRefresh()
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
