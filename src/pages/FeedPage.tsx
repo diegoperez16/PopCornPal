@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore } from '../store/socialStore'
 import { useNavigate, Link } from 'react-router-dom'
-import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, WifiOff } from 'lucide-react'
+import { Heart, MessageCircle, Share2, User, Film, Tv, Gamepad2, Book, Clock, Image as ImageIcon, X, Trash2, ArrowUp, WifiOff, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { feedKeys } from '../lib/queryClient'
@@ -53,6 +53,9 @@ export default function FeedPage() {
   const {
     data: feedData,
     isLoading: feedIsLoading,
+    isError: feedIsError,
+    isFetching: feedIsFetching,
+    refetch: refetchFeed,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -614,6 +617,21 @@ export default function FeedPage() {
     return <FeedSkeleton />
   }
 
+  if (feedIsError && posts.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white flex flex-col items-center justify-center gap-4 pb-20">
+        <RefreshCw className="w-8 h-8 text-gray-500" />
+        <p className="text-gray-400 text-sm">Something went wrong.</p>
+        <button
+          onClick={() => refetchFeed()}
+          className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-full transition-colors"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
       {/* Loading Bar */}
@@ -628,6 +646,20 @@ export default function FeedPage() {
         <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 text-center text-xs text-red-200 flex items-center justify-center gap-2 safe-area-top">
           <WifiOff className="w-3 h-3" />
           You are offline. Some features may be unavailable.
+        </div>
+      )}
+
+      {/* Stale fetch error banner — shown when a background refetch fails but cached posts are still visible */}
+      {feedIsError && !feedIsFetching && !isOffline && (
+        <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center justify-center gap-3 safe-area-top">
+          <span className="text-xs text-yellow-200">Something went wrong loading posts.</span>
+          <button
+            onClick={() => refetchFeed()}
+            className="flex items-center gap-1 text-xs font-semibold text-yellow-300 hover:text-white transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Reload
+          </button>
         </div>
       )}
 
