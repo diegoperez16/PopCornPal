@@ -126,19 +126,33 @@ function HomePage() {
   )
 }
 
+function isChunkLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return (
+    error.message.includes('dynamically imported module') ||
+    error.message.includes('Importing a module script failed') ||
+    (error as any).name === 'ChunkLoadError'
+  )
+}
+
+// Guard against infinite reload loops: only reload once per 10s window
+function reloadForChunkError() {
+  const key = 'chunk_reload_at'
+  const last = Number(sessionStorage.getItem(key) ?? 0)
+  if (Date.now() - last > 10_000) {
+    sessionStorage.setItem(key, String(Date.now()))
+    window.location.reload()
+  }
+}
+
 // Catches failed lazy chunk loads (e.g. after a new deploy invalidates cached JS URLs)
 // and forces a full page reload so the browser fetches fresh chunks.
 class ChunkErrorBoundary extends Component<{ children: ReactNode }, { crashed: boolean }> {
   state = { crashed: false }
 
   componentDidCatch(error: Error, _info: ErrorInfo) {
-    const isChunkError =
-      error.message.includes('Failed to fetch dynamically imported module') ||
-      error.message.includes('Importing a module script failed') ||
-      error.name === 'ChunkLoadError'
-
-    if (isChunkError) {
-      window.location.reload()
+    if (isChunkLoadError(error)) {
+      reloadForChunkError()
     } else {
       this.setState({ crashed: true })
       console.error('App error:', error)
@@ -163,6 +177,17 @@ class ChunkErrorBoundary extends Component<{ children: ReactNode }, { crashed: b
     }
     return this.props.children
   }
+}
+
+// Catch chunk load errors that fire as unhandled promise rejections
+// (lazy imports fail before React's render cycle, so componentDidCatch won't see them)
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (isChunkLoadError(event.reason)) {
+      event.preventDefault()
+      reloadForChunkError()
+    }
+  })
 }
 
 function App() {
