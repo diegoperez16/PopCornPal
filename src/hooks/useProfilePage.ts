@@ -686,6 +686,7 @@ export function useProfilePage() {
       ctx.drawImage(img, offsetX, offsetY, displayWidth, displayHeight)
       setUploadedAvatar(canvas.toDataURL('image/png'))
       setAvatarUrl('')
+      setPendingAvatarGifCrop(null)
     }
     img.src = src
   }
