@@ -68,6 +68,7 @@ export function useProfilePage() {
   const [showAvatarGifPicker, setShowAvatarGifPicker] = useState(false)
   const [showAvatarCropper, setShowAvatarCropper] = useState(false)
   const [avatarToCrop, setAvatarToCrop] = useState<string | null>(null)
+  const [pendingAvatarGifCrop, setPendingAvatarGifCrop] = useState<AvatarCrop | null>(null)
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
 
   // Profile Background State
@@ -435,6 +436,7 @@ export function useProfilePage() {
       setBio(profile.bio || '')
       setAvatarUrl(profile.avatar_url || '')
       setUploadedAvatar(null)
+      setPendingAvatarGifCrop(profile.avatar_crop ?? null)
       const bgUrl = profile.bg_url || ''
       setProfileBgUrl(bgUrl)
       setProfileBgOpacity(profile.bg_opacity ?? 80)
@@ -511,6 +513,7 @@ export function useProfilePage() {
         bg_url: bgUrlToSave,
         bg_opacity: profileBgOpacity,
         bg_crop: bgCropToSave,
+        avatar_crop: pendingAvatarGifCrop,
       })
       // Only manage non-admin badges here — admin badges can only be removed by admins
       const adminBadgeIds = new Set(availableBadges.filter(b => b.admin_only).map(b => b.id))
@@ -564,16 +567,8 @@ export function useProfilePage() {
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
-      if (file.type === 'image/gif' || result.includes('data:image/gif')) {
-        setPendingBgImage(result)
-        setUploadedBgImage(result)
-        setProfileBgUrl('')
-        setDesktopCropData(null)
-        setMobileCropData(null)
-      } else {
-        setImageToCrop(result)
-        setShowImageCropper(true)
-      }
+      setImageToCrop(result)
+      setShowImageCropper(true)
     }
     reader.readAsDataURL(file)
   }
@@ -593,27 +588,15 @@ export function useProfilePage() {
       }
       setPendingBgImage(null)
       setOriginalBgImageUrl(null)
-      if (processedUrl.toLowerCase().endsWith('.gif') || processedUrl.includes('giphy.com') || processedUrl.includes('tenor.com')) {
-        setPendingBgImage(processedUrl)
-        setProfileBgUrl(processedUrl)
-        setUploadedBgImage(null)
-        setDesktopCropData(null)
-        setMobileCropData(null)
-      } else {
-        setImageToCrop(processedUrl)
-        setShowImageCropper(true)
-      }
+      setImageToCrop(processedUrl)
+      setShowImageCropper(true)
     }
   }
 
   const handleGifPickerSelect = (gifUrl: string) => {
-    setPendingBgImage(gifUrl)
-    setOriginalBgImageUrl(null)
-    setProfileBgUrl(gifUrl)
-    setUploadedBgImage(null)
-    setDesktopCropData(null)
-    setMobileCropData(null)
     setShowGifPickerModal(false)
+    setImageToCrop(gifUrl)
+    setShowImageCropper(true)
   }
 
   const handleCropComplete = (desktopCrop: CropData, mobileCrop: CropData) => {
@@ -660,14 +643,8 @@ export function useProfilePage() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       const result = ev.target?.result as string
-      if (file.type === 'image/gif' || result.includes('data:image/gif')) {
-        // GIFs skip cropping
-        setUploadedAvatar(result)
-        setAvatarUrl('')
-      } else {
-        setAvatarToCrop(result)
-        setShowAvatarCropper(true)
-      }
+      setAvatarToCrop(result)
+      setShowAvatarCropper(true)
     }
     reader.readAsDataURL(file)
   }
@@ -677,6 +654,16 @@ export function useProfilePage() {
     setShowAvatarCropper(false)
     setAvatarToCrop(null)
     if (!src) return
+
+    // GIFs can't be rendered on canvas without losing animation.
+    // Store the raw GIF + crop settings; CSS transforms apply at display time.
+    const isGif = src.startsWith('data:image/gif') || src.toLowerCase().includes('.gif')
+    if (isGif) {
+      setUploadedAvatar(src)
+      setAvatarUrl('')
+      setPendingAvatarGifCrop(cropData)
+      return
+    }
 
     const img = new Image()
     img.onload = () => {
@@ -730,6 +717,7 @@ export function useProfilePage() {
   const handleRemoveAvatar = () => {
     setUploadedAvatar(null)
     setAvatarUrl('')
+    setPendingAvatarGifCrop(null)
     if (avatarFileInputRef.current) {
       avatarFileInputRef.current.value = ''
     }
@@ -867,6 +855,7 @@ export function useProfilePage() {
     setShowAvatarGifPicker,
     showAvatarCropper,
     avatarToCrop,
+    pendingAvatarGifCrop,
     avatarFileInputRef,
     profileBgUrl,
     setProfileBgUrl,

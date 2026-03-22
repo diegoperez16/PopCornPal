@@ -31,6 +31,7 @@ export default function ProfilePage() {
     setShowAvatarGifPicker,
     showAvatarCropper,
     avatarToCrop,
+    pendingAvatarGifCrop,
     avatarFileInputRef,
     profileBgUrl,
     profileBgOpacity,
@@ -199,6 +200,12 @@ export default function ProfilePage() {
                       src={uploadedAvatar || avatarUrl || profile.avatar_url || ''}
                       alt="Profile"
                       className="w-full h-full object-cover"
+                      style={pendingAvatarGifCrop ? {
+                        objectFit: 'cover',
+                        objectPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
+                        transform: `scale(${Math.max(1, pendingAvatarGifCrop.scale / 100)})`,
+                        transformOrigin: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
+                      } : undefined}
                       onError={(e) => {
                         e.currentTarget.style.display = 'none'
                         e.currentTarget.parentElement!.innerHTML = profile.username.charAt(0).toUpperCase()

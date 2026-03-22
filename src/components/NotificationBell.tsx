@@ -131,7 +131,9 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
           }
         }
       )
-      .subscribe()
+      .subscribe((_status, err) => {
+        if (err) console.error('[NotificationBell] realtime error:', err)
+      })
   }
 
   const markAllRead = async () => {

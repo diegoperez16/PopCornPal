@@ -71,6 +71,7 @@ export type Profile = {
   bg_url: string | null
   bg_opacity: number | null
   bg_crop?: BackgroundCrop | null
+  avatar_crop?: AvatarCrop | null
 }
 
 export type BackgroundCrop = {

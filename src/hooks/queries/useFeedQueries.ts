@@ -97,9 +97,7 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
     .select(`
       *,
       profiles:user_id (username, avatar_url),
-      media_entries:media_entry_id (title, media_type, rating, cover_image_url),
-      likes_count:post_likes(count),
-      comments_count:post_comments(count)
+      media_entries:media_entry_id (title, media_type, rating, cover_image_url)
     `)
     .in('user_id', [...limitedIds, userId])
     .order('created_at', { ascending: false })
@@ -119,8 +117,9 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
 
   const posts: Post[] = data.map((post: any) => ({
     ...post,
-    likes_count: post.likes_count?.[0]?.count ?? 0,
-    comments_count: post.comments_count?.[0]?.count ?? 0,
+    // Use trigger-maintained counter columns (O(1) reads, no COUNT subquery)
+    likes_count: post.likes_count ?? 0,
+    comments_count: post.comments_count ?? 0,
     is_liked: likedSet.has(post.id),
   }))
 
