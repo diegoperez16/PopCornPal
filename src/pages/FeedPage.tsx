@@ -210,9 +210,12 @@ export default function FeedPage() {
       fetchFeed().finally(() => setInitialLoading(false))
     } else {
       setInitialLoading(false)
-      // Silent background refresh if data is stale
+      // Silent background refresh if data is stale. Use getUser() to force a
+      // server round-trip and refresh the JWT before the fetch — otherwise the
+      // first RPC call races with Supabase's lazy token refresh and often fails
+      // on mobile after the app has been idle for more than the token TTL.
       if (Date.now() - feedLastFetchedRef.current > FEED_STALE_MS) {
-        fetchFeed(false, true)
+        supabase.auth.getUser().finally(() => fetchFeed(false, true))
       }
     }
 
@@ -235,18 +238,14 @@ export default function FeedPage() {
       if (document.visibilityState === 'visible') {
         const isStale = Date.now() - feedLastFetchedRef.current > FEED_STALE_MS
         const isEmpty = postsLengthRef.current === 0
-        if (isStale || isEmpty) {
-          // getUser() does a server round-trip and fully refreshes the JWT before
-          // the data fetch runs. getSession() only returns the cached session and
-          // would race with Supabase's lazy token refresh inside fetchFeed, often
-          // causing the first RPC call to fail on mobile after inactivity.
-          supabase.auth.getUser().finally(() => fetchFeed(false, true))
-        }
-        // Re-subscribe to realtime on every return from background. Browsers
-        // (especially iOS Safari and Android Chrome) kill WebSocket connections
-        // when the app is backgrounded for ~5+ minutes. Supabase's auto-reconnect
-        // relies on its heartbeat timer, which can't fire while JS is suspended.
-        if (!isOffline) subscribeToFeed(user!.id)
+        // getUser() forces a server round-trip to refresh the JWT. Both the fetch
+        // AND the realtime re-subscribe need a fresh token — subscribing with an
+        // expired JWT causes CHANNEL_ERROR immediately. Do both inside .finally()
+        // so the token is guaranteed fresh before either runs.
+        supabase.auth.getUser().finally(() => {
+          if (isStale || isEmpty) fetchFeed(false, true)
+          if (!isOffline) subscribeToFeed(user!.id)
+        })
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)

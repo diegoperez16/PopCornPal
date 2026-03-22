@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
 import { useNavigate } from 'react-router-dom'
@@ -26,7 +27,7 @@ export default function LibraryPage() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
-        fetchEntries(user.id)
+        supabase.auth.getUser().finally(() => fetchEntries(user.id))
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)

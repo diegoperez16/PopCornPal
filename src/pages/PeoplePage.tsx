@@ -1,4 +1,4 @@
-import { useState, useEffect,useLayoutEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -43,6 +43,23 @@ export default function PeoplePage() {
     }
   }, [peopleScrollPos, setPeopleScrollPos])
 
+  const followsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
+  const subscribeFollows = (uid: string) => {
+    if (followsChannelRef.current) {
+      supabase.removeChannel(followsChannelRef.current)
+    }
+    followsChannelRef.current = supabase
+      .channel(`follows-changes-${uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${uid}` },
+        () => { fetchFollowing(uid); fetchPeopleCounts(uid) }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${uid}` },
+        () => { fetchFollowers(uid); fetchPeopleCounts(uid) }
+      )
+      .subscribe()
+  }
+
   useEffect(() => {
     if (!user) return
 
@@ -60,29 +77,32 @@ export default function PeoplePage() {
     // Safety timer — if fetches hang, never stay stuck
     const safetyTimer = setTimeout(() => setRefreshing(false), 8000)
 
+    subscribeFollows(user.id)
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchPeopleCounts(user.id)
-        fetchFollowers(user.id)
-        fetchFollowing(user.id)
+        // getUser() does a server round-trip to refresh the JWT before fetches run.
+        // getSession() only returns the cached token and races with Supabase's lazy
+        // refresh, causing queries to fail with expired JWTs after inactivity.
+        // Both fetches and realtime re-subscribe need a fresh token.
+        // Run everything inside .finally() so the JWT is refreshed first.
+        supabase.auth.getUser().finally(() => {
+          fetchPeopleCounts(user.id)
+          fetchFollowers(user.id)
+          fetchFollowing(user.id)
+          subscribeFollows(user.id)
+        })
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    const followsChannel = supabase
-      .channel('follows-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${user.id}` },
-        () => { fetchFollowing(user.id); fetchPeopleCounts(user.id) }
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `following_id=eq.${user.id}` },
-        () => { fetchFollowers(user.id); fetchPeopleCounts(user.id) }
-      )
-      .subscribe()
-
     return () => {
       clearTimeout(safetyTimer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      supabase.removeChannel(followsChannel)
+      if (followsChannelRef.current) {
+        supabase.removeChannel(followsChannelRef.current)
+        followsChannelRef.current = null
+      }
     }
   }, [user])
 
