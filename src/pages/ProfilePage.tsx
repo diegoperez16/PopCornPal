@@ -252,7 +252,7 @@ export default function ProfilePage() {
                       <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(236,72,153,0.6)] ring-2 ring-pink-500/40">
                         {creatorBadge.badges?.gif_url ? (
                           <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}>
-                            <img src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover" />
+                            <img loading="lazy" decoding="async" src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover" />
                           </div>
                         ) : (
                           <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500" />
@@ -267,7 +267,7 @@ export default function ProfilePage() {
                       <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(34,211,238,0.6)] ring-2 ring-cyan-500/40">
                         {alphaBadge.badges?.gif_url ? (
                           <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}>
-                            <img src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover" />
+                            <img loading="lazy" decoding="async" src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover" />
                           </div>
                         ) : (
                           <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500" />
@@ -285,7 +285,7 @@ export default function ProfilePage() {
                         <div key={userBadge.id} className={`relative overflow-hidden rounded-full shadow-sm ${effects.glow} hover:scale-105 transition-transform`}>
                           {badge.gif_url ? (
                             <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
-                              <img src={badge.gif_url} alt="" className="w-full h-full object-cover" />
+                              <img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover" />
                             </div>
                           ) : (
                             <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }} />
@@ -370,7 +370,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-xl font-bold flex-shrink-0">
                         {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
-                          <img src={uploadedAvatar || avatarUrl || profile.avatar_url || ''} alt="" className="w-full h-full object-cover" />
+                          <img loading="lazy" decoding="async" src={uploadedAvatar || avatarUrl || profile.avatar_url || ''} alt="" className="w-full h-full object-cover" />
                         ) : (
                           profile.username.charAt(0).toUpperCase()
                         )}
@@ -572,7 +572,7 @@ export default function ProfilePage() {
                         </div>
                       )}
                       {fav.media_entry?.cover_image_url ? (
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={fav.media_entry.cover_image_url}
                           alt={fav.media_entry.title}
                           className="w-full h-full object-cover pointer-events-none"
@@ -697,7 +697,7 @@ export default function ProfilePage() {
                     className="flex gap-3 p-3 bg-gray-800/30 hover:bg-gray-800/60 rounded-2xl border border-gray-700/30 hover:border-gray-600/50 transition-all cursor-pointer group active:scale-[0.99]">
                     <div className="w-10 h-14 bg-gray-900 rounded-xl flex-shrink-0 overflow-hidden relative">
                       {entry.cover_image_url
-                        ? <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         : <div className="w-full h-full flex items-center justify-center text-gray-600"><Icon className="w-4 h-4" /></div>}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
                         <Edit2 className="w-4 h-4 text-white" />
@@ -826,7 +826,7 @@ export default function ProfilePage() {
                   return (
                     <button key={entry.id} onClick={() => handleAddFavorite(entry.id)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-800 transition-colors text-left group border border-transparent hover:border-gray-700">
                       <div className="w-10 h-14 bg-gray-800 rounded flex-shrink-0 overflow-hidden relative">
-                        {entry.cover_image_url ? <img src={entry.cover_image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Icon className="w-4 h-4 text-gray-600" /></div>}
+                        {entry.cover_image_url ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Icon className="w-4 h-4 text-gray-600" /></div>}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">{entry.title}</h4>

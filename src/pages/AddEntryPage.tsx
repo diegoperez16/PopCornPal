@@ -271,7 +271,7 @@ export default function AddEntryPage() {
               >
                 <div className="aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 shadow-md group-hover:shadow-xl group-hover:shadow-black/50 transition-all duration-300 group-hover:-translate-y-1 ring-1 ring-white/5 group-hover:ring-white/20 relative">
                   {item.image ? (
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={item.image}
                       alt={item.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -332,11 +332,11 @@ export default function AddEntryPage() {
                 {selectedItem.image ? (
                   <>
                     <div className="absolute inset-0 overflow-hidden">
-                      <img src={selectedItem.image} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
+                      <img loading="lazy" decoding="async" src={selectedItem.image} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
                       <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent md:bg-gradient-to-r" />
                     </div>
                     <div className="relative h-full w-full flex items-center justify-center p-6 md:p-8">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={selectedItem.image}
                         alt={selectedItem.title}
                         className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36"

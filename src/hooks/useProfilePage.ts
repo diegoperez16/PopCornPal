@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
@@ -7,7 +8,12 @@ import type { CropData } from '../components/ImageCropper'
 import type { AvatarCrop } from '../lib/supabase'
 
 export function useProfilePage() {
-  const { user, profile, updateProfile, signOut } = useAuthStore()
+  const { user, profile, updateProfile, signOut } = useAuthStore(useShallow(s => ({
+    user: s.user,
+    profile: s.profile,
+    updateProfile: s.updateProfile,
+    signOut: s.signOut,
+  })))
   const {
     entries,
     fetchEntries,
@@ -23,7 +29,22 @@ export function useProfilePage() {
     setAvailableBadges,
     setProfileLoaded,
     setProfileScrollPos
-  } = useMediaStore()
+  } = useMediaStore(useShallow(s => ({
+    entries: s.entries,
+    fetchEntries: s.fetchEntries,
+    updateEntry: s.updateEntry,
+    deleteEntry: s.deleteEntry,
+    favorites: s.favorites,
+    userBadges: s.userBadges,
+    availableBadges: s.availableBadges,
+    profileLoaded: s.profileLoaded,
+    profileScrollPos: s.profileScrollPos,
+    setFavorites: s.setFavorites,
+    setUserBadges: s.setUserBadges,
+    setAvailableBadges: s.setAvailableBadges,
+    setProfileLoaded: s.setProfileLoaded,
+    setProfileScrollPos: s.setProfileScrollPos,
+  })))
 
   const navigate = useNavigate()
 
@@ -101,14 +122,22 @@ export function useProfilePage() {
   const profileBgRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    let rafId: number | null = null
     const handleScroll = () => {
-      setShowAddButton(window.scrollY > 300)
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        setShowAddButton(window.scrollY > 300)
+        rafId = null
+      })
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
 
-    return () => window.removeEventListener('scroll', handleScroll)
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId)
+      window.removeEventListener('scroll', handleScroll)
+    }
   }, [])
 
   // Track window width for responsive crop application

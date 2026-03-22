@@ -136,7 +136,7 @@ export default function MediaSelectorModal({
                 >
                   <div className="w-10 h-14 bg-gray-800 rounded flex-shrink-0 overflow-hidden relative">
                     {entry.cover_image_url ? (
-                      <img src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Icon className="w-4 h-4 text-gray-600" />

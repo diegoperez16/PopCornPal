@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore, type MediaEntry } from '../store/mediaStore'
@@ -6,8 +7,13 @@ import { useNavigate } from 'react-router-dom'
 import { Film, Tv, Gamepad2, Book, Star, Edit2, X, Trash2, Loader2, Search, Calendar, Tag, Clock } from 'lucide-react'
 
 export default function LibraryPage() {
-  const { user } = useAuthStore()
-  const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore()
+  const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
+  const { entries, fetchEntries, updateEntry, deleteEntry } = useMediaStore(useShallow(s => ({
+    entries: s.entries,
+    fetchEntries: s.fetchEntries,
+    updateEntry: s.updateEntry,
+    deleteEntry: s.deleteEntry,
+  })))
   const navigate = useNavigate()
   
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
@@ -204,7 +210,7 @@ export default function LibraryPage() {
                 >
                   <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-black/50 group-hover:-translate-y-2 ring-1 ring-white/10 group-hover:ring-white/20">
                     {entry.cover_image_url ? (
-                      <img 
+                      <img loading="lazy" decoding="async" 
                         src={entry.cover_image_url} 
                         alt={entry.title} 
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
@@ -300,13 +306,13 @@ export default function LibraryPage() {
                 <>
                   {/* Blurred Backdrop */}
                   <div className="absolute inset-0 overflow-hidden">
-                    <img src={selectedEntry.cover_image_url} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
+                    <img loading="lazy" decoding="async" src={selectedEntry.cover_image_url} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent md:bg-gradient-to-r" />
                   </div>
                   
                   {/* Actual Poster Image */}
                   <div className="relative h-full w-full flex items-center justify-center p-6 md:p-8">
-                    <img 
+                    <img loading="lazy" decoding="async" 
                       src={selectedEntry.cover_image_url} 
                       alt={selectedEntry.title} 
                       className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36" 

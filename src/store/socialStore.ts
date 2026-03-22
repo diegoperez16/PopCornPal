@@ -494,25 +494,26 @@ export const useSocialStore = create<SocialState>()(
           const record = eventType === 'DELETE' ? oldRecord : newRecord
           const postId = record.post_id
 
-          const { count } = await supabase
+          // Use a single query to get count + whether the current user liked it,
+          // instead of two separate round-trips. Then update only the affected post
+          // using findIndex — avoids mapping the entire array on every like event.
+          const { data: likesData } = await supabase
             .from('post_likes')
-            .select('*', { count: 'exact', head: true })
+            .select('user_id')
             .eq('post_id', postId)
 
-          const { data: userLike } = await supabase
-            .from('post_likes')
-            .select('post_id')
-            .eq('post_id', postId)
-            .eq('user_id', userId)
-            .maybeSingle()
+          if (!likesData) return
 
-          set((state) => ({
-            feedPosts: state.feedPosts.map(p =>
-              p.id === postId
-                ? { ...p, likes_count: count ?? p.likes_count, is_liked: !!userLike }
-                : p
-            )
-          }))
+          const count = likesData.length
+          const isLiked = likesData.some(l => l.user_id === userId)
+
+          set((state) => {
+            const index = state.feedPosts.findIndex(p => p.id === postId)
+            if (index === -1) return state
+            const updated = [...state.feedPosts]
+            updated[index] = { ...updated[index], likes_count: count, is_liked: isLiked }
+            return { feedPosts: updated }
+          })
         }
 
         feedChannel = supabase

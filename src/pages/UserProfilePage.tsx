@@ -83,7 +83,7 @@ export default function UserProfilePage() {
         {creatorBadge && (
           <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(236,72,153,0.6)] ring-2 ring-pink-500/40 h-7 flex-shrink-0">
             {creatorBadge.badges?.gif_url
-              ? <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}><img src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
+              ? <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
               : <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500"/>}
             <div className="relative h-full flex items-center gap-1 px-3">
               <Crown className="w-3 h-3 text-white/90" />
@@ -94,7 +94,7 @@ export default function UserProfilePage() {
         {alphaBadge && (
           <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(34,211,238,0.5)] ring-2 ring-cyan-500/40 h-7 flex-shrink-0">
             {alphaBadge.badges?.gif_url
-              ? <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}><img src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
+              ? <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
               : <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500"/>}
             <div className="relative h-full flex items-center gap-1 px-3">
               <Beaker className="w-3 h-3 text-white/90" />
@@ -108,7 +108,7 @@ export default function UserProfilePage() {
           return (
             <div key={ub.id} className={`relative overflow-hidden rounded-full shadow-sm ${fx.glow} h-7 flex-shrink-0`}>
               {badge.gif_url
-                ? <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}><img src={badge.gif_url} alt="" className="w-full h-full object-cover"/></div>
+                ? <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover"/></div>
                 : <div className={`absolute inset-0 bg-gradient-to-br ${fx.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}/>}
               <div className="relative h-full flex items-center gap-1 px-3">
                 <div className="w-1 h-1 rounded-full bg-white/80"/>
@@ -124,7 +124,7 @@ export default function UserProfilePage() {
   const renderUserListItem = (user: any, listType: 'followers' | 'following') => (
     <li key={user.id} className="flex items-center gap-3 py-3">
       <button className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity" onClick={() => navigateToProfile(user.username)}>
-        {user.avatar_url ? <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : <span className="text-sm font-bold text-white">{user.username.charAt(0).toUpperCase()}</span>}
+        {user.avatar_url ? <img loading="lazy" decoding="async" src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" /> : <span className="text-sm font-bold text-white">{user.username.charAt(0).toUpperCase()}</span>}
       </button>
       <button className="flex-1 min-w-0 text-left" onClick={() => navigateToProfile(user.username)}>
         <span className="font-semibold text-white hover:text-red-400 transition-colors text-sm">@{user.username}</span>
@@ -183,7 +183,7 @@ export default function UserProfilePage() {
             <div className={`flex items-end justify-between ${profile.bg_url ? '-mt-10 sm:-mt-14' : ''} mb-3`}>
               <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-3xl sm:text-4xl font-bold border-4 border-gray-900 shadow-xl flex-shrink-0">
                 {profile.avatar_url
-                  ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover"/>
+                  ? <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover"/>
                   : profile.username.charAt(0).toUpperCase()}
               </div>
               {!isOwnProfile && currentUser && (
@@ -240,7 +240,7 @@ export default function UserProfilePage() {
                   <div key={fav.id} className="relative group flex-shrink-0 w-20 sm:w-24 cursor-pointer" onClick={() => setInspectedEntry(fav.media_entry)}>
                     <div className="aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden shadow-lg ring-1 ring-white/5 group-hover:ring-white/20 transition-all">
                       {fav.media_entry?.cover_image_url
-                        ? <img src={fav.media_entry.cover_image_url} alt={fav.media_entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+                        ? <img loading="lazy" decoding="async" src={fav.media_entry.cover_image_url} alt={fav.media_entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                         : <div className="w-full h-full flex items-center justify-center text-gray-600"><Film className="w-6 h-6"/></div>}
                       <div className="absolute top-1 left-1 bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full">{index + 1}</div>
                     </div>
@@ -277,7 +277,7 @@ export default function UserProfilePage() {
                       className="flex gap-3 p-3 bg-gray-800/30 hover:bg-gray-800/60 rounded-2xl border border-gray-700/30 hover:border-gray-600/50 transition-all cursor-pointer group">
                       <div className="w-10 h-14 bg-gray-900 rounded-lg flex-shrink-0 overflow-hidden">
                         {entry.cover_image_url
-                          ? <img src={entry.cover_image_url} className="w-full h-full object-cover"/>
+                          ? <img loading="lazy" decoding="async" src={entry.cover_image_url} className="w-full h-full object-cover"/>
                           : <div className="w-full h-full flex items-center justify-center text-gray-600"><Icon className="w-4 h-4"/></div>}
                       </div>
                       <div className="flex-1 min-w-0 py-0.5">
@@ -308,7 +308,7 @@ export default function UserProfilePage() {
                   <div key={post.id} className="bg-gray-800/30 border border-gray-700/40 rounded-2xl p-4">
                     <div className="flex items-center gap-2.5 mb-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover"/> : profile.username.charAt(0).toUpperCase()}
+                        {profile.avatar_url ? <img loading="lazy" decoding="async" src={profile.avatar_url} className="w-full h-full object-cover"/> : profile.username.charAt(0).toUpperCase()}
                       </div>
                       <span className="font-semibold text-sm text-white">@{profile.username}</span>
                       <span className="text-gray-600 text-xs ml-auto">{new Date(post.created_at).toLocaleDateString()}</span>
@@ -316,7 +316,7 @@ export default function UserProfilePage() {
                     <p className="text-gray-300 text-sm leading-relaxed mb-3 whitespace-pre-wrap">{post.content}</p>
                     {post.media_entries && (
                       <div className="bg-gray-900/60 rounded-xl p-3 mb-3 flex items-center gap-3 border border-gray-700/40">
-                        {post.media_entries.cover_image_url && <img src={post.media_entries.cover_image_url} className="w-10 h-14 object-cover rounded-lg bg-gray-800 flex-shrink-0"/>}
+                        {post.media_entries.cover_image_url && <img loading="lazy" decoding="async" src={post.media_entries.cover_image_url} className="w-10 h-14 object-cover rounded-lg bg-gray-800 flex-shrink-0"/>}
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm truncate text-white">{post.media_entries.title}</p>
                           <p className="text-xs text-gray-500 capitalize mt-0.5">{post.media_entries.media_type}</p>
@@ -383,7 +383,7 @@ export default function UserProfilePage() {
                       <div key={entry.id} className="group relative cursor-pointer" onClick={() => setInspectedEntry(entry)}>
                         <div className="aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-white/20 transition-all">
                           {entry.cover_image_url
-                            ? <img src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+                            ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                             : <div className="w-full h-full flex items-center justify-center text-gray-600"><Icon className="w-7 h-7"/></div>}
                           {entry.rating && (
                             <div className="absolute top-1.5 right-1.5 bg-black/80 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-[10px] font-bold text-yellow-400 flex items-center gap-0.5">
@@ -421,7 +421,7 @@ export default function UserProfilePage() {
             <div className="flex gap-4 p-4 overflow-y-auto">
               {inspectedEntry.cover_image_url && (
                 <div className="w-24 flex-shrink-0">
-                  <img src={inspectedEntry.cover_image_url} alt={inspectedEntry.title} className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg border border-white/5"/>
+                  <img loading="lazy" decoding="async" src={inspectedEntry.cover_image_url} alt={inspectedEntry.title} className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg border border-white/5"/>
                 </div>
               )}
               <div className="flex-1 min-w-0 flex flex-col gap-3">

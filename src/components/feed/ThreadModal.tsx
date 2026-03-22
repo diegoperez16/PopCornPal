@@ -157,7 +157,7 @@ export default function ThreadModal({
                 <div key={parentComment.id} className="flex gap-3 opacity-60 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center flex-shrink-0 overflow-hidden min-w-0">
                     {parentComment.profiles.avatar_url ? (
-                      <img src={parentComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={parentComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-white text-xs font-bold">
                         {parentComment.profiles.username.charAt(0).toUpperCase()}
@@ -176,7 +176,7 @@ export default function ThreadModal({
                       <p className="text-sm text-gray-400 break-words overflow-wrap-anywhere">{parentComment.content}</p>
                       {parentComment.image_url && (
                         <div className="mt-2">
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={parentComment.image_url}
                             alt="Parent comment"
                             className="max-w-full rounded-lg max-h-48 object-contain"
@@ -199,7 +199,7 @@ export default function ThreadModal({
             <div className="flex gap-3 border-l-2 border-red-500 pl-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {threadModalComment.profiles.avatar_url ? (
-                  <img src={threadModalComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  <img loading="lazy" decoding="async" src={threadModalComment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-white text-sm font-bold">
                     {threadModalComment.profiles.username.charAt(0).toUpperCase()}
@@ -259,7 +259,7 @@ export default function ThreadModal({
 
                   {threadModalComment.image_url && !editingCommentId && (
                     <div className="mt-3">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={threadModalComment.image_url}
                         alt="Comment attachment"
                         className="max-w-full rounded-lg max-h-96 object-contain"
@@ -368,7 +368,7 @@ export default function ThreadModal({
                           </div>
                         ) : (
                           <div className="relative inline-block group">
-                            <img src={replyImageUrl} alt="Reply attachment" className="h-20 rounded-lg border border-gray-700" />
+                            <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-20 rounded-lg border border-gray-700" />
                             <button
                               onClick={() => setReplyImageUrl('')}
                               className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -396,7 +396,7 @@ export default function ThreadModal({
                       <div key={reply.id} className="flex gap-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
                           {reply.profiles.avatar_url ? (
-                            <img src={reply.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                            <img loading="lazy" decoding="async" src={reply.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <span className="text-white text-xs font-bold">
                               {reply.profiles.username.charAt(0).toUpperCase()}
@@ -451,7 +451,7 @@ export default function ThreadModal({
 
                             {reply.image_url && !editingCommentId && (
                               <div className="mt-2">
-                                <img
+                                <img loading="lazy" decoding="async"
                                   src={reply.image_url}
                                   alt="Reply attachment"
                                   className="max-w-full rounded-lg max-h-64 object-contain"
@@ -574,7 +574,7 @@ export default function ThreadModal({
                                     </div>
                                   ) : (
                                     <div className="relative inline-block group">
-                                      <img src={replyImageUrl} alt="Reply attachment" className="h-20 rounded-lg border border-gray-700" />
+                                      <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-20 rounded-lg border border-gray-700" />
                                       <button
                                         onClick={() => setReplyImageUrl('')}
                                         className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"

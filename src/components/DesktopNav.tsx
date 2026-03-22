@@ -1,12 +1,13 @@
 import { Users, Search, Plus, Calendar, LogOut } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import NotificationBell from './NotificationBell'
 
 export default function DesktopNav() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { signOut, profile } = useAuthStore()
+  const { signOut, profile } = useAuthStore(useShallow(s => ({ signOut: s.signOut, profile: s.profile })))
 
   const navItems = [
     { path: '/feed', icon: Users, label: 'Feed' },

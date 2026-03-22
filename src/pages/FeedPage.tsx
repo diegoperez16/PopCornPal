@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useSocialStore, type Post } from '../store/socialStore'
@@ -15,23 +16,37 @@ import { type Comment, formatTimeAgo, findImageLink, wasEdited } from '../compon
 const FEED_STALE_MS = 5 * 60 * 1000 // 5 minutes
 
 export default function FeedPage() {
-  const { user, profile } = useAuthStore()
-  const { entries, fetchEntries } = useMediaStore()
+  const { user, profile } = useAuthStore(useShallow(s => ({ user: s.user, profile: s.profile })))
+  const { entries, fetchEntries } = useMediaStore(useShallow(s => ({ entries: s.entries, fetchEntries: s.fetchEntries })))
   const {
-    feedPosts: posts,
-    setFeedPosts: setPosts,
+    posts,
+    setPosts,
     feedLoaded,
     feedLastFetched,
     feedScrollPos,
     setFeedScrollPos,
-    feedVisibleCount: visiblePostsCount,
-    setFeedVisibleCount: setVisiblePostsCount,
-    hasMore: storeHasMore,
-    fetchFeed: storeFetchFeed,
+    visiblePostsCount,
+    setVisiblePostsCount,
+    storeHasMore,
+    storeFetchFeed,
     toggleLike,
     subscribeToFeed,
     unsubscribeFromFeed,
-  } = useSocialStore()
+  } = useSocialStore(useShallow(s => ({
+    posts: s.feedPosts,
+    setPosts: s.setFeedPosts,
+    feedLoaded: s.feedLoaded,
+    feedLastFetched: s.feedLastFetched,
+    feedScrollPos: s.feedScrollPos,
+    setFeedScrollPos: s.setFeedScrollPos,
+    visiblePostsCount: s.feedVisibleCount,
+    setVisiblePostsCount: s.setFeedVisibleCount,
+    storeHasMore: s.hasMore,
+    storeFetchFeed: s.fetchFeed,
+    toggleLike: s.toggleLike,
+    subscribeToFeed: s.subscribeToFeed,
+    unsubscribeFromFeed: s.unsubscribeFromFeed,
+  })))
 
   const navigate = useNavigate()
   
@@ -228,7 +243,7 @@ export default function FeedPage() {
     // Subscribe to realtime feed updates
     if (!isOffline) subscribeToFeed(user.id)
 
-    // Fetch the user's media library in the background
+    // Fetch the user's media library in parallel — no reason to wait for feed first
     if (!isOffline) fetchEntries(user.id)
 
     // Visibility change: when PWA returns from background, check staleness
@@ -250,10 +265,15 @@ export default function FeedPage() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    let scrollRaf: number | null = null
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 400)
+      if (scrollRaf) return
+      scrollRaf = requestAnimationFrame(() => {
+        setShowScrollTop(window.scrollY > 400)
+        scrollRaf = null
+      })
     }
-    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('scroll', handleScroll, { passive: true })
 
     const handleOpenThread = async (event: any) => {
       const { comment, postId } = event.detail
@@ -271,6 +291,7 @@ export default function FeedPage() {
 
     return () => {
       clearTimeout(safetyTimer)
+      if (scrollRaf) cancelAnimationFrame(scrollRaf)
       window.removeEventListener('scroll', handleScroll)
       window.removeEventListener('openThread', handleOpenThread as EventListener)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -798,7 +819,7 @@ export default function FeedPage() {
           <div className="flex gap-4">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0">
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                <img loading="lazy" decoding="async" src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
               ) : (
                 <User className="w-5 h-5 text-white" />
               )}
@@ -820,7 +841,7 @@ export default function FeedPage() {
                 return (
                   <div className="mt-2 inline-flex items-center gap-2 bg-gray-900/80 border border-gray-600 rounded-lg p-2 pr-3 max-w-full">
                     {entry.cover_image_url ? (
-                        <img src={entry.cover_image_url} alt="" className="w-8 h-10 object-cover rounded" />
+                        <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-8 h-10 object-cover rounded" />
                     ) : (
                         <div className="w-8 h-10 bg-gray-800 rounded flex items-center justify-center">
                             <Icon className="w-4 h-4 text-gray-400" />
@@ -839,7 +860,7 @@ export default function FeedPage() {
 
               {uploadedImage && (
                 <div className="mt-3 relative inline-block">
-                  <img 
+                  <img loading="lazy" decoding="async" 
                     src={uploadedImage} 
                     alt="Upload preview" 
                     className="max-h-60 rounded-xl border border-gray-700"
@@ -940,7 +961,7 @@ export default function FeedPage() {
                 <div className="flex items-center gap-2.5 mb-2.5">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {post.profiles.avatar_url ? (
-                      <img src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-5 h-5" />
                     )}
@@ -993,10 +1014,12 @@ export default function FeedPage() {
                   <div className="bg-gray-900/60 border border-gray-700/40 rounded-xl p-2.5 mb-2.5 flex items-center gap-2.5 hover:border-gray-600/60 transition-colors">
                     {post.media_entries.cover_image_url && (
                       <div className="w-10 h-14 flex-shrink-0 bg-gray-800 rounded overflow-hidden">
-                        <img 
-                          src={post.media_entries.cover_image_url} 
+                        <img
+                          src={post.media_entries.cover_image_url}
                           alt={post.media_entries.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none'
                           }}
@@ -1171,7 +1194,7 @@ export default function FeedPage() {
                               </div>
                            ) : (
                               <div className="relative inline-block group">
-                                 <img 
+                                 <img loading="lazy" decoding="async" 
                                    src={uploadedCommentImage || commentImageUrl} 
                                    alt="Comment attachment" 
                                    className="h-20 rounded-lg border border-gray-700" 

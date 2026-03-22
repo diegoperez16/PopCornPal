@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -7,14 +8,12 @@ import { Link } from 'react-router-dom'
 
 
 export default function PeoplePage() {
-  const { user } = useAuthStore()
-  
-  // Use Global Store for caching
-  const { 
-    followers, 
-    following, 
-    setFollowers, 
-    setFollowing, 
+  const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
+  const {
+    followers,
+    following,
+    setFollowers,
+    setFollowing,
     peopleLoaded,
     peopleScrollPos,
     setPeopleScrollPos,
@@ -22,10 +21,25 @@ export default function PeoplePage() {
     setPeopleActiveTab,
     followersCount,
     followingCount,
-    fetchFollowers, 
+    fetchFollowers,
     fetchFollowing,
     fetchPeopleCounts
-  } = useSocialStore()
+  } = useSocialStore(useShallow(s => ({
+    followers: s.followers,
+    following: s.following,
+    setFollowers: s.setFollowers,
+    setFollowing: s.setFollowing,
+    peopleLoaded: s.peopleLoaded,
+    peopleScrollPos: s.peopleScrollPos,
+    setPeopleScrollPos: s.setPeopleScrollPos,
+    peopleActiveTab: s.peopleActiveTab,
+    setPeopleActiveTab: s.setPeopleActiveTab,
+    followersCount: s.followersCount,
+    followingCount: s.followingCount,
+    fetchFollowers: s.fetchFollowers,
+    fetchFollowing: s.fetchFollowing,
+    fetchPeopleCounts: s.fetchPeopleCounts,
+  })))
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ProfileWithFollowStatus[]>([])
@@ -63,16 +77,14 @@ export default function PeoplePage() {
   useEffect(() => {
     if (!user) return
 
-    fetchPeopleCounts(user.id)
-
-    if (!peopleLoaded) {
-      setRefreshing(true)
-      Promise.all([fetchFollowers(user.id), fetchFollowing(user.id)])
-        .finally(() => setRefreshing(false))
-    } else {
-      fetchFollowers(user.id)
-      fetchFollowing(user.id)
-    }
+    // Run all three fetches in parallel — counts, followers, and following
+    // have no dependencies on each other
+    if (!peopleLoaded) setRefreshing(true)
+    Promise.all([
+      fetchPeopleCounts(user.id),
+      fetchFollowers(user.id),
+      fetchFollowing(user.id),
+    ]).finally(() => setRefreshing(false))
 
     // Safety timer — if fetches hang, never stay stuck
     const safetyTimer = setTimeout(() => setRefreshing(false), 8000)
@@ -285,7 +297,7 @@ export default function PeoplePage() {
       >
         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
           {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
           ) : (
             profile.username.charAt(0).toUpperCase()
           )}
@@ -341,7 +353,7 @@ export default function PeoplePage() {
       >
         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
           {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
           ) : (
             profile.username.charAt(0).toUpperCase()
           )}
