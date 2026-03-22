@@ -181,10 +181,13 @@ function App() {
 
   // Manage Supabase's auto-refresh timer based on tab visibility.
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         supabase.auth.startAutoRefresh()
-        resumeSession()
+        await resumeSession()
+        // After the session is verified/refreshed, invalidate all stale TQ queries
+        // so the UI refreshes immediately instead of waiting for the next stale interval.
+        queryClient.invalidateQueries()
       } else {
         supabase.auth.stopAutoRefresh()
       }

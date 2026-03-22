@@ -6,6 +6,7 @@ import { useMediaStore } from '../store/mediaStore'
 import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMediaQueries'
 import type { MediaEntry } from './queries/useMediaQueries'
 import { supabase, type UserBadge } from '../lib/supabase'
+import { authedQuery } from '../lib/queryClient'
 import type { CropData } from '../components/ImageCropper'
 import type { AvatarCrop } from '../lib/supabase'
 
@@ -215,12 +216,13 @@ export function useProfilePage() {
 
   const fetchFavorites = async () => {
     if (!user) return
-    const { data } = await supabase
-      .from('profile_favorites')
-      .select('*, media_entry:media_entries(*)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-
+    const data = await authedQuery(() =>
+      supabase
+        .from('profile_favorites')
+        .select('*, media_entry:media_entries(*)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+    )
     if (data) setFavorites(data)
   }
 
@@ -395,12 +397,15 @@ export function useProfilePage() {
   const fetchUserBadges = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('user_badges')
-      .select('*, badges(*)')
-      .eq('user_id', user.id)
-
-    if (error) {
+    let data: any[] | null = null
+    try {
+      data = await authedQuery(() =>
+        supabase
+          .from('user_badges')
+          .select('*, badges(*)')
+          .eq('user_id', user.id)
+      )
+    } catch (error) {
       console.error('[fetchUserBadges] error:', error)
       return
     }

@@ -85,6 +85,11 @@ export const useAuthStore = create<AuthState>()(
         if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
           set({ user: session?.user ?? null, lastAuthCheck: Date.now() })
           if (session?.user) await get().fetchProfile(session.user.id)
+          // Invalidate all TQ queries so they re-fetch with the new token
+          if (event === 'TOKEN_REFRESHED') {
+            const { queryClient } = await import('../lib/queryClient')
+            queryClient.invalidateQueries()
+          }
         } else if (event === 'SIGNED_OUT') {
           // Distinguish automatic expiry from manual sign-out so we can show
           // the "session expired" banner only when the user didn't log out themselves.
@@ -120,8 +125,8 @@ export const useAuthStore = create<AuthState>()(
       const { user, lastAuthCheck, profile } = get()
       if (!user) return // nothing to resume
 
-      const THIRTY_MINUTES = 30 * 60 * 1000
-      if (Date.now() - lastAuthCheck < THIRTY_MINUTES) return // still fresh
+      const FIVE_MINUTES = 5 * 60 * 1000
+      if (Date.now() - lastAuthCheck < FIVE_MINUTES) return // still fresh
 
       const { data, error } = await supabase.auth.getSession()
 

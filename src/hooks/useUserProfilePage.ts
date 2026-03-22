@@ -1,8 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase, type UserBadge, type BackgroundCrop } from '../lib/supabase'
+import {
+  useUserProfile,
+  useUserPosts,
+  useUserRecentActivity,
+  useFollowUserProfile,
+  useToggleUserPostLike,
+} from './queries/useProfileQueries'
+import type { ProfileMediaEntry } from './queries/useProfileQueries'
 
 // --- TYPES ---
+// Re-export compatible type aliases so callers (UserProfilePage.tsx) keep working
 export type UserProfile = {
   id: string
   username: string
@@ -31,19 +40,7 @@ export type Post = {
   }
 }
 
-export type MediaEntry = {
-  id: string
-  title: string
-  media_type: 'movie' | 'show' | 'game' | 'book'
-  status: string
-  rating: number | null
-  cover_image_url: string | null
-  updated_at: string
-  created_at: string
-  year?: number
-  genre?: string
-  notes?: string
-}
+export type MediaEntry = ProfileMediaEntry
 
 export type Favorite = {
   id: string
@@ -57,35 +54,22 @@ export function useUserProfilePage(
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Profile Data
-  const [profile, setProfile] = useState<UserProfile | null>(() => {
-    const initialProfile = location.state?.initialProfile
-    if (initialProfile && initialProfile.username === username) {
-      return {
-        id: initialProfile.id,
-        username: initialProfile.username,
-        full_name: initialProfile.full_name || null,
-        bio: initialProfile.bio || null,
-        avatar_url: initialProfile.avatar_url || null,
-        bg_url: null,
-        bg_opacity: null,
-        created_at: new Date().toISOString()
-      }
-    }
-    return null
-  })
-  const [userBadges, setUserBadges] = useState<UserBadge[]>([])
-  const [posts, setPosts] = useState<Post[]>([])
+  const currentUserId = currentUser?.id ?? null
 
-  // Social Data
-  const [followersCount, setFollowersCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
-  const [isFollowing, setIsFollowing] = useState(false)
+  // ─── TanStack Query hooks ────────────────────────────────────────────────────
 
-  // Media Data
-  const [favorites, setFavorites] = useState<Favorite[]>([])
-  const [recentActivity, setRecentActivity] = useState<MediaEntry[]>([])
-  const [fullLibrary, setFullLibrary] = useState<MediaEntry[]>([])
+  const profileQuery = useUserProfile(username, currentUserId)
+  const profileData = profileQuery.data
+
+  const profileUserId = profileData?.profile?.id
+
+  const postsQuery = useUserPosts(profileUserId, currentUserId)
+  const recentActivityQuery = useUserRecentActivity(profileUserId)
+
+  const followMutation = useFollowUserProfile(currentUserId)
+  const likeMutation = useToggleUserPostLike(currentUserId, profileUserId)
+
+  // ─── Local UI state ───────────────────────────────────────────────────────────
 
   // Modal States
   const [showLibraryModal, setShowLibraryModal] = useState(false)
@@ -107,87 +91,60 @@ export function useUserProfilePage(
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Loading States
-  const [initialLoading, setInitialLoading] = useState(!profile)
-  const [loading, setLoading] = useState(false)
-  const [followLoading, setFollowLoading] = useState(false)
+  // Full library (loaded lazily when modal opens)
+  const [fullLibrary, setFullLibrary] = useState<MediaEntry[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
+
+  // Followers / following list loading states
   const [followersListLoading, setFollowersListLoading] = useState(false)
   const [followingListLoading, setFollowingListLoading] = useState(false)
 
-  // Lazy Load States
-  const [postsLoaded, setPostsLoaded] = useState(false)
-  const [recentActivityLoaded, setRecentActivityLoaded] = useState(false)
+  // ─── Derived loading states (mapped from TQ) ─────────────────────────────────
 
-  useEffect(() => {
-    if (username) {
-      if (!profile || profile.username !== username) {
-        setInitialLoading(true)
-      }
-      fetchUserProfile().finally(() => setInitialLoading(false))
-    }
-  }, [username])
+  // initialLoading: true until the profile itself resolves for the first time
+  const initialLoading = profileQuery.isLoading
 
-  useEffect(() => {
-    if (showLibraryModal && fullLibrary.length === 0 && profile) {
-      fetchFullLibrary()
-    }
-  }, [showLibraryModal])
+  // loading: true while any background refetch is in progress
+  const loading = profileQuery.isFetching || postsQuery.isFetching || recentActivityQuery.isFetching
 
-  useEffect(() => {
-    if (showFollowersModal && profile) {
-      fetchFollowersList()
-    }
-  }, [showFollowersModal, profile?.id, currentUser?.id])
+  // postsLoaded / recentActivityLoaded: analogous to the old boolean flags
+  const postsLoaded = postsQuery.isSuccess
+  const recentActivityLoaded = recentActivityQuery.isSuccess
 
-  useEffect(() => {
-    if (showFollowingModal && profile) {
-      fetchFollowingList()
-    }
-  }, [showFollowingModal, profile?.id, currentUser?.id])
+  // followLoading: tracked via mutation status
+  const followLoading = followMutation.isPending
 
-  const fetchFullLibrary = async () => {
-    if (!profile) return
-    setLibraryLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('media_entries')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('updated_at', { ascending: false })
+  // ─── Handlers ────────────────────────────────────────────────────────────────
 
-      if (error) throw error
-      setFullLibrary(data as MediaEntry[])
-    } catch (error) {
-      console.error('Error fetching library:', error)
-    } finally {
-      setLibraryLoading(false)
-    }
+  const handleFollow = () => {
+    if (!currentUser || !profileData?.profile || followLoading) return
+    followMutation.mutate({
+      targetUserId: profileData.profile.id,
+      isCurrentlyFollowing: profileData.isFollowing,
+      username: profileData.profile.username,
+    })
+  }
+
+  const handleLike = (postId: string) => {
+    if (!currentUser) return
+    const post = (postsQuery.data ?? []).find(p => p.id === postId)
+    if (!post) return
+    likeMutation.mutate({ postId, isLiked: post.user_liked })
   }
 
   const handleFollowUser = async (targetUserId: string, isCurrentlyFollowing: boolean, listType: 'followers' | 'following') => {
     if (!currentUser) return
-
     try {
       if (isCurrentlyFollowing) {
         await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetUserId)
       } else {
         await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: targetUserId })
       }
-
       const updateList = (list: any[]) => list.map(user =>
-        user.id === targetUserId
-          ? { ...user, isFollowing: !isCurrentlyFollowing }
-          : user
+        user.id === targetUserId ? { ...user, isFollowing: !isCurrentlyFollowing } : user
       )
-
-      if (listType === 'followers') setFollowersList(updateList(followersList))
-      if (listType === 'following') setFollowingList(updateList(followingList))
-
-      if (targetUserId === profile?.id) {
-        setIsFollowing(!isCurrentlyFollowing)
-        setFollowersCount(prev => isCurrentlyFollowing ? prev - 1 : prev + 1)
-      }
+      if (listType === 'followers') setFollowersList(prev => updateList(prev))
+      if (listType === 'following') setFollowingList(prev => updateList(prev))
     } catch (error) {
       console.error('Error toggling follow:', error)
     }
@@ -197,55 +154,59 @@ export function useUserProfilePage(
     const userFromFollowers = followersList.find(u => u.username === targetUsername)
     const userFromFollowing = followingList.find(u => u.username === targetUsername)
     const optimisticProfile = userFromFollowers || userFromFollowing
-
     setShowFollowersModal(false)
     setShowFollowingModal(false)
-    navigate(`/profile/${targetUsername}`, {
-      state: { initialProfile: optimisticProfile }
-    })
+    navigate(`/profile/${targetUsername}`, { state: { initialProfile: optimisticProfile } })
   }
 
+  // Library is still fetched directly (no TQ hook exists for this yet)
+  const fetchFullLibrary = async () => {
+    if (!profileUserId) return
+    setLibraryLoading(true)
+    try {
+      await supabase.auth.getSession()
+      const { data, error } = await supabase
+        .from('media_entries')
+        .select('*')
+        .eq('user_id', profileUserId)
+        .order('updated_at', { ascending: false })
+      if (error) throw error
+      setFullLibrary(data as MediaEntry[])
+    } catch (error) {
+      console.error('Error fetching library:', error)
+    } finally {
+      setLibraryLoading(false)
+    }
+  }
+
+  // Trigger lazy full-library load when modal opens
+  useEffect(() => {
+    if (showLibraryModal && fullLibrary.length === 0 && profileUserId && !libraryLoading) {
+      fetchFullLibrary()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLibraryModal, profileUserId])
+
   const fetchFollowersList = async () => {
-    if (!profile) return
+    if (!profileUserId) return
     setFollowersListLoading(true)
     try {
+      await supabase.auth.getSession()
       const { data: followsData, error: followsError } = await supabase
         .from('follows')
-        .select(`
-          follower_id,
-          follower:profiles!follower_id (id, username, full_name, avatar_url, bio)
-        `)
-        .eq('following_id', profile.id)
+        .select(`follower_id, follower:profiles!follower_id (id, username, full_name, avatar_url, bio)`)
+        .eq('following_id', profileUserId)
         .limit(100)
-
       if (followsError) throw followsError
-
-      if (!followsData || followsData.length === 0) {
-        setFollowersList([])
-        return
-      }
-
+      if (!followsData || followsData.length === 0) { setFollowersList([]); return }
       const profiles = followsData.map(f => f.follower).filter(Boolean) as any[]
       const ids = profiles.map(p => p.id)
-
       let followersWithStatus = profiles.map(p => ({ ...p, isFollowing: false }))
-
       if (currentUser) {
-        const { data: myFollows, error: myFollowsError } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', currentUser.id)
-          .in('following_id', ids)
-
-        if (myFollowsError) console.error('Error checking follows:', myFollowsError)
-
+        const { data: myFollows } = await supabase.from('follows').select('following_id').eq('follower_id', currentUser.id).in('following_id', ids)
         const myFollowsSet = new Set(myFollows?.map(f => f.following_id))
-        followersWithStatus = followersWithStatus.map(p => ({
-          ...p,
-          isFollowing: myFollowsSet.has(p.id)
-        }))
+        followersWithStatus = followersWithStatus.map(p => ({ ...p, isFollowing: myFollowsSet.has(p.id) }))
       }
-
       setFollowersList(followersWithStatus)
     } catch (error) {
       console.error('Error fetching followers list:', error)
@@ -255,46 +216,25 @@ export function useUserProfilePage(
   }
 
   const fetchFollowingList = async () => {
-    if (!profile) return
+    if (!profileUserId) return
     setFollowingListLoading(true)
     try {
+      await supabase.auth.getSession()
       const { data: followsData, error: followsError } = await supabase
         .from('follows')
-        .select(`
-          following_id,
-          following:profiles!following_id (id, username, full_name, avatar_url, bio)
-        `)
-        .eq('follower_id', profile.id)
+        .select(`following_id, following:profiles!following_id (id, username, full_name, avatar_url, bio)`)
+        .eq('follower_id', profileUserId)
         .limit(100)
-
       if (followsError) throw followsError
-
-      if (!followsData || followsData.length === 0) {
-        setFollowingList([])
-        return
-      }
-
+      if (!followsData || followsData.length === 0) { setFollowingList([]); return }
       const profiles = followsData.map(f => f.following).filter(Boolean) as any[]
       const ids = profiles.map(p => p.id)
-
       let followingWithStatus = profiles.map(p => ({ ...p, isFollowing: false }))
-
       if (currentUser) {
-        const { data: myFollows, error: myFollowsError } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', currentUser.id)
-          .in('following_id', ids)
-
-        if (myFollowsError) console.error('Error checking following status:', myFollowsError)
-
+        const { data: myFollows } = await supabase.from('follows').select('following_id').eq('follower_id', currentUser.id).in('following_id', ids)
         const myFollowsSet = new Set(myFollows?.map(f => f.following_id))
-        followingWithStatus = followingWithStatus.map(p => ({
-          ...p,
-          isFollowing: myFollowsSet.has(p.id)
-        }))
+        followingWithStatus = followingWithStatus.map(p => ({ ...p, isFollowing: myFollowsSet.has(p.id) }))
       }
-
       setFollowingList(followingWithStatus)
     } catch (error) {
       console.error('Error fetching following list:', error)
@@ -303,185 +243,24 @@ export function useUserProfilePage(
     }
   }
 
-  const fetchRecentActivity = async (userId?: string) => {
-    const targetId = userId || profile?.id
-    if (!targetId) return
-    try {
-      const { data, error } = await supabase
-        .from('media_entries')
-        .select('*')
-        .eq('user_id', targetId)
-        .neq('status', 'logged')
-        .order('updated_at', { ascending: false })
-        .limit(5)
-
-      if (error) throw error
-      setRecentActivity(data as MediaEntry[])
-      setRecentActivityLoaded(true)
-    } catch (error) {
-      console.error('Error fetching recent activity:', error)
+  // Trigger followers/following list fetch when their modals open
+  useEffect(() => {
+    if (showFollowersModal && profileUserId) {
+      fetchFollowersList()
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFollowersModal, profileUserId, currentUserId])
 
-  const fetchPosts = async (userId?: string) => {
-    const targetId = userId || profile?.id
-    if (!targetId) return
-    setLoading(true)
-    try {
-      const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select(`*, profiles:user_id(username, avatar_url), media_entries:media_entry_id(title, media_type, rating, cover_image_url), likes:post_likes(count), comments:post_comments(count)`)
-        .eq('user_id', targetId)
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      if (postsError) throw postsError
-
-      const rawPosts = postsData
-      const postIds = rawPosts.map(p => p.id)
-      const likedPostIds = new Set<string>()
-
-      if (currentUser && postIds.length > 0) {
-        const { data: userLikes } = await supabase.from('post_likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds)
-        if (userLikes) userLikes.forEach(like => likedPostIds.add(like.post_id))
-      }
-
-      setPosts(rawPosts.map((post: any) => ({
-        ...post,
-        likes_count: post.likes?.[0]?.count || 0,
-        comments_count: post.comments?.[0]?.count || 0,
-        user_liked: likedPostIds.has(post.id)
-      })))
-      setPostsLoaded(true)
-    } catch (error) {
-      console.error('Error fetching posts:', error)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (showFollowingModal && profileUserId) {
+      fetchFollowingList()
     }
-  }
-
-  const fetchUserProfile = async () => {
-    if (!username) return
-    setLoading(true)
-
-    if (!profile || profile.username !== username) {
-      const initialProfile = location.state?.initialProfile
-      if (initialProfile && initialProfile.username === username) {
-        setProfile({
-          id: initialProfile.id,
-          username: initialProfile.username,
-          full_name: initialProfile.full_name || null,
-          bio: initialProfile.bio || null,
-          avatar_url: initialProfile.avatar_url || null,
-          bg_url: null,
-          bg_opacity: null,
-          created_at: new Date().toISOString()
-        })
-        setInitialLoading(false)
-      } else {
-        setProfile(null)
-      }
-    }
-
-    setFullLibrary([])
-    setFollowersList([])
-    setFollowingList([])
-    setPosts([])
-    setRecentActivity([])
-    setUserBadges([])
-    setPostsLoaded(false)
-    setRecentActivityLoaded(false)
-
-    try {
-      // Ensure session is fresh before fetching — prevents silent hangs
-      // when returning to the app after token expiry
-      await supabase.auth.getSession()
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('fetch timeout')), 10000)
-      )
-
-      const { data: profileData, error: profileError } = await Promise.race([
-        supabase.from('profiles').select('*').eq('username', username).single().then(r => r),
-        timeoutPromise,
-      ])
-
-      if (profileError) throw profileError
-      setProfile(profileData)
-
-      setInitialLoading(false)
-
-      const [
-        badgesResult,
-        followersResult,
-        followingResult,
-        currentUserFollowResult,
-        favoritesResult
-      ] = await Promise.all([
-        supabase.from('user_badges').select('*, badges(*)').eq('user_id', profileData.id),
-        supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileData.id),
-        supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', profileData.id),
-        currentUser ? supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', currentUser.id).eq('following_id', profileData.id) : Promise.resolve({ count: 0, error: null }),
-        supabase.from('profile_favorites')
-          .select('*, media_entry:media_entries(*)')
-          .eq('user_id', profileData.id)
-          .order('created_at', { ascending: true })
-      ])
-
-      if (badgesResult.data) setUserBadges(badgesResult.data as UserBadge[])
-
-      setFollowersCount(followersResult.count ?? 0)
-      setFollowingCount(followingResult.count ?? 0)
-      setIsFollowing((currentUserFollowResult.count ?? 0) > 0)
-
-      if (favoritesResult.data) setFavorites(favoritesResult.data as any[])
-
-      fetchRecentActivity(profileData.id)
-      fetchPosts(profileData.id)
-    } catch (error) {
-      console.error('Error fetching user profile:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Visibility-change handler removed: TQ's refetchOnWindowFocus handles data refreshes globally.
-
-  const handleFollow = async () => {
-    if (!currentUser || !profile || followLoading) return
-    setFollowLoading(true)
-    try {
-      if (isFollowing) {
-        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id)
-        setIsFollowing(false); setFollowersCount(prev => prev - 1)
-      } else {
-        await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: profile.id })
-        setIsFollowing(true); setFollowersCount(prev => prev + 1)
-      }
-    } catch (error) { console.error(error) }
-    finally { setFollowLoading(false) }
-  }
-
-  const handleLike = async (postId: string) => {
-    if (!currentUser) return
-    const post = posts.find(p => p.id === postId)
-    if (!post) return
-    try {
-      if (post.user_liked) {
-        await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id)
-        setPosts(posts.map(p => p.id === postId ? { ...p, likes_count: p.likes_count - 1, user_liked: false } : p))
-      } else {
-        await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id })
-        setPosts(posts.map(p => p.id === postId ? { ...p, likes_count: p.likes_count + 1, user_liked: true } : p))
-      }
-    } catch (error) { console.error(error) }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFollowingModal, profileUserId, currentUserId])
 
   const getFilteredLibrary = () => {
     let filtered = fullLibrary.filter(e => e.status === 'logged')
-    if (libraryFilterType) {
-      filtered = filtered.filter(e => e.media_type === libraryFilterType)
-    }
+    if (libraryFilterType) filtered = filtered.filter(e => e.media_type === libraryFilterType)
     if (librarySearchQuery.trim()) {
       const q = librarySearchQuery.toLowerCase()
       filtered = filtered.filter(e => e.title.toLowerCase().includes(q))
@@ -489,7 +268,18 @@ export function useUserProfilePage(
     return filtered
   }
 
-  // --- BADGE LOGIC ---
+  // ─── Derived data from TQ queries ────────────────────────────────────────────
+
+  const profile = (profileData?.profile ?? null) as UserProfile | null
+  const userBadges = (profileData?.userBadges ?? []) as UserBadge[]
+  const followersCount = profileData?.followersCount ?? 0
+  const followingCount = profileData?.followingCount ?? 0
+  const isFollowing = profileData?.isFollowing ?? false
+  const favorites = (profileData?.favorites ?? []) as Favorite[]
+  const posts = (postsQuery.data ?? []) as Post[]
+  const recentActivity = (recentActivityQuery.data ?? []) as MediaEntry[]
+
+  // Badge logic
   const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
   const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')
   const regularBadges = userBadges.filter(ub => {
