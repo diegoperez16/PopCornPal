@@ -183,8 +183,8 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
         <div className="fixed inset-0 z-[300] flex flex-col animate-in fade-in duration-150" style={{ bottom: 0 }}>
           {/* Backdrop */}
           <div className="flex-1 bg-black/60" onClick={() => setOpen(false)} />
-          {/* Sheet */}
-          <div className="bg-gray-900 border-t border-gray-700 rounded-t-3xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
+          {/* Sheet — explicit height so flex-1 on the list actually works */}
+          <div className="bg-gray-900 border-t border-gray-700 rounded-t-3xl flex flex-col h-[75vh] animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
               <div className="w-10 h-1 rounded-full bg-gray-700" />
