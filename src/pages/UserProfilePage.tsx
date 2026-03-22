@@ -166,13 +166,19 @@ export default function UserProfilePage() {
             const cropData = profile.bg_crop ? (isDesktop ? profile.bg_crop.desktop : profile.bg_crop.mobile) : null
             return (
               <div className="h-36 sm:h-48 relative overflow-hidden rounded-2xl mb-0">
-                <div className="absolute inset-0" style={{
-                  opacity: (profile.bg_opacity || 80) / 100,
-                  backgroundImage: `url(${profile.bg_url})`,
-                  backgroundSize: cropData ? `${cropData.scale}%` : 'cover',
-                  backgroundPosition: cropData ? `${cropData.x}% ${cropData.y}%` : 'center',
-                  backgroundRepeat: 'no-repeat',
-                }}/>
+                <img
+                  src={profile.bg_url}
+                  alt=""
+                  draggable={false}
+                  className="absolute inset-0 w-full h-full"
+                  style={{
+                    objectFit: 'cover',
+                    objectPosition: cropData ? `${cropData.x}% ${cropData.y}%` : 'center',
+                    transform: cropData ? `scale(${Math.max(1, cropData.scale / 100)})` : 'none',
+                    transformOrigin: cropData ? `${cropData.x}% ${cropData.y}%` : 'center',
+                    opacity: (profile.bg_opacity || 80) / 100,
+                  }}
+                />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-gray-900/80"/>
               </div>
             )

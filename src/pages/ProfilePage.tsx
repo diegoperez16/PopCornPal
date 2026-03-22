@@ -146,23 +146,28 @@ export default function ProfilePage() {
             className="relative h-36 sm:h-48 rounded-2xl overflow-hidden"
           >
             {(pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl) ? (
-              <div
-                ref={profileBgRef}
-                className="absolute inset-0 z-0"
-                style={{
-                  opacity: (profileBgOpacity ?? 80) / 100,
-                  backgroundImage: `url(${pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl})`,
-                  backgroundSize:
-                    (pendingBgImage || originalBgImageUrl) && (isDesktop ? desktopCropData : mobileCropData)
-                      ? `${(isDesktop ? desktopCropData?.scale : mobileCropData?.scale) || 100}%`
-                      : 'cover',
-                  backgroundPosition:
-                    (pendingBgImage || originalBgImageUrl) && (isDesktop ? desktopCropData : mobileCropData)
-                      ? `${(isDesktop ? desktopCropData?.x : mobileCropData?.x || 50)}% ${(isDesktop ? desktopCropData?.y : mobileCropData?.y || 50)}%`
-                      : 'center center',
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
+              <div ref={profileBgRef} className="absolute inset-0 z-0">
+                {(() => {
+                  const activeCropData = (pendingBgImage || originalBgImageUrl)
+                    ? (isDesktop ? desktopCropData : mobileCropData)
+                    : null
+                  return (
+                    <img
+                      src={pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl || ''}
+                      alt=""
+                      draggable={false}
+                      className="w-full h-full"
+                      style={{
+                        objectFit: 'cover',
+                        objectPosition: activeCropData ? `${activeCropData.x}% ${activeCropData.y}%` : 'center',
+                        transform: activeCropData ? `scale(${Math.max(1, activeCropData.scale / 100)})` : 'none',
+                        transformOrigin: activeCropData ? `${activeCropData.x}% ${activeCropData.y}%` : 'center',
+                        opacity: (profileBgOpacity ?? 80) / 100,
+                      }}
+                    />
+                  )
+                })()}
+              </div>
             ) : (
               <div
                 className="absolute inset-0 z-0"

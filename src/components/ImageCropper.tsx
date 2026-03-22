@@ -195,15 +195,18 @@ export default function ImageCropper({
       className="relative w-full overflow-hidden rounded-2xl border border-gray-700/60 shadow-2xl"
       style={{ aspectRatio: '3.5 / 1' }}
     >
-      {/* Background image */}
-      <div
-        className="absolute inset-0 z-0 transition-all duration-75"
+      {/* Background image — use <img> + object-fit so preview is aspect-ratio independent */}
+      <img
+        src={imageSrc}
+        alt=""
+        draggable={false}
+        className="absolute inset-0 w-full h-full z-0 transition-all duration-75"
         style={{
+          objectFit: 'cover',
+          objectPosition: `${crop.x}% ${crop.y}%`,
+          transform: `scale(${Math.max(1, crop.scale / 100)})`,
+          transformOrigin: `${crop.x}% ${crop.y}%`,
           opacity: backgroundOpacity / 100,
-          backgroundImage: `url(${imageSrc})`,
-          backgroundSize: `${crop.scale}%`,
-          backgroundPosition: `${crop.x}% ${crop.y}%`,
-          backgroundRepeat: 'no-repeat',
         }}
       />
       {/* Bottom fade */}
