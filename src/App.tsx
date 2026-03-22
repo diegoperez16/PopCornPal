@@ -1,7 +1,7 @@
-import { useEffect, useState, lazy, Suspense, Component } from 'react'
+import { useEffect, useState, lazy, Suspense, Component, useCallback } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { useAuthStore } from './store/authStore'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
@@ -253,6 +253,36 @@ function App() {
   )
 }
 
+function NetworkErrorBanner() {
+  const queryClient = useQueryClient()
+  const [hasError, setHasError] = useState(false)
+
+  const checkErrors = useCallback(() => {
+    const anyFailed = queryClient.getQueryCache().getAll().some(
+      q => q.state.status === 'error' && q.state.fetchStatus === 'idle'
+    )
+    setHasError(anyFailed)
+  }, [queryClient])
+
+  useEffect(() => {
+    return queryClient.getQueryCache().subscribe(checkErrors)
+  }, [queryClient, checkErrors])
+
+  if (!hasError) return null
+
+  return (
+    <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-full px-4 py-2.5 shadow-2xl text-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <span className="text-gray-300">Something went wrong.</span>
+      <button
+        onClick={() => window.location.reload()}
+        className="font-semibold text-red-400 hover:text-red-300 transition-colors"
+      >
+        Reload
+      </button>
+    </div>
+  )
+}
+
 function AppContent() {
   const location = useLocation()
   const { user } = useAuthStore()
@@ -293,6 +323,7 @@ function AppContent() {
       </Suspense>
       </ChunkErrorBoundary>
       {showNav && <MobileNav />}
+      <NetworkErrorBanner />
 
       {/* Welcome / PWA onboarding modal */}
       {showWelcome && user && (
