@@ -9,14 +9,19 @@ type Props = {
   query: string
   selectedIndex: number
   onSelect: (username: string) => void
+  position?: 'above' | 'below'
 }
 
-export default function MentionDropdown({ users, loading, query, selectedIndex, onSelect }: Props) {
+export default function MentionDropdown({ users, loading, query, selectedIndex, onSelect, position = 'above' }: Props) {
   if (!loading && users.length === 0) return null
   if (!loading && query.length === 0) return null
 
+  const positionClass = position === 'below'
+    ? 'absolute top-full left-0 right-0 mt-1'
+    : 'absolute bottom-full left-0 right-0 mb-1'
+
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl z-50">
+    <div className={`${positionClass} bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl z-50`}>
       {loading ? (
         <div className="px-4 py-3 text-sm text-gray-500">Searching...</div>
       ) : (

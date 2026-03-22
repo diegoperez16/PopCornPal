@@ -669,6 +669,7 @@ export default function FeedPage() {
                   query={postMention.mention.query}
                   selectedIndex={postMention.mention.selectedIndex}
                   onSelect={(username) => setNewPost(postMention.selectUser(newPost, username))}
+                  position="below"
                 />
                 <textarea
                   value={newPost}
