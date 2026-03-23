@@ -3,13 +3,23 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { persistQueryClient } from '@tanstack/react-query-persist-client'
 import { supabase } from './supabase'
 
+function isAuthError(error: any): boolean {
+  return (
+    error?.code === 'PGRST301' ||
+    error?.status === 401 ||
+    error?.message?.includes('JWT') ||
+    error?.message?.includes('token is expired')
+  )
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 2 * 60 * 1000,
       gcTime: 24 * 60 * 60 * 1000,
       retry: (count, error: any) => {
-        if (error?.code === 'PGRST301' || error?.status === 401 || error?.status === 403) return false
+        // Never retry auth errors — authedQuery handles one token refresh internally
+        if (isAuthError(error)) return false
         return count < 2
       },
       refetchOnWindowFocus: true,
@@ -37,13 +47,25 @@ persistQueryClient({
   },
 })
 
-// Refresh the session token before every query — this is the single place
-// that handles token expiry, replacing all the per-page getSession() calls.
+// Run a Supabase query with automatic token refresh on auth failure.
+// On the first 401/JWT error, force a token refresh and retry once.
+// If the refresh fails the error is re-thrown so TanStack Query surfaces it.
 export async function authedQuery<T>(
   fn: () => PromiseLike<{ data: T | null; error: any }>
 ): Promise<T> {
   await supabase.auth.getSession()
   const { data, error } = await fn()
+
+  if (error && isAuthError(error)) {
+    const { error: refreshError } = await supabase.auth.refreshSession()
+    if (refreshError) throw error // session truly gone — surface the original error
+
+    // Token refreshed — retry the query once
+    const { data: retryData, error: retryError } = await fn()
+    if (retryError) throw retryError
+    return retryData as T
+  }
+
   if (error) throw error
   return data as T
 }

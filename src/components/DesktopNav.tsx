@@ -1,7 +1,9 @@
-import { Users, Search, Plus, Calendar, LogOut } from 'lucide-react'
+import { Users, Search, Plus, Calendar, LogOut, RefreshCw } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
+import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
+import { queryClient } from '../lib/queryClient'
 import NotificationBell from './NotificationBell'
 import UserAvatar from './UserAvatar'
 
@@ -9,6 +11,13 @@ export default function DesktopNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const { signOut, profile } = useAuthStore(useShallow(s => ({ signOut: s.signOut, profile: s.profile })))
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await queryClient.invalidateQueries()
+    setTimeout(() => setRefreshing(false), 600)
+  }
 
   const navItems = [
     { path: '/feed', icon: Users, label: 'Feed' },
@@ -60,6 +69,13 @@ export default function DesktopNav() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-red-400' : ''}`} />
+            </button>
             <NotificationBell />
 
             {/* Avatar / profile link */}

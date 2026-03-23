@@ -119,26 +119,30 @@ export const useAuthStore = create<AuthState>()(
   },
 
   resumeSession: async () => {
-    // Never clear user state here — a transient network error must not log the user out.
-    // The onAuthStateChange listener in initialize() handles legitimate SIGNED_OUT events.
     try {
       const { user, lastAuthCheck, profile } = get()
-      if (!user) return // nothing to resume
+      if (!user) return
 
-      const FIVE_MINUTES = 5 * 60 * 1000
-      if (Date.now() - lastAuthCheck < FIVE_MINUTES) return // still fresh
+      // Throttle to once per 60 s — avoid hammering on rapid tab-switches
+      const ONE_MINUTE = 60 * 1000
+      if (Date.now() - lastAuthCheck < ONE_MINUTE) return
 
-      const { data, error } = await supabase.auth.getSession()
+      // Use refreshSession() (not getSession()) so we always get a fresh JWT.
+      // getSession() can return a locally-cached token the client thinks is valid
+      // but has actually expired on the server while the PWA was backgrounded.
+      const { data, error } = await supabase.auth.refreshSession()
 
       if (error) {
-        // Network / timeout — keep cached user, Supabase will refresh token on next API call
-        console.warn('resumeSession: session check failed, keeping cached state')
+        // Network error — keep cached user so the app stays usable offline.
+        // The NetworkErrorBanner will surface and the user can reload manually.
+        console.warn('resumeSession: token refresh failed, keeping cached state', error.message)
         return
       }
 
       if (!data.session) {
-        // Refresh token is genuinely expired — let onAuthStateChange handle cleanup
-        // Don't forcibly clear here; the SIGNED_OUT event will fire
+        // Refresh token itself is expired — force logout so the user re-authenticates.
+        console.warn('resumeSession: refresh token expired, signing out')
+        await get().signOut()
         return
       }
 
@@ -150,7 +154,6 @@ export const useAuthStore = create<AuthState>()(
         await Promise.race([fetchProfilePromise, timeout])
       }
     } catch (err) {
-      // Never propagate — a crash here must not affect the app
       console.error('Resume session failed', err)
     }
   },
