@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
-import { queryClient } from '../lib/queryClient'
 import NotificationBell from './NotificationBell'
 import UserAvatar from './UserAvatar'
 
@@ -13,10 +12,9 @@ export default function DesktopNav() {
   const { signOut, profile } = useAuthStore(useShallow(s => ({ signOut: s.signOut, profile: s.profile })))
   const [refreshing, setRefreshing] = useState(false)
 
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
     setRefreshing(true)
-    await queryClient.invalidateQueries()
-    setTimeout(() => setRefreshing(false), 600)
+    setTimeout(() => window.location.reload(), 300)
   }
 
   const navItems = [

@@ -256,7 +256,6 @@ function App() {
 const PTR_THRESHOLD = 70 // px of damped pull needed to trigger
 
 function PullToRefresh() {
-  const queryClient = useQueryClient()
   const [pullY, setPullY] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const startYRef = useRef(0)
@@ -274,13 +273,12 @@ function PullToRefresh() {
       if (!startYRef.current || window.scrollY > 0) return
       const raw = e.touches[0].clientY - startYRef.current
       if (raw <= 0) return
-      // Rubber-band damping: feels natural, slows down as you pull further
       const damped = Math.min(raw * 0.45, PTR_THRESHOLD + 20)
       pullYRef.current = damped
       setPullY(damped)
     }
 
-    const onTouchEnd = async () => {
+    const onTouchEnd = () => {
       const dist = pullYRef.current
       startYRef.current = 0
       pullYRef.current = 0
@@ -288,10 +286,8 @@ function PullToRefresh() {
       if (dist >= PTR_THRESHOLD * 0.8 && !refreshingRef.current) {
         refreshingRef.current = true
         setRefreshing(true)
-        await queryClient.invalidateQueries()
-        await new Promise(r => setTimeout(r, 600))
-        refreshingRef.current = false
-        setRefreshing(false)
+        // Brief delay so the spinner is visible before reload
+        setTimeout(() => window.location.reload(), 300)
       }
     }
 
@@ -303,7 +299,7 @@ function PullToRefresh() {
       document.removeEventListener('touchmove', onTouchMove)
       document.removeEventListener('touchend', onTouchEnd)
     }
-  }, [queryClient])
+  }, [])
 
   const visible = pullY > 4 || refreshing
   const progress = Math.min(pullY / PTR_THRESHOLD, 1)
