@@ -355,12 +355,54 @@ export default function FeedPage() {
       })
     }
 
+    const handleCommentInsert = (payload: any) => {
+      const postId = payload.new?.post_id
+      const commentUserId = payload.new?.user_id
+      // Own comments are already handled optimistically by useCreateComment
+      if (!postId || commentUserId === user.id) return
+      queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.map((p: any) =>
+              p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p
+            ),
+          })),
+        }
+      })
+    }
+
+    const handleCommentDelete = (payload: any) => {
+      const postId = payload.old?.post_id
+      if (!postId) {
+        // No REPLICA IDENTITY FULL — can't determine which post, just invalidate
+        queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
+        return
+      }
+      queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.map((p: any) =>
+              p.id === postId ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p
+            ),
+          })),
+        }
+      })
+    }
+
     const channel = supabase
       .channel(`feed-realtime-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleInsert)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, handleDelete)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_likes' }, handleLikeInsert)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_likes' }, handleLikeDelete)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments' }, handleCommentInsert)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_comments' }, handleCommentDelete)
       .subscribe((status, err) => {
         if (err) console.error('[Feed] realtime error:', err)
         else console.log('[Feed] realtime status:', status)

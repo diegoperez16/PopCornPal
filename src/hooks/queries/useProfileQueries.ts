@@ -137,12 +137,21 @@ export function useUserProfile(username: string | undefined, currentUserId: stri
 
 async function fetchUserPosts(profileUserId: string, currentUserId: string | null): Promise<ProfilePost[]> {
   await supabase.auth.getSession()
-  const { data: postsData, error: postsError } = await supabase
+
+  const postsPromise = supabase
     .from('posts')
-    .select(`*, profiles:user_id(username, avatar_url, avatar_crop), media_entries:media_entry_id(title, media_type, rating, cover_image_url), likes:post_likes(count), comments:post_comments(count)`)
+    .select(`*, profiles:user_id(username, avatar_url, avatar_crop), media_entries:media_entry_id(title, media_type, rating, cover_image_url)`)
     .eq('user_id', profileUserId)
     .order('created_at', { ascending: false })
     .limit(20)
+
+  // Run posts fetch and likes check in parallel
+  const [{ data: postsData, error: postsError }, likesResult] = await Promise.all([
+    postsPromise,
+    currentUserId
+      ? supabase.from('post_likes').select('post_id').eq('user_id', currentUserId).eq('post_id', profileUserId)
+      : Promise.resolve({ data: null }),
+  ])
 
   if (postsError) throw postsError
 
@@ -150,6 +159,7 @@ async function fetchUserPosts(profileUserId: string, currentUserId: string | nul
   const postIds = rawPosts.map((p: any) => p.id)
   const likedPostIds = new Set<string>()
 
+  // If we have posts, fetch which ones the current user liked
   if (currentUserId && postIds.length > 0) {
     const { data: userLikes } = await supabase
       .from('post_likes')
@@ -161,8 +171,9 @@ async function fetchUserPosts(profileUserId: string, currentUserId: string | nul
 
   return rawPosts.map((post: any) => ({
     ...post,
-    likes_count: post.likes?.[0]?.count || 0,
-    comments_count: post.comments?.[0]?.count || 0,
+    // Use trigger-maintained counter columns — avoids expensive COUNT subqueries
+    likes_count: post.likes_count ?? 0,
+    comments_count: post.comments_count ?? 0,
     user_liked: likedPostIds.has(post.id),
   }))
 }
@@ -255,5 +266,61 @@ export function useToggleUserPostLike(currentUserId: string | null, profileUserI
         queryClient.setQueryData(['profile', 'posts', profileUserId, currentUserId], context.previousPosts)
       }
     },
+  })
+}
+
+// ─── Followers / Following lists (cached) ────────────────────────────────────
+
+async function fetchFollowersList(profileUserId: string, currentUserId: string | null) {
+  const { data: followsData, error } = await supabase
+    .from('follows')
+    .select(`follower_id, follower:profiles!follower_id (id, username, full_name, avatar_url, avatar_crop, bio)`)
+    .eq('following_id', profileUserId)
+    .limit(100)
+  if (error) throw error
+
+  const profiles = (followsData ?? []).map((f: any) => f.follower).filter(Boolean)
+  if (!currentUserId || profiles.length === 0) return profiles.map((p: any) => ({ ...p, isFollowing: false }))
+
+  const ids = profiles.map((p: any) => p.id)
+  const { data: myFollows } = await supabase
+    .from('follows').select('following_id').eq('follower_id', currentUserId).in('following_id', ids)
+  const myFollowsSet = new Set(myFollows?.map((f: any) => f.following_id))
+  return profiles.map((p: any) => ({ ...p, isFollowing: myFollowsSet.has(p.id) }))
+}
+
+async function fetchFollowingList(profileUserId: string, currentUserId: string | null) {
+  const { data: followsData, error } = await supabase
+    .from('follows')
+    .select(`following_id, following:profiles!following_id (id, username, full_name, avatar_url, avatar_crop, bio)`)
+    .eq('follower_id', profileUserId)
+    .limit(100)
+  if (error) throw error
+
+  const profiles = (followsData ?? []).map((f: any) => f.following).filter(Boolean)
+  if (!currentUserId || profiles.length === 0) return profiles.map((p: any) => ({ ...p, isFollowing: false }))
+
+  const ids = profiles.map((p: any) => p.id)
+  const { data: myFollows } = await supabase
+    .from('follows').select('following_id').eq('follower_id', currentUserId).in('following_id', ids)
+  const myFollowsSet = new Set(myFollows?.map((f: any) => f.following_id))
+  return profiles.map((p: any) => ({ ...p, isFollowing: myFollowsSet.has(p.id) }))
+}
+
+export function useFollowersList(profileUserId: string | undefined, currentUserId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['profile', 'followers-list', profileUserId, currentUserId],
+    queryFn: () => fetchFollowersList(profileUserId!, currentUserId),
+    enabled: !!profileUserId && enabled,
+    staleTime: 2 * 60 * 1000,
+  })
+}
+
+export function useFollowingList(profileUserId: string | undefined, currentUserId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['profile', 'following-list', profileUserId, currentUserId],
+    queryFn: () => fetchFollowingList(profileUserId!, currentUserId),
+    enabled: !!profileUserId && enabled,
+    staleTime: 2 * 60 * 1000,
   })
 }

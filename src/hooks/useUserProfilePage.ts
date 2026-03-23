@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase, type UserBadge, type BackgroundCrop } from '../lib/supabase'
 import {
   useUserProfile,
@@ -7,6 +8,8 @@ import {
   useUserRecentActivity,
   useFollowUserProfile,
   useToggleUserPostLike,
+  useFollowersList,
+  useFollowingList,
 } from './queries/useProfileQueries'
 import type { ProfileMediaEntry } from './queries/useProfileQueries'
 
@@ -53,6 +56,7 @@ export function useUserProfilePage(
   currentUser: { id: string } | null
 ) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const currentUserId = currentUser?.id ?? null
 
@@ -71,20 +75,14 @@ export function useUserProfilePage(
 
   // ─── Local UI state ───────────────────────────────────────────────────────────
 
-  // Modal States
   const [showLibraryModal, setShowLibraryModal] = useState(false)
   const [showFollowersModal, setShowFollowersModal] = useState(false)
   const [showFollowingModal, setShowFollowingModal] = useState(false)
-  const [followersList, setFollowersList] = useState<any[]>([])
-  const [followingList, setFollowingList] = useState<any[]>([])
   const [librarySearchQuery, setLibrarySearchQuery] = useState('')
   const [libraryFilterType, setLibraryFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
-
-  // Inspection State
   const [inspectedEntry, setInspectedEntry] = useState<MediaEntry | null>(null)
-
-  // Background crop: track viewport size
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768)
+
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 768)
     window.addEventListener('resize', handleResize)
@@ -95,23 +93,22 @@ export function useUserProfilePage(
   const [fullLibrary, setFullLibrary] = useState<MediaEntry[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
 
-  // Followers / following list loading states
-  const [followersListLoading, setFollowersListLoading] = useState(false)
-  const [followingListLoading, setFollowingListLoading] = useState(false)
+  // ─── Cached followers/following via TanStack Query ────────────────────────────
 
-  // ─── Derived loading states (mapped from TQ) ─────────────────────────────────
+  const followersQuery = useFollowersList(profileUserId, currentUserId, showFollowersModal)
+  const followingQuery = useFollowingList(profileUserId, currentUserId, showFollowingModal)
 
-  // initialLoading: true until the profile itself resolves for the first time
+  const followersList = followersQuery.data ?? []
+  const followingList = followingQuery.data ?? []
+  const followersListLoading = followersQuery.isFetching
+  const followingListLoading = followingQuery.isFetching
+
+  // ─── Derived loading states ───────────────────────────────────────────────────
+
   const initialLoading = profileQuery.isLoading
-
-  // loading: true while any background refetch is in progress
   const loading = profileQuery.isFetching || postsQuery.isFetching || recentActivityQuery.isFetching
-
-  // postsLoaded / recentActivityLoaded: analogous to the old boolean flags
   const postsLoaded = postsQuery.isSuccess
   const recentActivityLoaded = recentActivityQuery.isSuccess
-
-  // followLoading: tracked via mutation status
   const followLoading = followMutation.isPending
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -140,26 +137,35 @@ export function useUserProfilePage(
       } else {
         await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: targetUserId })
       }
-      const updateList = (list: any[]) => list.map(user =>
-        user.id === targetUserId ? { ...user, isFollowing: !isCurrentlyFollowing } : user
+      // Optimistically update the cached list
+      const updateList = (list: any[]) => list.map(u =>
+        u.id === targetUserId ? { ...u, isFollowing: !isCurrentlyFollowing } : u
       )
-      if (listType === 'followers') setFollowersList(prev => updateList(prev))
-      if (listType === 'following') setFollowingList(prev => updateList(prev))
+      if (listType === 'followers') {
+        queryClient.setQueryData(
+          ['profile', 'followers-list', profileUserId, currentUserId],
+          (old: any[]) => old ? updateList(old) : old
+        )
+      } else {
+        queryClient.setQueryData(
+          ['profile', 'following-list', profileUserId, currentUserId],
+          (old: any[]) => old ? updateList(old) : old
+        )
+      }
     } catch (error) {
       console.error('Error toggling follow:', error)
     }
   }
 
   const navigateToProfile = (targetUsername: string) => {
-    const userFromFollowers = followersList.find(u => u.username === targetUsername)
-    const userFromFollowing = followingList.find(u => u.username === targetUsername)
-    const optimisticProfile = userFromFollowers || userFromFollowing
+    const optimisticProfile =
+      followersList.find((u: any) => u.username === targetUsername) ||
+      followingList.find((u: any) => u.username === targetUsername)
     setShowFollowersModal(false)
     setShowFollowingModal(false)
     navigate(`/profile/${targetUsername}`, { state: { initialProfile: optimisticProfile } })
   }
 
-  // Library is still fetched directly (no TQ hook exists for this yet)
   const fetchFullLibrary = async () => {
     if (!profileUserId) return
     setLibraryLoading(true)
@@ -179,84 +185,12 @@ export function useUserProfilePage(
     }
   }
 
-  // Trigger lazy full-library load when modal opens
   useEffect(() => {
     if (showLibraryModal && fullLibrary.length === 0 && profileUserId && !libraryLoading) {
       fetchFullLibrary()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLibraryModal, profileUserId])
-
-  const fetchFollowersList = async () => {
-    if (!profileUserId) return
-    setFollowersListLoading(true)
-    try {
-      await supabase.auth.getSession()
-      const { data: followsData, error: followsError } = await supabase
-        .from('follows')
-        .select(`follower_id, follower:profiles!follower_id (id, username, full_name, avatar_url, avatar_crop, bio)`)
-        .eq('following_id', profileUserId)
-        .limit(100)
-      if (followsError) throw followsError
-      if (!followsData || followsData.length === 0) { setFollowersList([]); return }
-      const profiles = followsData.map(f => f.follower).filter(Boolean) as any[]
-      const ids = profiles.map(p => p.id)
-      let followersWithStatus = profiles.map(p => ({ ...p, isFollowing: false }))
-      if (currentUser) {
-        const { data: myFollows } = await supabase.from('follows').select('following_id').eq('follower_id', currentUser.id).in('following_id', ids)
-        const myFollowsSet = new Set(myFollows?.map(f => f.following_id))
-        followersWithStatus = followersWithStatus.map(p => ({ ...p, isFollowing: myFollowsSet.has(p.id) }))
-      }
-      setFollowersList(followersWithStatus)
-    } catch (error) {
-      console.error('Error fetching followers list:', error)
-    } finally {
-      setFollowersListLoading(false)
-    }
-  }
-
-  const fetchFollowingList = async () => {
-    if (!profileUserId) return
-    setFollowingListLoading(true)
-    try {
-      await supabase.auth.getSession()
-      const { data: followsData, error: followsError } = await supabase
-        .from('follows')
-        .select(`following_id, following:profiles!following_id (id, username, full_name, avatar_url, avatar_crop, bio)`)
-        .eq('follower_id', profileUserId)
-        .limit(100)
-      if (followsError) throw followsError
-      if (!followsData || followsData.length === 0) { setFollowingList([]); return }
-      const profiles = followsData.map(f => f.following).filter(Boolean) as any[]
-      const ids = profiles.map(p => p.id)
-      let followingWithStatus = profiles.map(p => ({ ...p, isFollowing: false }))
-      if (currentUser) {
-        const { data: myFollows } = await supabase.from('follows').select('following_id').eq('follower_id', currentUser.id).in('following_id', ids)
-        const myFollowsSet = new Set(myFollows?.map(f => f.following_id))
-        followingWithStatus = followingWithStatus.map(p => ({ ...p, isFollowing: myFollowsSet.has(p.id) }))
-      }
-      setFollowingList(followingWithStatus)
-    } catch (error) {
-      console.error('Error fetching following list:', error)
-    } finally {
-      setFollowingListLoading(false)
-    }
-  }
-
-  // Trigger followers/following list fetch when their modals open
-  useEffect(() => {
-    if (showFollowersModal && profileUserId) {
-      fetchFollowersList()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFollowersModal, profileUserId, currentUserId])
-
-  useEffect(() => {
-    if (showFollowingModal && profileUserId) {
-      fetchFollowingList()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFollowingModal, profileUserId, currentUserId])
 
   const getFilteredLibrary = () => {
     let filtered = fullLibrary.filter(e => e.status === 'logged')
@@ -279,7 +213,6 @@ export function useUserProfilePage(
   const posts = (postsQuery.data ?? []) as Post[]
   const recentActivity = (recentActivityQuery.data ?? []) as MediaEntry[]
 
-  // Badge logic
   const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
   const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')
   const regularBadges = userBadges.filter(ub => {
@@ -290,7 +223,6 @@ export function useUserProfilePage(
   const isOwnProfile = profile ? currentUser?.id === profile.id : false
 
   return {
-    // State
     profile,
     userBadges,
     posts,
@@ -323,12 +255,10 @@ export function useUserProfilePage(
     followingListLoading,
     postsLoaded,
     recentActivityLoaded,
-    // Computed
     creatorBadge,
     alphaBadge,
     regularBadges,
     isOwnProfile,
-    // Handlers
     handleFollow,
     handleLike,
     handleFollowUser,

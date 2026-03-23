@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import UserAvatar from './UserAvatar'
 import { useAuthStore } from '../store/authStore'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 
 type AppNotification = {
   id: string
@@ -66,18 +65,21 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const panelRef = useRef<HTMLDivElement>(null)
-  const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
     if (!user) return
     fetchNotifications()
-    subscribeToNotifications()
+
+    const interval = setInterval(fetchNotifications, 30000)
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchNotifications()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
-        channelRef.current = null
-      }
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [user])
 
@@ -110,37 +112,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
     const notifs = (data ?? []) as AppNotification[]
     setNotifications(notifs)
     setUnreadCount(notifs.filter(n => !n.read).length)
-  }
-
-  const subscribeToNotifications = () => {
-    if (!user) return
-    channelRef.current = supabase
-      .channel(`notifications-${user.id}`)
-      .on(
-        'postgres_changes',
-        // No server-side filter — filter client-side to avoid binding mismatch errors
-        // when the notifications table isn't in the realtime publication yet.
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        async (payload) => {
-          // Only process notifications for this user
-          if (payload.new.user_id !== user.id) return
-
-          // Fetch the full notification with profile join
-          const { data } = await supabase
-            .from('notifications')
-            .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url, avatar_crop)`)
-            .eq('id', payload.new.id)
-            .single()
-
-          if (data) {
-            setNotifications(prev => [data as AppNotification, ...prev])
-            setUnreadCount(c => c + 1)
-          }
-        }
-      )
-      .subscribe((_status, err) => {
-        if (err) console.error('[NotificationBell] realtime error:', err)
-      })
   }
 
   const markAllRead = async () => {

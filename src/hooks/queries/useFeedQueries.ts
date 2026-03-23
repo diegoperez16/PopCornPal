@@ -31,8 +31,8 @@ export async function fetchSinglePost(postId: string, currentUserId: string): Pr
 
   return {
     ...data,
-    likes_count: 0,
-    comments_count: 0,
+    likes_count: data.likes_count ?? 0,
+    comments_count: data.comments_count ?? 0,
     is_liked: !!likeData,
   } as Post
 }
