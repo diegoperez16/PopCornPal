@@ -331,7 +331,16 @@ export default function FeedPage() {
 
     const handleLikeDelete = (payload: any) => {
       const postId = payload.old?.post_id
-      if (!postId || payload.old?.user_id === user.id) return // own unlikes handled optimistically
+      const likedUserId = payload.old?.user_id
+
+      // Without REPLICA IDENTITY FULL on post_likes, payload.old only has {id}.
+      // Fall back to invalidating the feed so counts stay correct.
+      if (!postId) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
+        return
+      }
+
+      if (likedUserId === user.id) return // own unlikes handled optimistically
       queryClient.setQueryData(feedKeys.list(user.id), (old: any) => {
         if (!old) return old
         return {
@@ -352,7 +361,10 @@ export default function FeedPage() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, handleDelete)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_likes' }, handleLikeInsert)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_likes' }, handleLikeDelete)
-      .subscribe()
+      .subscribe((status, err) => {
+        if (err) console.error('[Feed] realtime error:', err)
+        else console.log('[Feed] realtime status:', status)
+      })
 
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, queryClient])
