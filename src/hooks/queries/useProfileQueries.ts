@@ -146,11 +146,10 @@ async function fetchUserPosts(profileUserId: string, currentUserId: string | nul
     .limit(20)
 
   // Run posts fetch and likes check in parallel
-  const [{ data: postsData, error: postsError }, likesResult] = await Promise.all([
+  const [{ data: postsData, error: postsError }] = await Promise.all([
     postsPromise,
-    currentUserId
-      ? supabase.from('post_likes').select('post_id').eq('user_id', currentUserId).eq('post_id', profileUserId)
-      : Promise.resolve({ data: null }),
+    // Warm up the connection in parallel (result used below after we have postIds)
+    currentUserId ? supabase.auth.getSession() : Promise.resolve(null),
   ])
 
   if (postsError) throw postsError
