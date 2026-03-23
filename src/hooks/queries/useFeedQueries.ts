@@ -15,7 +15,9 @@ export async function fetchSinglePost(postId: string, currentUserId: string): Pr
     .select(`
       *,
       profiles:user_id (username, avatar_url, avatar_crop),
-      media_entries:media_entry_id (title, media_type, rating, cover_image_url)
+      media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+      likes:post_likes(count),
+      comments:post_comments(count)
     `)
     .eq('id', postId)
     .single()
@@ -31,8 +33,8 @@ export async function fetchSinglePost(postId: string, currentUserId: string): Pr
 
   return {
     ...data,
-    likes_count: data.likes_count ?? 0,
-    comments_count: data.comments_count ?? 0,
+    likes_count: (data as any).likes?.[0]?.count ?? 0,
+    comments_count: (data as any).comments?.[0]?.count ?? 0,
     is_liked: !!likeData,
   } as Post
 }
@@ -97,7 +99,9 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
     .select(`
       *,
       profiles:user_id (username, avatar_url, avatar_crop),
-      media_entries:media_entry_id (title, media_type, rating, cover_image_url)
+      media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+      likes:post_likes(count),
+      comments:post_comments(count)
     `)
     .in('user_id', [...limitedIds, userId])
     .order('created_at', { ascending: false })
@@ -117,9 +121,8 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
 
   const posts: Post[] = data.map((post: any) => ({
     ...post,
-    // Use trigger-maintained counter columns (O(1) reads, no COUNT subquery)
-    likes_count: post.likes_count ?? 0,
-    comments_count: post.comments_count ?? 0,
+    likes_count: post.likes?.[0]?.count ?? 0,
+    comments_count: post.comments?.[0]?.count ?? 0,
     is_liked: likedSet.has(post.id),
   }))
 
