@@ -118,8 +118,13 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       .channel(`notifications-${user.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        // No server-side filter — filter client-side to avoid binding mismatch errors
+        // when the notifications table isn't in the realtime publication yet.
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
         async (payload) => {
+          // Only process notifications for this user
+          if (payload.new.user_id !== user.id) return
+
           // Fetch the full notification with profile join
           const { data } = await supabase
             .from('notifications')
