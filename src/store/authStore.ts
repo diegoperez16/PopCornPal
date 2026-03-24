@@ -104,11 +104,20 @@ export const useAuthStore = create<AuthState>()(
         }
       })
 
-      // Use refreshSession() so we always start with a valid JWT.
-      // getSession() returns the cached token which may be expired after
-      // the PWA was backgrounded — leading to failed fetches until a second reload.
-      const { data: { session } } = await supabase.auth.refreshSession()
-        .catch(() => supabase.auth.getSession()) // fallback if offline
+      const { data: { session: cachedSession } } = await supabase.auth.getSession()
+      let session = cachedSession
+
+      // If the cached token is expired or expiring within 60s, refresh it now
+      // before any queries fire. This avoids needing two reloads after backgrounding.
+      if (cachedSession) {
+        const expiresAt = cachedSession.expires_at ?? 0
+        const expiredOrExpiringSoon = expiresAt < Math.floor(Date.now() / 1000) + 60
+        if (expiredOrExpiringSoon) {
+          const { data } = await supabase.auth.refreshSession()
+          // Only use refreshed session if we actually got one back (network may be down)
+          if (data.session) session = data.session
+        }
+      }
 
       if (session?.user) {
         set({ user: session.user, lastAuthCheck: Date.now() })
