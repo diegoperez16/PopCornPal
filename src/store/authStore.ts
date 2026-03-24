@@ -104,7 +104,12 @@ export const useAuthStore = create<AuthState>()(
         }
       })
 
-      const { data: { session } } = await supabase.auth.getSession()
+      // Use refreshSession() so we always start with a valid JWT.
+      // getSession() returns the cached token which may be expired after
+      // the PWA was backgrounded — leading to failed fetches until a second reload.
+      const { data: { session } } = await supabase.auth.refreshSession()
+        .catch(() => supabase.auth.getSession()) // fallback if offline
+
       if (session?.user) {
         set({ user: session.user, lastAuthCheck: Date.now() })
         const fetchProfilePromise = get().fetchProfile(session.user.id)
