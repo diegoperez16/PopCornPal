@@ -1,479 +1,607 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, Film, Tv, Gamepad2, Book, Loader2, Plus, X, Star, Calendar } from 'lucide-react'
-import { api, type SearchResult } from '../lib/api'
-import { useAuthStore } from '../store/authStore'
-import { useAddEntry } from '../hooks/queries/useMediaQueries'
-import { supabase } from '../lib/supabase'
+import React, { useEffect, useState } from 'react'
+import { Film, Tv, Gamepad2, Book, Search, Loader2, X, Minus, Plus, ChevronDown } from 'lucide-react'
+import SharedDecimalRating from '../components/DecimalRating'
+import {
+  useAddEntryPage,
+  type SearchResult,
+  type MediaType,
+  type Season,
+  type Episode,
+} from '../hooks/useAddEntryPage'
 
-type MediaType = 'movie' | 'show' | 'game' | 'book'
+// ─── Decimal rating stepper (0 = no rating, 0.1–10.0) ────────────────────────
+function DecimalRating({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (v: number) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
-// Helper to safely parse JSON from localStorage
-const loadState = <T,>(key: string, fallback: T): T => {
-  try {
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : fallback
-  } catch (e) {
-    return fallback
-  }
-}
-
-export default function AddEntryPage() {
-  const navigate = useNavigate()
-  const { user } = useAuthStore()
-  const { mutateAsync: addEntry } = useAddEntry(user?.id ?? '')
-  
-  // Initialize state
-  const [activeTab, setActiveTab] = useState<MediaType>(() => loadState('popcorn_add_tab', 'movie'))
-  const [query, setQuery] = useState(() => loadState('popcorn_add_query', ''))
-  const [results, setResults] = useState<SearchResult[]>(() => loadState('popcorn_add_results', []))
-  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(() => loadState('popcorn_add_selected', null))
-  
-  // Form State
-  const [rating, setRating] = useState(() => loadState('popcorn_add_rating', 0))
-  const [status, setStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>(() => loadState('popcorn_add_status', 'completed'))
-  const [notes, setNotes] = useState(() => loadState('popcorn_add_notes', ''))
-  
-  const [searching, setSearching] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [duplicateError, setDuplicateError] = useState(false)
-
-  // --- PERSISTENCE EFFECT ---
-  useEffect(() => {
-    localStorage.setItem('popcorn_add_tab', JSON.stringify(activeTab))
-    localStorage.setItem('popcorn_add_query', JSON.stringify(query))
-    localStorage.setItem('popcorn_add_results', JSON.stringify(results))
-    localStorage.setItem('popcorn_add_selected', JSON.stringify(selectedItem))
-    localStorage.setItem('popcorn_add_rating', JSON.stringify(rating))
-    localStorage.setItem('popcorn_add_status', JSON.stringify(status))
-    localStorage.setItem('popcorn_add_notes', JSON.stringify(notes))
-  }, [activeTab, query, results, selectedItem, rating, status, notes])
-
-  const clearPersistence = () => {
-    localStorage.removeItem('popcorn_add_query')
-    localStorage.removeItem('popcorn_add_results')
-    localStorage.removeItem('popcorn_add_selected')
-    localStorage.removeItem('popcorn_add_rating')
-    localStorage.removeItem('popcorn_add_status')
-    localStorage.removeItem('popcorn_add_notes')
+  const step = (delta: number) => {
+    const next = Math.round((value + delta) * 10) / 10
+    onChange(Math.min(10, Math.max(0, next)))
   }
 
-  // Hide mobile nav when modal is open
-  useEffect(() => {
-    const mobileNav = document.querySelector('.mobile-nav')
-    if (mobileNav) {
-      if (selectedItem) {
-        mobileNav.classList.add('hidden')
-      } else {
-        mobileNav.classList.remove('hidden')
-      }
-    }
-  }, [selectedItem])
-
-  // Debounced Search Effect
-  useEffect(() => {
-    // Don't search if query is empty
-    if (!query.trim()) {
-      setResults([])
-      setSearching(false)
-      return
-    }
-
-    let isActive = true
-    const timeoutId = setTimeout(async () => {
-      setSearching(true)
-      try {
-        let data: SearchResult[] = []
-        switch (activeTab) {
-          case 'movie':
-            data = await api.searchMovies(query)
-            break
-          case 'show':
-            data = await api.searchShows(query)
-            break
-          case 'game':
-            data = await api.searchGames(query)
-            break
-          case 'book':
-            data = await api.searchBooks(query)
-            break
-        }
-        
-        if (isActive) {
-          setResults(data)
-        }
-      } catch (error) {
-        console.error('Search error:', error)
-      } finally {
-        if (isActive) {
-          setSearching(false)
-        }
-      }
-    }, 500) // 500ms debounce
-
-    return () => {
-      isActive = false
-      clearTimeout(timeoutId)
-    }
-  }, [query, activeTab])
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    // The useEffect handles the search automatically
+  const commitDraft = () => {
+    const n = parseFloat(draft)
+    if (!isNaN(n)) onChange(Math.min(10, Math.max(0, Math.round(n * 10) / 10)))
+    setEditing(false)
   }
-
-  const handleSave = async () => {
-    if (!selectedItem || !user) return
-
-    setSaving(true)
-    setDuplicateError(false)
-    
-    try {
-      if (status === 'logged') {
-        const { data: existingEntry } = await supabase
-          .from('media_entries')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('media_type', selectedItem.type)
-          .eq('title', selectedItem.title)
-          .eq('status', 'logged')
-          .single()
-
-        if (existingEntry) {
-          setDuplicateError(true)
-          setSaving(false)
-          return
-        }
-      }
-
-      await addEntry({
-        media_type: selectedItem.type,
-        title: selectedItem.title,
-        rating: rating || null,
-        status,
-        completed_date: status === 'completed' ? new Date().toISOString().split('T')[0] : null,
-        notes: notes.trim() || null,
-        genre: null, 
-        year: selectedItem.year ? parseInt(selectedItem.year) : null,
-        cover_image_url: selectedItem.image || null
-      })
-      
-      clearPersistence()
-      setSelectedItem(null)
-      navigate('/profile')
-    } catch (error) {
-      console.error('Error saving entry:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleCloseModal = () => {
-    setSelectedItem(null)
-  }
-
-  const tabs = [
-    { id: 'movie', label: 'Movies', icon: Film, gradient: 'from-red-500 to-rose-600', glow: 'shadow-red-500/30' },
-    { id: 'show', label: 'TV Shows', icon: Tv, gradient: 'from-violet-500 to-purple-600', glow: 'shadow-violet-500/30' },
-    { id: 'game', label: 'Games', icon: Gamepad2, gradient: 'from-blue-500 to-cyan-600', glow: 'shadow-blue-500/30' },
-    { id: 'book', label: 'Books', icon: Book, gradient: 'from-emerald-500 to-green-600', glow: 'shadow-emerald-500/30' },
-  ] as const
-
-  const activeTabData = tabs.find(t => t.id === activeTab)!
-  const ActiveIcon = activeTabData.icon
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white px-4 pt-6 pb-24">
-      <div className="max-w-4xl mx-auto">
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => step(-0.1)}
+        className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-colors active:scale-95 flex-shrink-0"
+      >
+        <Minus className="w-3.5 h-3.5" />
+      </button>
 
-        {/* Type Selector */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id)
-                  setResults([])
-                  setQuery('')
-                  setSelectedItem(null)
-                }}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
-                  isActive
-                    ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg ${tab.glow}`
-                    : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700/50'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            )
-          })}
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="number"
+          step="0.1"
+          min="0"
+          max="10"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(e) => e.key === 'Enter' && commitDraft()}
+          className="w-16 text-center bg-transparent text-2xl font-bold text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          autoFocus
+        />
+      ) : (
+        <button
+          onClick={() => { setDraft(value > 0 ? String(value) : ''); setEditing(true) }}
+          className="w-16 text-center text-2xl font-bold text-white tabular-nums"
+        >
+          {value > 0 ? value.toFixed(1) : <span className="text-gray-600">—</span>}
+        </button>
+      )}
+
+      <button
+        onClick={() => step(0.1)}
+        className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-colors active:scale-95 flex-shrink-0"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </button>
+
+      {value > 0 && (
+        <button
+          onClick={() => onChange(0)}
+          className="text-xs text-gray-600 hover:text-gray-400 transition-colors ml-1"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Compact inline episode rating ───────────────────────────────────────────
+function EpisodeRatingInput({
+  value,
+  onChange,
+}: {
+  value: number
+  onChange: (v: number) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const commit = () => {
+    const n = parseFloat(draft)
+    if (!isNaN(n)) onChange(Math.min(10, Math.max(0, Math.round(n * 10) / 10)))
+    setEditing(false)
+  }
+
+  const step = (delta: number) => {
+    const next = Math.round((value + delta) * 10) / 10
+    onChange(Math.min(10, Math.max(0, next)))
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      <button
+        onClick={() => step(-0.5)}
+        className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 hover:text-white transition-colors active:scale-90"
+      >
+        <Minus className="w-2.5 h-2.5" />
+      </button>
+      {editing ? (
+        <input
+          type="number"
+          step="0.1"
+          min="0"
+          max="10"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && commit()}
+          className="w-10 text-center bg-transparent text-sm font-bold text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          autoFocus
+        />
+      ) : (
+        <button
+          onClick={() => { setDraft(value > 0 ? String(value) : ''); setEditing(true) }}
+          className="w-10 text-center text-sm font-semibold tabular-nums"
+        >
+          {value > 0
+            ? <span className="text-white">{value.toFixed(1)}</span>
+            : <span className="text-gray-600">—</span>
+          }
+        </button>
+      )}
+      <button
+        onClick={() => step(0.5)}
+        className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 hover:text-white transition-colors active:scale-90"
+      >
+        <Plus className="w-2.5 h-2.5" />
+      </button>
+    </div>
+  )
+}
+
+// ─── Episode row ─────────────────────────────────────────────────────────────
+function EpisodeRow({
+  episode,
+  rating,
+  onRate,
+}: {
+  episode: Episode
+  rating: number
+  onRate: (r: number) => void
+}) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
+      {episode.still_path ? (
+        <img
+          src={episode.still_path}
+          alt={episode.name}
+          loading="lazy"
+          className="w-16 h-9 rounded object-cover flex-shrink-0 bg-gray-800"
+        />
+      ) : (
+        <div className="w-16 h-9 rounded bg-gray-800/60 flex-shrink-0 flex items-center justify-center">
+          <Tv className="w-4 h-4 text-gray-700" />
         </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-gray-600 font-medium">Ep {episode.episode_number}</p>
+        <p className="text-xs font-semibold text-gray-300 truncate leading-tight">{episode.name}</p>
+      </div>
+      <EpisodeRatingInput value={rating} onChange={onRate} />
+    </div>
+  )
+}
 
-        {/* Search */}
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="relative group">
-            <div className={`absolute inset-0 bg-gradient-to-r ${activeTabData.gradient} rounded-2xl blur-xl opacity-0 group-focus-within:opacity-20 transition-opacity duration-500`} />
-            <div className="relative bg-gray-800/60 border border-gray-700/60 rounded-2xl flex items-center shadow-lg group-focus-within:border-gray-500 transition-colors">
-              <div className="pl-4 text-gray-500 group-focus-within:text-white transition-colors flex-shrink-0">
-                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-              </div>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${activeTab}s…`}
-                className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
-                autoFocus
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery('')}
-                  className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
+// ─── Season tabs ──────────────────────────────────────────────────────────────
+function SeasonTabs({
+  seasons,
+  selected,
+  onSelect,
+}: {
+  seasons: Season[]
+  selected: number
+  onSelect: (n: number) => void
+}) {
+  return (
+    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+      {seasons.map((s) => (
+        <button
+          key={s.season_number}
+          onClick={() => onSelect(s.season_number)}
+          className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all ${
+            selected === s.season_number
+              ? 'bg-white text-gray-900'
+              : 'bg-gray-800 text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          S{s.season_number}
+        </button>
+      ))}
+    </div>
+  )
+}
 
-        {/* Results Grid */}
-        {searching && results.length === 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 animate-pulse">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i}>
-                <div className="aspect-[2/3] rounded-xl bg-gray-800" />
-                <div className="h-2.5 bg-gray-800 rounded-full mt-2 mx-1" />
-                <div className="h-2 bg-gray-800/60 rounded-full mt-1.5 mx-3" />
-              </div>
-            ))}
+// ─── Poster card ──────────────────────────────────────────────────────────────
+function PosterCard({
+  item,
+  onSelect,
+}: {
+  item: SearchResult
+  onSelect: (i: SearchResult) => void
+}) {
+  const Icon =
+    item.type === 'show' ? Tv : item.type === 'game' ? Gamepad2 : item.type === 'book' ? Book : Film
+
+  return (
+    <div onClick={() => onSelect(item)} className="group cursor-pointer">
+      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-gray-800/60 relative ring-1 ring-white/5 group-hover:ring-white/15 transition-all duration-200 group-hover:-translate-y-0.5">
+        {item.image ? (
+          <img
+            src={item.image}
+            alt={item.title}
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Icon className="w-7 h-7 text-gray-700" />
           </div>
         )}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200" />
+      </div>
+      <p className="text-[11px] font-semibold text-gray-400 mt-1.5 truncate group-hover:text-gray-200 transition-colors leading-tight">
+        {item.title}
+      </p>
+      {item.year && (
+        <p className="text-[10px] text-gray-700">{item.year}</p>
+      )}
+    </div>
+  )
+}
 
-        {results.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-            {results.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => {
-                  setSelectedItem(item)
-                  if (!selectedItem || selectedItem.id !== item.id) {
-                    setRating(0)
-                    setStatus('completed')
-                    setNotes('')
-                  }
-                }}
-                className="group relative cursor-pointer"
-              >
-                <div className="aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 shadow-md group-hover:shadow-xl group-hover:shadow-black/50 transition-all duration-300 group-hover:-translate-y-1 ring-1 ring-white/5 group-hover:ring-white/20 relative">
-                  {item.image ? (
-                    <img loading="lazy" decoding="async"
-                      src={item.image}
-                      alt={item.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
+// ─── Log panel ────────────────────────────────────────────────────────────────
+function LogPanel({
+  item,
+  hook,
+  onClose,
+}: {
+  item: SearchResult
+  hook: ReturnType<typeof useAddEntryPage>
+  onClose: () => void
+}) {
+  const {
+    rating, setRating,
+    status, setStatus,
+    notes, setNotes,
+    watchedDate, setWatchedDate,
+    episodeMode, enterEpisodeMode, exitEpisodeMode,
+    seasons, selectedSeason, setSelectedSeason,
+    episodes, pendingRatings,
+    loadingSeasons, loadingEpisodes,
+    saving, duplicateError, saveError,
+    setPendingEpisodeRating,
+    getPendingEpisodeRating,
+    handleSave,
+  } = hook
+
+  const isShow = item.type === 'show'
+  const pendingCount = pendingRatings.length
+
+  const statusOptions = [
+    { value: 'completed', label: 'Watched' },
+    { value: 'in-progress', label: 'Watching' },
+    { value: 'planned', label: 'Want to Watch' },
+    { value: 'logged', label: 'Logged' },
+  ] as const
+
+  return (
+    <div className="flex flex-col h-full bg-gray-900">
+      {/* Drag handle (mobile) */}
+      <div className="flex justify-center pt-2.5 pb-1 flex-shrink-0 md:hidden">
+        <div className="w-8 h-1 rounded-full bg-gray-700" />
+      </div>
+
+      {/* Header */}
+      <div className="flex items-start gap-3 px-4 py-3 border-b border-white/6 flex-shrink-0">
+        {item.image && (
+          <img
+            src={item.image}
+            alt={item.title}
+            className="w-10 h-14 rounded object-cover flex-shrink-0 shadow"
+          />
+        )}
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-0.5">
+            {item.type === 'show' ? 'TV Show' : item.type === 'game' ? 'Game' : item.type === 'book' ? 'Book' : 'Film'}
+            {item.year && ` · ${item.year}`}
+          </p>
+          <h2 className="text-base font-bold text-white leading-tight line-clamp-2">{item.title}</h2>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 p-1 mt-0.5 rounded-full text-gray-600 hover:text-gray-300 hover:bg-white/8 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Episode toggle (shows only) */}
+      {isShow && (
+        <div className="px-4 pt-3 flex gap-2 flex-shrink-0">
+          <button
+            onClick={exitEpisodeMode}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
+              !episodeMode ? 'bg-white text-gray-900' : 'bg-gray-800/70 text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Overall
+          </button>
+          <button
+            onClick={enterEpisodeMode}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all relative ${
+              episodeMode ? 'bg-white text-gray-900' : 'bg-gray-800/70 text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Episodes
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+        {isShow && episodeMode ? (
+          /* Episode rating panel */
+          <div className="px-4 pt-3 pb-4">
+            {loadingSeasons ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+              </div>
+            ) : (
+              <>
+                <SeasonTabs seasons={seasons} selected={selectedSeason} onSelect={setSelectedSeason} />
+                <div className="mt-3">
+                  {loadingEpisodes ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+                    </div>
+                  ) : episodes.length > 0 ? (
+                    episodes.map((ep) => (
+                      <EpisodeRow
+                        key={ep.episode_number}
+                        episode={ep}
+                        rating={getPendingEpisodeRating(selectedSeason, ep.episode_number)}
+                        onRate={(r) => setPendingEpisodeRating(selectedSeason, ep.episode_number, ep.name, r)}
+                      />
+                    ))
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 gap-2 bg-gradient-to-br from-gray-800 to-gray-900">
-                      <ActiveIcon className="w-8 h-8 opacity-30" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 flex items-center justify-center transition-all duration-200">
-                    <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all duration-200 border border-white/30">
-                      <Plus className="w-5 h-5 text-white" />
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs font-semibold text-gray-300 mt-2 truncate px-0.5 group-hover:text-white transition-colors">{item.title}</p>
-                <p className="text-[10px] text-gray-600 truncate px-0.5">{item.year || ''}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {results.length === 0 && query && !searching && (
-          <div className="text-center py-24">
-            <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="w-7 h-7 text-gray-600" />
-            </div>
-            <p className="text-gray-400 font-semibold">No results for "{query}"</p>
-            <p className="text-gray-600 text-sm mt-1">Try different keywords</p>
-          </div>
-        )}
-
-        {results.length === 0 && !query && !searching && (
-          <div className="text-center py-24">
-            <div className={`w-20 h-20 bg-gradient-to-br ${activeTabData.gradient} rounded-2xl flex items-center justify-center mx-auto mb-5 opacity-20`}>
-              <ActiveIcon className="w-10 h-10 text-white" />
-            </div>
-            <p className="text-gray-400 font-semibold text-lg">Search for {activeTab}s</p>
-            <p className="text-gray-600 text-sm mt-1">Find what you've been watching, playing, or reading</p>
-          </div>
-        )}
-
-        {/* Detail Modal */}
-        {selectedItem && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-gray-900 border border-gray-800 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
-
-              {/* Close Button */}
-              <button
-                onClick={handleCloseModal}
-                className="absolute top-3 right-3 z-30 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white/90 hover:text-white transition-colors border border-white/10 shadow-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              {/* Left: Poster */}
-              <div className="w-full h-48 md:h-auto md:w-2/5 bg-black relative flex-shrink-0">
-                {selectedItem.image ? (
-                  <>
-                    <div className="absolute inset-0 overflow-hidden">
-                      <img loading="lazy" decoding="async" src={selectedItem.image} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent md:bg-gradient-to-r" />
-                    </div>
-                    <div className="relative h-full w-full flex items-center justify-center p-6 md:p-8">
-                      <img loading="lazy" decoding="async"
-                        src={selectedItem.image}
-                        alt={selectedItem.title}
-                        className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 bg-gray-800">
-                    <Film className="w-16 h-16 opacity-20" />
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Form */}
-              <div className="flex-1 overflow-y-auto bg-gray-900 p-5 md:p-8 flex flex-col">
-                <div className="mb-6 border-b border-gray-800 pb-6">
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className={`px-2.5 py-0.5 rounded-full bg-gradient-to-r ${activeTabData.gradient} text-[10px] font-bold uppercase tracking-wider text-white`}>
-                      {selectedItem.type}
-                    </span>
-                    {selectedItem.year && (
-                      <span className="flex items-center gap-1 text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-800 rounded-md">
-                        <Calendar className="w-3 h-3" />
-                        {selectedItem.year}
-                      </span>
-                    )}
-                  </div>
-                  <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight mb-3">
-                    {selectedItem.title}
-                  </h2>
-                  {duplicateError && (
-                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg flex items-start gap-3">
-                      <span className="flex-shrink-0 mt-0.5">⚠️</span>
-                      <div className="flex-1 text-sm">
-                        <p className="font-medium mb-1">Already in your library</p>
-                        <p className="text-red-400/80">"{selectedItem.title}" is already in your library. Try a different status.</p>
-                      </div>
-                    </div>
+                    <p className="text-center text-gray-600 text-sm py-8">No episodes found</p>
                   )}
                 </div>
-
-                <div className="space-y-6">
-                  {/* Status */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Status</label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { value: 'completed', label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-                        { value: 'in-progress', label: 'In Progress', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-                        { value: 'planned', label: 'Plan to', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-                        { value: 'logged', label: 'Logged', color: 'text-gray-400', bg: 'bg-gray-800', border: 'border-gray-700' },
-                      ].map((s) => (
-                        <button
-                          key={s.value}
-                          onClick={() => {
-                            setStatus(s.value as any)
-                            if (s.value !== 'completed' && s.value !== 'logged') {
-                              setRating(0)
-                              setNotes('')
-                            }
-                          }}
-                          className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium border transition-all duration-200 flex-1 md:flex-none text-center ${
-                            status === s.value
-                              ? `${s.bg} ${s.border} ${s.color} shadow-sm ring-1 ring-inset ring-white/10`
-                              : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white'
-                          }`}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Rating */}
-                  {(status === 'completed' || status === 'logged') && (
-                    <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
-                      <div className="flex justify-between items-center mb-3">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rating</label>
-                        <span className="text-xl font-bold text-white flex items-baseline gap-1">
-                          {rating > 0 ? rating : '—'} <span className="text-gray-600 text-sm font-normal">/ 5</span>
-                        </span>
-                      </div>
-                      <div className="flex gap-1 mb-4 justify-center md:justify-start">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`w-8 h-8 md:w-9 md:h-9 transition-colors cursor-pointer ${rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-700 hover:text-yellow-400/50'}`}
-                            onClick={() => setRating(star)}
-                          />
-                        ))}
-                      </div>
-                      <div className="relative w-full h-6 flex items-center">
-                        <div className="absolute w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-yellow-400 transition-all duration-75 ease-out" style={{ width: `${(rating / 5) * 100}%` }} />
-                        </div>
-                        <input
-                          type="range" min="0" max="10" step="1"
-                          value={rating * 2}
-                          onChange={(e) => setRating(parseFloat(e.target.value) / 2)}
-                          className="absolute w-full h-full opacity-0 cursor-pointer z-10"
-                        />
-                        <div
-                          className="absolute h-5 w-5 bg-white border-2 border-yellow-400 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
-                          style={{ left: `calc(${(rating / 5) * 100}% - 10px)` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  {(status === 'completed' || status === 'logged') && (
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Review</label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        onBlur={() => { if (window.visualViewport) window.scrollTo(0, 0) }}
-                        rows={4}
-                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all resize-none text-sm leading-relaxed"
-                        placeholder="What did you think about it?"
-                      />
-                    </div>
-                  )}
-
+              </>
+            )}
+          </div>
+        ) : (
+          /* Overall form */
+          <div className="px-4 pt-3 pb-4 space-y-4">
+            {/* Status */}
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">Status</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {statusOptions.map((s) => (
                   <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className={`w-full bg-gradient-to-r ${activeTabData.gradient} text-white font-bold py-3.5 rounded-xl shadow-lg transition-all disabled:opacity-50 mt-4 flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98]`}
+                    key={s.value}
+                    onClick={() => setStatus(s.value)}
+                    className={`py-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                      status === s.value
+                        ? 'bg-white text-gray-900'
+                        : 'bg-gray-800/60 text-gray-500 hover:text-gray-300'
+                    }`}
                   >
-                    {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Add to Library'}
+                    {s.label}
                   </button>
-                </div>
+                ))}
               </div>
             </div>
+
+            {/* Rating */}
+            {(status === 'completed' || status === 'logged') && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">
+                  Rating <span className="normal-case font-normal text-gray-700">/ 10</span>
+                </p>
+                <SharedDecimalRating value={rating} onChange={setRating} />
+              </div>
+            )}
+
+            {/* Date watched */}
+            {status === 'completed' && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">Date Watched</p>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={watchedDate}
+                    onChange={(e) => setWatchedDate(e.target.value)}
+                    className="w-full bg-gray-800/60 border border-gray-700/60 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-white/15 [color-scheme:dark]"
+                  />
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600 pointer-events-none" />
+                </div>
+              </div>
+            )}
+
+            {/* Review */}
+            {(status === 'completed' || status === 'logged') && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">Review</p>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Add a review…"
+                  className="w-full bg-gray-800/60 border border-gray-700/60 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-white/15 resize-none leading-relaxed"
+                />
+              </div>
+            )}
+
+            {duplicateError && (
+              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                Already in your library with this status.
+              </p>
+            )}
           </div>
         )}
+      </div>
+
+      {/* Save */}
+      <div className="px-4 py-3 border-t border-white/6 flex-shrink-0 space-y-2">
+        {saveError && (
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            {saveError}
+          </p>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={saving || (isShow && episodeMode && pendingCount === 0)}
+          className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white text-sm font-bold py-3 rounded-xl shadow-lg shadow-red-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98]"
+        >
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : isShow && episodeMode ? (
+            `Save ${pendingCount} Episode${pendingCount !== 1 ? 's' : ''}`
+          ) : (
+            'Add to Library'
+          )}
+        </button>
       </div>
     </div>
   )
 }
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function AddEntryPage() {
+  const hook = useAddEntryPage()
+  const {
+    activeTab, setActiveTab,
+    query, setQuery,
+    results,
+    selectedItem, selectItem, handleClose,
+    searching,
+  } = hook
+
+  // Lock body scroll when sheet is open
+  useEffect(() => {
+    if (selectedItem) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [selectedItem])
+
+  const tabs: { id: MediaType; label: string; Icon: typeof Film }[] = [
+    { id: 'movie', label: 'Films', Icon: Film },
+    { id: 'show', label: 'TV', Icon: Tv },
+    { id: 'game', label: 'Games', Icon: Gamepad2 },
+    { id: 'book', label: 'Books', Icon: Book },
+  ]
+
+  const activeIcon = tabs.find((t) => t.id === activeTab)!.Icon
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+      <div className="max-w-xl mx-auto px-4 pt-5 pb-28">
+
+        {/* Tab selector */}
+        <div className="flex gap-1 mb-4 p-1 bg-gray-900/60 rounded-xl">
+          {tabs.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold flex-1 transition-all ${
+                activeTab === id
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-5">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            {searching
+              ? <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />
+              : <Search className="w-4 h-4 text-gray-600" />
+            }
+          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={`Search ${tabs.find((t) => t.id === activeTab)?.label.toLowerCase()}…`}
+            autoFocus
+            className="w-full bg-gray-900/70 border border-gray-800 rounded-xl pl-10 pr-9 py-3 text-white text-sm placeholder-gray-700 focus:outline-none focus:border-gray-700 transition-colors"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Skeleton */}
+        {searching && results.length === 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 animate-pulse">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i}>
+                <div className="aspect-[2/3] rounded-lg bg-gray-800/60" />
+                <div className="h-2 bg-gray-800/40 rounded mt-1.5 mx-1" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Results */}
+        {results.length > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+            {results.map((item) => (
+              <PosterCard key={item.id} item={item} onSelect={selectItem} />
+            ))}
+          </div>
+        )}
+
+        {/* Empty states */}
+        {results.length === 0 && query && !searching && (
+          <div className="text-center py-16">
+            <p className="text-gray-500 text-sm font-semibold">No results for "{query}"</p>
+            <p className="text-gray-700 text-xs mt-1">Try different keywords</p>
+          </div>
+        )}
+
+        {results.length === 0 && !query && !searching && (
+          <div className="text-center py-16">
+            {React.createElement(activeIcon, { className: 'w-8 h-8 text-gray-800 mx-auto mb-3' })}
+            <p className="text-gray-600 text-sm">
+              Search for {tabs.find((t) => t.id === activeTab)?.label.toLowerCase()} to log
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Sheet overlay */}
+      {selectedItem && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
+            onClick={handleClose}
+          />
+          <div className="fixed z-50 inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center md:p-6">
+            <div className="w-full md:w-[400px] md:rounded-2xl overflow-hidden shadow-2xl flex flex-col rounded-t-2xl max-h-[88dvh] md:max-h-[80vh] bg-gray-900">
+              <LogPanel item={selectedItem} hook={hook} onClose={handleClose} />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
