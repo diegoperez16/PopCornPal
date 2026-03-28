@@ -85,11 +85,8 @@ export const useAuthStore = create<AuthState>()(
         if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
           set({ user: session?.user ?? null, lastAuthCheck: Date.now() })
           if (session?.user) await get().fetchProfile(session.user.id)
-          // Invalidate all TQ queries so they re-fetch with the new token
-          if (event === 'TOKEN_REFRESHED') {
-            const { queryClient } = await import('../lib/queryClient')
-            queryClient.invalidateQueries()
-          }
+          // Token refresh is proactive (token still valid, just renewed) — no need to
+          // invalidate queries. TanStack Query's refetchOnWindowFocus + staleTime handle refresh.
         } else if (event === 'SIGNED_OUT') {
           // Distinguish automatic expiry from manual sign-out so we can show
           // the "session expired" banner only when the user didn't log out themselves.
@@ -121,9 +118,14 @@ export const useAuthStore = create<AuthState>()(
 
       if (session?.user) {
         set({ user: session.user, lastAuthCheck: Date.now() })
-        const fetchProfilePromise = get().fetchProfile(session.user.id)
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
-        await Promise.race([fetchProfilePromise, timeoutPromise])
+        // Skip the network round-trip if we already have a cached profile
+        // (zustand persist). This keeps initialize() near-instant for returning
+        // users so the splash screen is barely visible.
+        if (!get().profile) {
+          const fetchProfilePromise = get().fetchProfile(session.user.id)
+          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
+          await Promise.race([fetchProfilePromise, timeoutPromise])
+        }
       }
     } catch (error) {
       console.error('Error initializing auth:', error)
