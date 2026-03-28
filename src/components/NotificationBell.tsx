@@ -68,17 +68,28 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
 
   useEffect(() => {
     if (!user) return
+
     fetchNotifications()
 
-    const interval = setInterval(fetchNotifications, 30000)
+    // Realtime subscription — updates the bell instantly on new notifications
+    // instead of polling every 30s.
+    const channel = supabase
+      .channel(`notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => { fetchNotifications() }
+      )
+      .subscribe()
 
+    // Refresh when returning to the app in case realtime missed events while backgrounded
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') fetchNotifications()
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
-      clearInterval(interval)
+      supabase.removeChannel(channel)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [user])
