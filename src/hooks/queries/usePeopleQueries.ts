@@ -4,7 +4,6 @@ import { peopleKeys } from '../../lib/queryClient'
 import type { ProfileWithFollowStatus } from '../../store/socialStore'
 
 async function fetchPeopleCounts(userId: string): Promise<{ followersCount: number; followingCount: number }> {
-  await supabase.auth.getSession()
   const [followersResult, followingResult] = await Promise.all([
     supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
     supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', userId),
@@ -16,7 +15,6 @@ async function fetchPeopleCounts(userId: string): Promise<{ followersCount: numb
 }
 
 async function fetchFollowers(userId: string): Promise<ProfileWithFollowStatus[]> {
-  await supabase.auth.getSession()
   const { data: followsData, error: followsError } = await supabase
     .from('follows')
     .select(`follower_id, follower:profiles!follower_id (id, username, avatar_url, bio)`)
@@ -45,7 +43,6 @@ async function fetchFollowers(userId: string): Promise<ProfileWithFollowStatus[]
 }
 
 async function fetchFollowing(userId: string): Promise<ProfileWithFollowStatus[]> {
-  await supabase.auth.getSession()
   const { data: followsData, error: followsError } = await supabase
     .from('follows')
     .select(`following_id, following:profiles!following_id (id, username, avatar_url, bio)`)
@@ -74,7 +71,6 @@ async function fetchFollowing(userId: string): Promise<ProfileWithFollowStatus[]
 }
 
 async function fetchExploreUsers(userId: string): Promise<ProfileWithFollowStatus[]> {
-  await supabase.auth.getSession()
   const { data: followingData } = await supabase
     .from('follows')
     .select('following_id')
@@ -110,7 +106,6 @@ async function fetchExploreUsers(userId: string): Promise<ProfileWithFollowStatu
 }
 
 async function fetchSearchPeople(userId: string, query: string): Promise<ProfileWithFollowStatus[]> {
-  await supabase.auth.getSession()
   const { data: profiles, error } = await supabase
     .from('profiles')
     .select('id, username, avatar_url, bio')

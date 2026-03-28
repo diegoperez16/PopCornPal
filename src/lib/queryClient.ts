@@ -15,10 +15,16 @@ function isAuthError(error: any): boolean {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 2 * 60 * 1000,
+      // 1 min default — short enough that returning to the app sees fresh data,
+      // long enough to avoid hammering Supabase during normal navigation.
+      // Hot paths (feed, comments) override this with tighter values.
+      staleTime: 60 * 1000,
       gcTime: 24 * 60 * 60 * 1000,
+      // 'always' lets queries fire even when navigator.onLine is false (common on
+      // device wake / PWA resume). Without this, TanStack Query silently pauses
+      // queries and they show 'fetching' forever until a manual reload.
+      networkMode: 'always',
       retry: (count, error: any) => {
-        // Never retry auth errors — authedQuery handles one token refresh internally
         if (isAuthError(error)) return false
         return count < 2
       },
@@ -42,7 +48,8 @@ persistQueryClient({
   dehydrateOptions: {
     shouldDehydrateQuery: (query) => {
       const key = query.queryKey[0] as string
-      return ['feed', 'media', 'activity'].includes(key) && query.state.status === 'success'
+      // Persist all main data domains so returning users see cached content instantly.
+      return ['feed', 'media', 'activity', 'profile', 'people'].includes(key) && query.state.status === 'success'
     },
   },
 })
@@ -53,7 +60,6 @@ persistQueryClient({
 export async function authedQuery<T>(
   fn: () => PromiseLike<{ data: T | null; error: any }>
 ): Promise<T> {
-  await supabase.auth.getSession()
   const { data, error } = await fn()
 
   if (error && isAuthError(error)) {

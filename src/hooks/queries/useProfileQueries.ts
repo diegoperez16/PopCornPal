@@ -63,7 +63,6 @@ export type OwnProfileData = {
 // ─── Own Profile ─────────────────────────────────────────────────────────────
 
 async function fetchOwnProfileData(userId: string): Promise<OwnProfileData> {
-  await supabase.auth.getSession()
   const [entriesRes, badgesRes, favoritesRes, userBadgesRes] = await Promise.all([
     supabase.from('media_entries').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from('badges').select('*'),
@@ -83,15 +82,13 @@ export function useOwnProfileData(userId: string) {
     queryKey: profileKeys.own(userId),
     queryFn: () => fetchOwnProfileData(userId),
     enabled: !!userId,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
   })
 }
 
 // ─── User Profile ─────────────────────────────────────────────────────────────
 
 async function fetchUserProfile(username: string, currentUserId: string | null) {
-  await supabase.auth.getSession()
-
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
     .select('*')
@@ -136,21 +133,12 @@ export function useUserProfile(username: string | undefined, currentUserId: stri
 }
 
 async function fetchUserPosts(profileUserId: string, currentUserId: string | null): Promise<ProfilePost[]> {
-  await supabase.auth.getSession()
-
-  const postsPromise = supabase
+  const { data: postsData, error: postsError } = await supabase
     .from('posts')
     .select(`*, profiles:user_id(username, avatar_url, avatar_crop), media_entries:media_entry_id(title, media_type, rating, cover_image_url)`)
     .eq('user_id', profileUserId)
     .order('created_at', { ascending: false })
     .limit(20)
-
-  // Run posts fetch and likes check in parallel
-  const [{ data: postsData, error: postsError }] = await Promise.all([
-    postsPromise,
-    // Warm up the connection in parallel (result used below after we have postIds)
-    currentUserId ? supabase.auth.getSession() : Promise.resolve(null),
-  ])
 
   if (postsError) throw postsError
 
@@ -187,7 +175,6 @@ export function useUserPosts(profileUserId: string | undefined, currentUserId: s
 }
 
 async function fetchUserRecentActivity(profileUserId: string): Promise<ProfileMediaEntry[]> {
-  await supabase.auth.getSession()
   const { data, error } = await supabase
     .from('media_entries')
     .select('*')

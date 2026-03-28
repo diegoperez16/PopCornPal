@@ -3,8 +3,10 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { useMediaEntries, useUpdateEntry, useDeleteEntry } from '../hooks/queries/useMediaQueries'
 import type { MediaEntry } from '../hooks/queries/useMediaQueries'
+import ProgressiveImg from '../components/ProgressiveImg'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Star, Edit2, X, Trash2, Loader2, Search, Calendar, Tag, Clock } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Edit2, X, Trash2, Loader2, Search, Calendar, Tag, Clock } from 'lucide-react'
+import DecimalRating from '../components/DecimalRating'
 
 export default function LibraryPage() {
   const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
@@ -115,13 +117,12 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white pb-20 md:pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8">
         
         {/* Search Bar */}
         <div className="relative mb-8 group">
-          <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
-          <div className="relative bg-gray-800/50 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-600 transition-colors shadow-lg">
+          <div className="bg-gray-800/50 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-500 transition-colors">
             <div className="pl-4 text-gray-500 group-focus-within:text-red-400 transition-colors">
               <Search className="w-5 h-5" />
             </div>
@@ -187,10 +188,10 @@ export default function LibraryPage() {
                 >
                   <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-black/50 group-hover:-translate-y-2 ring-1 ring-white/10 group-hover:ring-white/20">
                     {entry.cover_image_url ? (
-                      <img loading="lazy" decoding="async" 
-                        src={entry.cover_image_url} 
-                        alt={entry.title} 
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                      <ProgressiveImg
+                        src={entry.cover_image_url}
+                        alt={entry.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 gap-3 bg-gradient-to-br from-gray-800 to-gray-900">
@@ -206,9 +207,8 @@ export default function LibraryPage() {
                     </div>
 
                     {entry.rating && (
-                      <div className="absolute top-2 right-2 bg-black/80 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 border border-white/10 shadow-lg">
-                        <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                        <span className="text-xs font-bold text-white">{entry.rating}</span>
+                      <div className="absolute top-2 right-2 bg-black/70 px-2 py-0.5 rounded-md">
+                        <span className="text-xs font-bold text-white tabular-nums">{entry.rating}</span>
                       </div>
                     )}
                   </div>
@@ -267,7 +267,7 @@ export default function LibraryPage() {
       {/* --- RESPONSIVE SPLIT-VIEW MODAL --- */}
       {selectedEntry && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-gray-900 border border-gray-700 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
+          <div className="bg-gray-900 border border-white/8 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
             
             {/* Close Button */}
             <button
@@ -360,54 +360,11 @@ export default function LibraryPage() {
                   </div>
                 </div>
 
-                {/* Rating with Slider & Stars */}
+                {/* Rating */}
                 {(editStatus === 'completed' || editStatus === 'logged') && (
-                  <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
-                    <div className="flex justify-between items-center mb-3">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rating</label>
-                      <span className="text-xl font-bold text-white flex items-baseline gap-1">
-                        {editRating > 0 ? editRating : '-'} <span className="text-gray-600 text-sm font-normal">/ 5</span>
-                      </span>
-                    </div>
-                    
-                    {/* Star Display (Visual + Click) */}
-                    <div className="flex gap-1 mb-4 justify-center md:justify-start">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star 
-                          key={star} 
-                          className={`w-8 h-8 md:w-9 md:h-9 transition-colors cursor-pointer ${editRating >= star ? 'text-yellow-400 fill-yellow-400' : editRating >= star - 0.5 ? 'text-yellow-400 fill-yellow-400/50' : 'text-gray-700'}`} 
-                          onClick={() => setEditRating(star)} 
-                        />
-                      ))}
-                    </div>
-                    
-                    {/* Smooth Slider Control */}
-                    <div className="relative w-full h-6 flex items-center group">
-                      {/* Track */}
-                      <div className="absolute w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                           <div 
-                              className="h-full bg-yellow-400 transition-all duration-75 ease-out"
-                              style={{ width: `${(editRating / 5) * 100}%` }}
-                           />
-                      </div>
-                      {/* Invisible Input for interaction */}
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        step="1"
-                        value={editRating * 2}
-                        onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)}
-                        className="absolute w-full h-full opacity-0 cursor-pointer z-10"
-                      />
-                      {/* Thumb Visual */}
-                      <div 
-                          className="absolute h-5 w-5 bg-white border-2 border-yellow-400 rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
-                          style={{ 
-                              left: `calc(${(editRating / 5) * 100}% - 10px)` 
-                          }}
-                      />
-                    </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3 block">Rating</label>
+                    <DecimalRating value={editRating} onChange={setEditRating} />
                   </div>
                 )}
 

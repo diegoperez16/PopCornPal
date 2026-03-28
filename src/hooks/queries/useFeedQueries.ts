@@ -42,8 +42,6 @@ export async function fetchSinglePost(postId: string, currentUserId: string): Pr
 // ─── Feed ───────────────────────────────────────────────────────────────────
 
 async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: Post[]; hasMore: boolean }> {
-  await supabase.auth.getSession()
-
   // 1. Try optimised RPC
   const { data: rpcData, error: rpcError } = await supabase.rpc('get_feed', {
     p_user_id: userId,
@@ -137,15 +135,13 @@ export function useFeed(userId: string) {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasMore ? allPages.length * PAGE_SIZE : undefined,
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 30 * 1000,
   })
 }
 
 // ─── Comments ───────────────────────────────────────────────────────────────
 
 async function fetchComments(postId: string): Promise<{ rootComments: Comment[]; commentsMap: Map<string, Comment> }> {
-  await supabase.auth.getSession()
-
   const { data, error } = await supabase
     .from('post_comments')
     .select(`*, profiles:user_id (username, avatar_url, avatar_crop)`)
@@ -178,7 +174,7 @@ async function fetchComments(postId: string): Promise<{ rootComments: Comment[];
   if (data && data.length > 0) {
     try {
       const { data: sessionData } = await supabase.auth.getSession()
-      const currentUserId = sessionData?.session?.user?.id
+      const currentUserId = sessionData?.session?.user?.id // needed to compute is_liked per comment
 
       const commentIds = data.map((c: any) => c.id)
       const allLikesPromise = supabase.from('comment_likes').select('comment_id').in('comment_id', commentIds)
@@ -212,7 +208,7 @@ export function useComments(postId: string | null) {
     queryKey: feedKeys.comments(postId ?? ''),
     queryFn: () => fetchComments(postId!),
     enabled: !!postId,
-    staleTime: 60 * 1000,
+    staleTime: 20 * 1000,
   })
 }
 

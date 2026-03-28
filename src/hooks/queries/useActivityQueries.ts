@@ -4,7 +4,6 @@ import { activityKeys } from '../../lib/queryClient'
 import type { MediaEntry } from '../queries/useMediaQueries'
 
 async function fetchActivity(userId: string): Promise<MediaEntry[]> {
-  await supabase.auth.getSession()
   const { data, error } = await supabase
     .from('media_entries')
     .select('*')

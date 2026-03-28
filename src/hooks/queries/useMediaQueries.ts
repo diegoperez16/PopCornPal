@@ -34,7 +34,6 @@ export type UserStats = {
 }
 
 async function fetchMediaEntries(userId: string): Promise<MediaEntry[]> {
-  await supabase.auth.getSession()
   const { data, error } = await supabase
     .from('media_entries')
     .select('*')
@@ -45,7 +44,6 @@ async function fetchMediaEntries(userId: string): Promise<MediaEntry[]> {
 }
 
 async function fetchMediaStats(userId: string): Promise<UserStats | null> {
-  await supabase.auth.getSession()
   const { data } = await supabase
     .from('user_stats')
     .select('*')
@@ -59,7 +57,7 @@ export function useMediaEntries(userId: string) {
     queryKey: mediaKeys.entries(userId),
     queryFn: () => fetchMediaEntries(userId),
     enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -68,7 +66,7 @@ export function useMediaStats(userId: string) {
     queryKey: mediaKeys.stats(userId),
     queryFn: () => fetchMediaStats(userId),
     enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -76,8 +74,6 @@ export function useAddEntry(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (entry: Omit<MediaEntry, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
-      await supabase.auth.getSession()
-
       // Add logged copy if status is completed or in-progress (same logic as original store)
       if (entry.status === 'completed' || entry.status === 'in-progress') {
         const { data: existingLibrary } = await supabase
@@ -110,7 +106,6 @@ export function useUpdateEntry(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<MediaEntry> }) => {
-      await supabase.auth.getSession()
       const { error } = await supabase.from('media_entries').update(updates).eq('id', id)
       if (error) throw error
     },
@@ -125,7 +120,6 @@ export function useDeleteEntry(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await supabase.auth.getSession()
       const { error } = await supabase.from('media_entries').delete().eq('id', id)
       if (error) throw error
     },
