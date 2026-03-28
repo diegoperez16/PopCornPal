@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import UserAvatar from '../components/UserAvatar'
+import ProgressiveImg from '../components/ProgressiveImg'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore } from '../store/socialStore'
@@ -706,7 +707,7 @@ export default function FeedPage() {
 
 <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
         {/* Create Post */}
-        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4 sm:p-6 mb-6">
+        <div className="bg-gray-800/50 backdrop-blur-sm border border-white/6 rounded-2xl p-4 mb-5">
           <div className="flex gap-4">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
               {profile?.avatar_url ? (
@@ -814,10 +815,10 @@ export default function FeedPage() {
         </div>
 
         {/* Feed section label */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700 to-gray-800" />
-          <span className="text-[11px] text-gray-600 font-semibold uppercase tracking-widest">Your Feed</span>
-          <div className="flex-1 h-px bg-gradient-to-l from-transparent via-gray-700 to-gray-800" />
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 h-px bg-white/5" />
+          <span className="text-[10px] text-gray-700 font-semibold uppercase tracking-widest">Your Feed</span>
+          <div className="flex-1 h-px bg-white/5" />
         </div>
 
         {/* Feed */}
@@ -831,7 +832,7 @@ export default function FeedPage() {
             {posts.slice(0, visiblePostsCount).map((post, index) => (
               <div
                 key={post.id}
-                className="bg-gray-800/40 backdrop-blur-sm border border-gray-700/60 rounded-2xl p-3 sm:p-4 fade-in hover:border-gray-600/80 hover:bg-gray-800/60 transition-all duration-200"
+                className="bg-gray-800/40 backdrop-blur-sm border border-white/6 rounded-2xl p-4 fade-in transition-colors hover:bg-gray-800/60"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 {/* Post Header */}
@@ -868,37 +869,38 @@ export default function FeedPage() {
                 {/* Image */}
                 {post.image_url && (
                   <div className="mb-2.5 rounded-xl overflow-hidden">
-                    <img src={post.image_url} alt="Post attachment" className="w-full max-h-[360px] object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                    <ProgressiveImg src={post.image_url} alt="Post attachment" className="w-full max-h-[360px] object-cover" />
                   </div>
                 )}
 
                 {/* Media Entry */}
                 {post.media_entries && (
-                  <div className="bg-gray-900/60 border border-gray-700/40 rounded-xl p-2.5 mb-2.5 flex items-center gap-2.5 hover:border-gray-600/60 transition-colors">
-                    {post.media_entries.cover_image_url && (
-                      <div className="w-10 h-14 flex-shrink-0 bg-gray-800 rounded overflow-hidden">
-                        <img src={post.media_entries.cover_image_url} alt={post.media_entries.title} className="w-full h-full object-cover" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                  <div className="mb-2.5 flex items-stretch rounded-xl overflow-hidden border border-white/6">
+                    <div className="bg-white/[0.03] flex-1 flex items-center gap-2.5 p-2.5 min-w-0">
+                      {post.media_entries.cover_image_url && (
+                        <div className="w-10 h-14 flex-shrink-0 rounded overflow-hidden">
+                          <ProgressiveImg src={post.media_entries.cover_image_url} alt={post.media_entries.title} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      {!post.media_entries.cover_image_url && (() => {
+                        const Icon = getMediaIcon(post.media_entries!.media_type)
+                        return <Icon className="w-5 h-5 text-red-400 flex-shrink-0" />
+                      })()}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate">{post.media_entries.title}</p>
+                        <p className="text-sm text-gray-400 capitalize">{post.media_entries.media_type}</p>
                       </div>
-                    )}
-                    {!post.media_entries.cover_image_url && (() => {
-                      const Icon = getMediaIcon(post.media_entries!.media_type)
-                      return <Icon className="w-5 h-5 text-red-400 flex-shrink-0" />
-                    })()}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{post.media_entries.title}</p>
-                      <p className="text-sm text-gray-400 capitalize">{post.media_entries.media_type}</p>
                     </div>
                     {post.media_entries.rating && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className="text-yellow-400">★</span>
-                        <span className="font-semibold">{post.media_entries.rating}</span>
+                      <div className="w-12 flex-shrink-0 bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center">
+                        <span className="text-white text-base font-bold tabular-nums">{post.media_entries.rating}</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Post Actions */}
-                <div className="flex items-center gap-1 pt-2 border-t border-gray-800/80">
+                <div className="flex items-center gap-1 pt-2 border-t border-white/5">
                   <button
                     onClick={() => handleLike(post.id)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AvatarCrop } from '../lib/supabase'
 
 interface UserAvatarProps {
@@ -13,6 +14,8 @@ interface UserAvatarProps {
  * Returns null when no avatarUrl (parent container shows its fallback gradient/initial).
  */
 export default function UserAvatar({ avatarUrl, avatarCrop, username, className = 'w-full h-full' }: UserAvatarProps) {
+  const [loaded, setLoaded] = useState(false)
+
   if (!avatarUrl) return null
 
   if (avatarCrop) {
@@ -35,7 +38,8 @@ export default function UserAvatar({ avatarUrl, avatarCrop, username, className 
       decoding="async"
       src={avatarUrl}
       alt={username}
-      className={`${className} object-cover`}
+      className={`${className} object-cover transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+      onLoad={() => setLoaded(true)}
     />
   )
 }
