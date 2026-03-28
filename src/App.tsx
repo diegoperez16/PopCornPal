@@ -7,6 +7,7 @@ import { useAuthStore } from './store/authStore'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { queryClient } from './lib/queryClient'
 import MobileNav from './components/MobileNav'
+import MobileHeader from './components/MobileHeader'
 import DesktopNav from './components/DesktopNav'
 import SplashLoader from './components/SplashLoader'
 import WelcomeModal, { shouldShowWelcome } from './components/WelcomeModal'
@@ -205,14 +206,13 @@ function App() {
   }, [initialize])
 
   // Manage Supabase's auto-refresh timer based on tab visibility.
+  // Only refresh the session here — TanStack Query's refetchOnWindowFocus handles
+  // re-fetching stale queries naturally based on each query's staleTime.
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         supabase.auth.startAutoRefresh()
         await resumeSession()
-        // After the session is verified/refreshed, invalidate all stale TQ queries
-        // so the UI refreshes immediately instead of waiting for the next stale interval.
-        queryClient.invalidateQueries()
       } else {
         supabase.auth.stopAutoRefresh()
       }
@@ -222,11 +222,13 @@ function App() {
   }, [resumeSession])
 
   // Listen for FLUSH_OFFLINE_QUEUE messages from the service worker (background sync)
+  // Only invalidate feed and media since those are what offline writes affect.
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'FLUSH_OFFLINE_QUEUE') {
-        queryClient.invalidateQueries()
+        queryClient.invalidateQueries({ queryKey: ['feed'] })
+        queryClient.invalidateQueries({ queryKey: ['media'] })
       }
     }
     navigator.serviceWorker.addEventListener('message', handleMessage)
@@ -240,8 +242,11 @@ function App() {
 
   if (!isSupabaseConfigured) return <SetupMessage />
 
-  // Only block on splash if there's no cached user — returning users see the app instantly
-  if (!appReady && !user) return <SplashLoader />
+  // Always wait for initialize() to finish so the Supabase client has an active
+  // session before any queries fire. Without this, cached zustand user causes
+  // pages to render and fire queries before the JWT is available, leaving them
+  // stuck in a permanent loading state.
+  if (!appReady) return <SplashLoader />
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -286,8 +291,12 @@ function PullToRefresh() {
       if (dist >= PTR_THRESHOLD * 0.8 && !refreshingRef.current) {
         refreshingRef.current = true
         setRefreshing(true)
-        // Brief delay so the spinner is visible before reload
-        setTimeout(() => window.location.reload(), 300)
+        // Invalidate all queries so active ones refetch in the background.
+        // Cached data stays visible — no blank screen flash like a full reload would cause.
+        queryClient.invalidateQueries().finally(() => {
+          refreshingRef.current = false
+          setRefreshing(false)
+        })
       }
     }
 
@@ -377,6 +386,7 @@ function AppContent() {
 
   return (
     <>
+      {showNav && <MobileHeader />}
       {showNav && <DesktopNav />}
       <ChunkErrorBoundary>
       <Suspense fallback={<SplashLoader />}>
