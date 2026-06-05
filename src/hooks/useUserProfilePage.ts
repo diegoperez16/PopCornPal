@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase, type UserBadge, type BackgroundCrop } from '../lib/supabase'
 import {
   useUserProfile,
+  useUserPosts,
+  useUserRecentActivity,
   useFollowUserProfile,
   useToggleUserPostLike,
   useFollowersList,
@@ -63,8 +65,14 @@ export function useUserProfilePage(
 
   const profileQuery = useUserProfile(username, currentUserId)
   const profileData = profileQuery.data
-
   const profileUserId = profileData?.profile?.id
+
+  const postsQuery = useUserPosts(profileUserId, currentUserId)
+  const recentActivityQuery = useUserRecentActivity(profileUserId)
+
+  // Prefetch followers/following as soon as we have the profile ID so modal opens instantly
+  useFollowersList(profileUserId, currentUserId, !!profileUserId)
+  useFollowingList(profileUserId, currentUserId, !!profileUserId)
 
   const followMutation = useFollowUserProfile(currentUserId)
   const likeMutation = useToggleUserPostLike(currentUserId, username)
@@ -102,9 +110,9 @@ export function useUserProfilePage(
   // ─── Derived loading states ───────────────────────────────────────────────────
 
   const initialLoading = profileQuery.isLoading
-  const loading = profileQuery.isFetching
-  const postsLoaded = profileQuery.isSuccess
-  const recentActivityLoaded = profileQuery.isSuccess
+  const loading = profileQuery.isFetching || postsQuery.isFetching || recentActivityQuery.isFetching
+  const postsLoaded = postsQuery.isSuccess
+  const recentActivityLoaded = recentActivityQuery.isSuccess
   const followLoading = followMutation.isPending
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -180,8 +188,8 @@ export function useUserProfilePage(
   const followingCount = profileData?.followingCount ?? 0
   const isFollowing = profileData?.isFollowing ?? false
   const favorites = (profileData?.favorites ?? []) as Favorite[]
-  const posts = (profileData?.posts ?? []) as Post[]
-  const recentActivity = (profileData?.recentActivity ?? []) as MediaEntry[]
+  const posts = (postsQuery.data ?? []) as Post[]
+  const recentActivity = (recentActivityQuery.data ?? []) as MediaEntry[]
 
   const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
   const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')

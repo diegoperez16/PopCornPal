@@ -105,8 +105,6 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
     followingResult,
     currentUserFollowResult,
     favoritesResult,
-    postsResult,
-    recentActivityResult,
   ] = await Promise.all([
     supabase.from('user_badges').select('*, badges(*)').eq('user_id', profileId),
     supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileId),
@@ -115,29 +113,7 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
       ? supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', currentUserId).eq('following_id', profileId)
       : Promise.resolve({ count: 0, error: null }),
     supabase.from('profile_favorites').select('*, media_entry:media_entries(*)').eq('user_id', profileId).order('created_at', { ascending: true }),
-    supabase.from('posts')
-      .select('*, profiles:user_id(username, avatar_url, avatar_crop), media_entries:media_entry_id(title, media_type, rating, cover_image_url)')
-      .eq('user_id', profileId)
-      .order('created_at', { ascending: false })
-      .limit(20),
-    supabase.from('media_entries')
-      .select('*')
-      .eq('user_id', profileId)
-      .neq('status', 'logged')
-      .order('updated_at', { ascending: false })
-      .limit(5),
   ])
-
-  const rawPosts = postsResult.data ?? []
-  const likedPostIds = new Set<string>()
-  if (currentUserId && rawPosts.length > 0) {
-    const { data: userLikes } = await supabase
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', currentUserId)
-      .in('post_id', rawPosts.map((p: any) => p.id))
-    if (userLikes) userLikes.forEach((like: any) => likedPostIds.add(like.post_id))
-  }
 
   return {
     profile: profileData as UserProfile,
@@ -146,13 +122,6 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
     followingCount: followingResult.count ?? 0,
     isFollowing: (currentUserFollowResult.count ?? 0) > 0,
     favorites: (favoritesResult.data ?? []) as Favorite[],
-    posts: rawPosts.map((post: any) => ({
-      ...post,
-      likes_count: post.likes_count ?? 0,
-      comments_count: post.comments_count ?? 0,
-      user_liked: likedPostIds.has(post.id),
-    })) as ProfilePost[],
-    recentActivity: (recentActivityResult.data ?? []) as ProfileMediaEntry[],
   }
 }
 
