@@ -62,7 +62,7 @@ export default function PeoplePage() {
   // Realtime subscriptions for follows table
   useEffect(() => {
     if (!user) return
-    const channel = supabase.channel(`follows-${user.id}`)
+    const subscribe = () => supabase.channel(`follows-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'follows', filter: `follower_id=eq.${user.id}` }, () => {
         queryClient.invalidateQueries({ queryKey: peopleKeys.counts(user.id) })
         queryClient.invalidateQueries({ queryKey: peopleKeys.following(user.id) })
@@ -73,7 +73,21 @@ export default function PeoplePage() {
         queryClient.invalidateQueries({ queryKey: peopleKeys.followers(user.id) })
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    let channel = subscribe()
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      const state = channel.state
+      if (state === 'closed' || state === 'errored') {
+        supabase.removeChannel(channel)
+        channel = subscribe()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      supabase.removeChannel(channel)
+    }
   }, [user?.id, queryClient])
 
   const handleFollow = (profileId: string) => {

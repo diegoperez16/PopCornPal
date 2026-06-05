@@ -90,9 +90,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
 
     fetchNotifications()
 
-    // Realtime subscription — updates the bell instantly on new notifications
-    // instead of polling every 30s.
-    const channel = supabase
+    const subscribe = () => supabase
       .channel(`notifications-${user.id}`)
       .on(
         'postgres_changes',
@@ -101,9 +99,16 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       )
       .subscribe()
 
-    // Refresh when returning to the app in case realtime missed events while backgrounded
+    let channel = subscribe()
+
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') fetchNotifications()
+      if (document.visibilityState !== 'visible') return
+      fetchNotifications()
+      const state = channel.state
+      if (state === 'closed' || state === 'errored') {
+        supabase.removeChannel(channel)
+        channel = subscribe()
+      }
     }
     document.addEventListener('visibilitychange', handleVisibility)
 

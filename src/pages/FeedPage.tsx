@@ -386,7 +386,7 @@ export default function FeedPage() {
       })
     }
 
-    const channel = supabase
+    const subscribeChannel = () => supabase
       .channel(`feed-realtime-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, handleInsert)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, handleDelete)
@@ -396,19 +396,17 @@ export default function FeedPage() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_comments' }, handleCommentDelete)
       .subscribe((status, err) => {
         if (err) console.error('[Feed] realtime error:', err)
-        else console.log('[Feed] realtime status:', status)
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Invalidate so the user isn't stuck with stale data
+          queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
+        }
       })
 
-    const followsChannel = supabase
+    const subscribeFollowsChannel = () => supabase
       .channel(`feed-follows-${user.id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'follows',
-          filter: `follower_id=eq.${user.id}`,
-        },
+        { event: 'INSERT', schema: 'public', table: 'follows', filter: `follower_id=eq.${user.id}` },
         (payload: FollowChangePayload) => {
           const followingId = payload.new?.following_id
           if (followingId) followedUserIds.add(followingId)
@@ -416,26 +414,40 @@ export default function FeedPage() {
       )
       .on(
         'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'follows',
-          filter: `follower_id=eq.${user.id}`,
-        },
+        { event: 'DELETE', schema: 'public', table: 'follows', filter: `follower_id=eq.${user.id}` },
         (payload: FollowChangePayload) => {
           const followingId = payload.old?.following_id
           if (followingId) {
             followedUserIds.delete(followingId)
-            return
+          } else {
+            void syncFollowedUserIds()
           }
-
-          void syncFollowedUserIds()
         }
       )
       .subscribe()
 
+    let channel = subscribeChannel()
+    let followsChannel = subscribeFollowsChannel()
+
+    // Resubscribe on visibility restore — WebSocket may have been dropped while backgrounded
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      const state = channel.state
+      if (state === 'closed' || state === 'errored') {
+        supabase.removeChannel(channel)
+        channel = subscribeChannel()
+      }
+      const followsState = followsChannel.state
+      if (followsState === 'closed' || followsState === 'errored') {
+        supabase.removeChannel(followsChannel)
+        followsChannel = subscribeFollowsChannel()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
       isActive = false
+      document.removeEventListener('visibilitychange', handleVisibility)
       supabase.removeChannel(channel)
       supabase.removeChannel(followsChannel)
     }
