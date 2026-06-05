@@ -64,7 +64,6 @@ export function useMediaEntries(userId: string) {
     queryKey: mediaKeys.entries(userId),
     queryFn: () => fetchMediaEntries(userId),
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -73,7 +72,6 @@ export function useMediaStats(userId: string) {
     queryKey: mediaKeys.stats(userId),
     queryFn: () => fetchMediaStats(userId),
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
   })
 }
 

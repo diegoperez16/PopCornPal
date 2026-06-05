@@ -49,7 +49,6 @@ export function useShowEpisodeRatings(userId: string, showTitle: string) {
       return (data ?? []) as EpisodeRatingRow[]
     },
     enabled: !!userId && !!showTitle,
-    staleTime: 2 * 60 * 1000,
   })
 }
 

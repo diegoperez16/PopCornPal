@@ -82,7 +82,6 @@ export function useOwnProfileData(userId: string) {
     queryKey: profileKeys.own(userId),
     queryFn: () => fetchOwnProfileData(userId),
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -130,7 +129,6 @@ export function useUserProfile(username: string | undefined, currentUserId: stri
     queryKey: profileKeys.user(username ?? '', currentUserId),
     queryFn: () => fetchUserProfile(username!, currentUserId),
     enabled: !!username,
-    staleTime: 3 * 60 * 1000,
   })
 }
 
@@ -138,7 +136,6 @@ export function prefetchUserProfile(username: string, currentUserId: string | nu
   return queryClient.prefetchQuery({
     queryKey: profileKeys.user(username, currentUserId),
     queryFn: () => fetchUserProfile(username, currentUserId),
-    staleTime: 3 * 60 * 1000,
   })
 }
 
@@ -180,7 +177,6 @@ export function useUserPosts(profileUserId: string | undefined, currentUserId: s
     queryKey: ['profile', 'posts', profileUserId, currentUserId],
     queryFn: () => fetchUserPosts(profileUserId!, currentUserId),
     enabled: !!profileUserId,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -202,7 +198,6 @@ export function useUserRecentActivity(profileUserId: string | undefined) {
     queryKey: ['profile', 'activity', profileUserId],
     queryFn: () => fetchUserRecentActivity(profileUserId!),
     enabled: !!profileUserId,
-    staleTime: 3 * 60 * 1000,
   })
 }
 
@@ -309,7 +304,6 @@ export function useFollowersList(profileUserId: string | undefined, currentUserI
     queryKey: ['profile', 'followers-list', profileUserId, currentUserId],
     queryFn: () => fetchFollowersList(profileUserId!, currentUserId),
     enabled: !!profileUserId && enabled,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -318,7 +312,6 @@ export function useFollowingList(profileUserId: string | undefined, currentUserI
     queryKey: ['profile', 'following-list', profileUserId, currentUserId],
     queryFn: () => fetchFollowingList(profileUserId!, currentUserId),
     enabled: !!profileUserId && enabled,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -339,6 +332,5 @@ export function useUserLibrary(profileUserId: string | undefined, enabled: boole
     queryKey: ['profile', 'library', profileUserId],
     queryFn: () => fetchUserLibrary(profileUserId!),
     enabled: !!profileUserId && enabled,
-    staleTime: 2 * 60 * 1000,
   })
 }

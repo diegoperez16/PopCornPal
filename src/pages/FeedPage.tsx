@@ -466,7 +466,6 @@ export default function FeedPage() {
     return queryClient.fetchQuery({
       queryKey: feedKeys.comments(postId),
       queryFn: () => fetchCommentsTree(postId, user?.id ?? null),
-      staleTime: 0,
     })
   }, [queryClient, user?.id])
 

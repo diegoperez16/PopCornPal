@@ -140,7 +140,6 @@ export function usePeopleCounts(userId: string) {
     queryKey: peopleKeys.counts(userId),
     queryFn: () => fetchPeopleCounts(userId),
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -149,7 +148,6 @@ export function useFollowers(userId: string, enabled = true) {
     queryKey: peopleKeys.followers(userId),
     queryFn: () => fetchFollowers(userId),
     enabled: !!userId && enabled,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -158,7 +156,6 @@ export function useFollowing(userId: string, enabled = true) {
     queryKey: peopleKeys.following(userId),
     queryFn: () => fetchFollowing(userId),
     enabled: !!userId && enabled,
-    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -167,7 +164,6 @@ export function useExploreUsers(userId: string, enabled = true) {
     queryKey: peopleKeys.explore(userId),
     queryFn: () => fetchExploreUsers(userId),
     enabled: !!userId && enabled,
-    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -208,6 +204,5 @@ export function useSearchPeople(userId: string, query: string) {
     queryKey: ['people', 'search', userId, normalizedQuery],
     queryFn: () => fetchSearchPeople(userId, normalizedQuery),
     enabled: !!userId && normalizedQuery.length >= 2,
-    staleTime: 30 * 1000,
   })
 }

@@ -7,7 +7,6 @@ export function useActivity(userId: string) {
     queryKey: mediaKeys.entries(userId),
     queryFn: () => fetchMediaEntries(userId),
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
     select: (entries: MediaEntry[]) =>
       entries
         .filter(entry => entry.status !== 'logged')

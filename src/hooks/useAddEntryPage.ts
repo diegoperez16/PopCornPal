@@ -223,7 +223,6 @@ export function useAddEntryPage() {
             knownEntries = await queryClient.fetchQuery({
               queryKey: mediaKeys.entries(user.id),
               queryFn: () => fetchMediaEntries(user.id),
-              staleTime: 2 * 60 * 1000,
             })
           }
 
