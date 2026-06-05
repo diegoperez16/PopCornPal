@@ -15,7 +15,7 @@ import {
   useUnfollowUser,
   useSearchPeople,
 } from '../hooks/queries/usePeopleQueries'
-import { Link } from 'react-router-dom'
+import ProfileLink from '../components/ProfileLink'
 
 
 export default function PeoplePage() {
@@ -91,9 +91,9 @@ export default function PeoplePage() {
       key={profile.id}
       className="group flex items-center gap-3 p-3.5 bg-gray-800/40 border border-gray-700/50 rounded-2xl hover:bg-gray-800/70 hover:border-gray-600 transition-all duration-200"
     >
-      <Link
-        to={`/profile/${profile.username}`}
-        state={{ initialProfile: profile }}
+      <ProfileLink
+        username={profile.username}
+        currentUserId={user?.id}
         className="flex items-center gap-3 flex-1 min-w-0"
       >
         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
@@ -123,7 +123,7 @@ export default function PeoplePage() {
             <p className="text-xs text-gray-600 italic mt-0.5">No bio</p>
           )}
         </div>
-      </Link>
+      </ProfileLink>
 
       <button
         onClick={() => profile.isFollowing ? handleUnfollow(profile.id) : handleFollow(profile.id)}
@@ -147,9 +147,9 @@ export default function PeoplePage() {
       key={profile.id}
       className="group bg-gray-800/40 border border-gray-700/50 rounded-2xl p-4 hover:bg-gray-800/70 hover:border-gray-600 transition-all duration-200 flex flex-col items-center text-center"
     >
-      <Link
-        to={`/profile/${profile.username}`}
-        state={{ initialProfile: profile }}
+      <ProfileLink
+        username={profile.username}
+        currentUserId={user?.id}
         className="flex flex-col items-center mb-3 w-full"
       >
         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
@@ -170,7 +170,7 @@ export default function PeoplePage() {
         ) : (
           <p className="text-xs text-gray-600 italic mt-1">No bio</p>
         )}
-      </Link>
+      </ProfileLink>
       <button
         onClick={() => handleFollow(profile.id)}
         className="w-full py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500 active:scale-95 transition-all shadow-sm"

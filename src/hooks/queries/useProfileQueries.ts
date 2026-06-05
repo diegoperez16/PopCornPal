@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { profileKeys, peopleKeys } from '../../lib/queryClient'
+import { queryClient, profileKeys, peopleKeys } from '../../lib/queryClient'
 import type { UserBadge } from '../../lib/supabase'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -161,6 +161,14 @@ export function useUserProfile(username: string | undefined, currentUserId: stri
     queryKey: profileKeys.user(username ?? '', currentUserId),
     queryFn: () => fetchUserProfile(username!, currentUserId),
     enabled: !!username,
+    staleTime: 3 * 60 * 1000,
+  })
+}
+
+export function prefetchUserProfile(username: string, currentUserId: string | null) {
+  return queryClient.prefetchQuery({
+    queryKey: profileKeys.user(username, currentUserId),
+    queryFn: () => fetchUserProfile(username, currentUserId),
     staleTime: 3 * 60 * 1000,
   })
 }

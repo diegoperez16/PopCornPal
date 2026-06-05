@@ -1,5 +1,4 @@
 import { memo, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import {
   ArrowUpRight,
   Book,
@@ -14,6 +13,7 @@ import {
   User,
 } from 'lucide-react'
 import UserAvatar from '../UserAvatar'
+import ProfileLink from '../ProfileLink'
 import ProgressiveImg from '../ProgressiveImg'
 import type { Post } from '../../store/socialStore'
 import { formatTimeAgo, wasEdited } from './feedTypes'
@@ -75,12 +75,13 @@ function FeedPostCardComponent({
           )}
         </div>
         <div className="flex-1">
-          <Link
-            to={`/profile/${post.profiles.username}`}
+          <ProfileLink
+            username={post.profiles.username}
+            currentUserId={currentUserId}
             className="font-semibold hover:text-red-400 transition-colors inline-block"
           >
             @{post.profiles.username}
-          </Link>
+          </ProfileLink>
           <p className="text-xs text-gray-400 flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {formatTimeAgo(post.created_at)}

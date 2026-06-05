@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom'
 import { X, RefreshCw, Pencil, Trash2, ArrowUp, Image as ImageIcon, MessageCircle, Heart } from 'lucide-react'
 import GifPicker from '../GifPicker'
 import { type Comment, formatTimeAgo, findImageLink } from './feedTypes'
 import UserAvatar from '../UserAvatar'
+import ProfileLink from '../ProfileLink'
 
 type ThreadModalProps = {
   comment: Comment
@@ -166,13 +166,13 @@ export default function ThreadModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="bg-gray-800/30 rounded-lg p-3 min-w-0">
-                      <Link
-                        to={`/profile/${parentComment.profiles.username}`}
+                      <ProfileLink
+                        username={parentComment.profiles.username}
                         className="text-sm font-semibold text-gray-300 hover:text-red-400 transition-colors inline-block mb-1 min-w-0"
                         onClick={onClose}
                       >
                         @{parentComment.profiles.username}
-                      </Link>
+                      </ProfileLink>
                       <p className="text-sm text-gray-400 break-words overflow-wrap-anywhere">{parentComment.content}</p>
                       {parentComment.image_url && (
                         <div className="mt-2">
@@ -207,8 +207,8 @@ export default function ThreadModal({
               </div>
               <div className="flex-1">
                 <div className="bg-gray-800/50 rounded-lg p-4">
-                  <Link
-                    to={`/profile/${threadModalComment.profiles.username}`}
+                  <ProfileLink
+                    username={threadModalComment.profiles.username}
                     className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
                     onClick={() => {
                       onClose()
@@ -218,7 +218,7 @@ export default function ThreadModal({
                     }}
                   >
                     @{threadModalComment.profiles.username}
-                  </Link>
+                  </ProfileLink>
 
                   {editingCommentId === threadModalComment.id ? (
                     <div className="mt-1">
@@ -403,13 +403,13 @@ export default function ThreadModal({
                         </div>
                         <div className="flex-1">
                           <div className="bg-gray-800/30 rounded-lg p-3">
-                            <Link
-                              to={`/profile/${reply.profiles.username}`}
+                            <ProfileLink
+                              username={reply.profiles.username}
                               className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
                               onClick={onClose}
                             >
                               @{reply.profiles.username}
-                            </Link>
+                            </ProfileLink>
 
                             {editingCommentId === reply.id ? (
                               <div className="mt-1">
