@@ -239,12 +239,17 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      if (isSupabaseConfigured) {
-        await initialize()
+      try {
+        if (isSupabaseConfigured) {
+          await initialize()
+        }
+        await initializeOfflineMutationQueue()
+        await flushPendingMutations()
+      } catch (e) {
+        console.error('App init error:', e)
+      } finally {
+        setAppReady(true)
       }
-      await initializeOfflineMutationQueue()
-      await flushPendingMutations()
-      setAppReady(true)
     }
     init()
   }, [flushPendingMutations, initialize])

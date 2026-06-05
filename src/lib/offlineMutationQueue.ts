@@ -22,7 +22,7 @@ import {
   type UpdateCommentInput,
 } from './userMutations'
 
-const offlineMutationStore = createStore('popcornpal', 'offline-mutations')
+const offlineMutationStore = createStore('popcornpal-offline', 'offline-mutations')
 const offlineMutationKey = 'queue'
 
 type OfflineMutationBase = {
