@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api, type SearchResult, type Season, type Episode } from '../lib/api'
+import { mediaKeys } from '../lib/queryClient'
+import { getQueuedOfflineMutations } from '../lib/offlineMutationQueue'
 import { useAuthStore } from '../store/authStore'
-import { useAddEntry } from './queries/useMediaQueries'
+import { fetchMediaEntries, type MediaEntry, useAddEntry } from './queries/useMediaQueries'
 import { useUpsertEpisodeRating } from './queries/useEpisodeQueries'
-import { supabase } from '../lib/supabase'
 
 // Re-export types consumed by the page
 export type { SearchResult, Season, Episode }
@@ -26,8 +28,20 @@ const load = <T,>(key: string, fallback: T): T => {
   } catch { return fallback }
 }
 
+function isMatchingLoggedEntry(
+  entry: Pick<MediaEntry, 'media_type' | 'title' | 'status'>,
+  item: SearchResult
+) {
+  return (
+    entry.status === 'logged' &&
+    entry.media_type === item.type &&
+    entry.title.trim().toLowerCase() === item.title.trim().toLowerCase()
+  )
+}
+
 export function useAddEntryPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { user } = useAuthStore()
   const { mutateAsync: addEntry } = useAddEntry(user?.id ?? '')
   const { mutateAsync: upsertEpisodeRating } = useUpsertEpisodeRating(user?.id ?? '')
@@ -192,15 +206,31 @@ export function useAddEntryPage() {
       } else {
         // Check duplicate before saving a whole-show entry
         if (status === 'logged') {
-          const { data: existing } = await supabase
-            .from('media_entries')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('media_type', selectedItem.type)
-            .eq('title', selectedItem.title)
-            .eq('status', 'logged')
-            .single()
-          if (existing) { setDuplicateError(true); return }
+          const queuedMutations = await getQueuedOfflineMutations()
+          const hasQueuedDuplicate = queuedMutations.some((mutation) => {
+            if (mutation.kind !== 'add-entry' || mutation.payload.userId !== user.id) return false
+
+            const { entry } = mutation.payload
+            return (
+              entry.media_type === selectedItem.type &&
+              entry.title.trim().toLowerCase() === selectedItem.title.trim().toLowerCase() &&
+              ['logged', 'completed', 'in-progress'].includes(entry.status)
+            )
+          })
+
+          let knownEntries = queryClient.getQueryData<MediaEntry[]>(mediaKeys.entries(user.id)) ?? []
+          if (knownEntries.length === 0 && navigator.onLine) {
+            knownEntries = await queryClient.fetchQuery({
+              queryKey: mediaKeys.entries(user.id),
+              queryFn: () => fetchMediaEntries(user.id),
+              staleTime: 2 * 60 * 1000,
+            })
+          }
+
+          if (hasQueuedDuplicate || knownEntries.some((entry) => isMatchingLoggedEntry(entry, selectedItem))) {
+            setDuplicateError(true)
+            return
+          }
         }
         await addEntry({
           media_type: selectedItem.type,

@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import { useQueryClient } from '@tanstack/react-query'
 import NotificationBell from './NotificationBell'
 import UserAvatar from './UserAvatar'
+import { prefetchRouteModule } from '../lib/routeLoaders'
 
 export default function DesktopNav() {
   const navigate = useNavigate()
@@ -17,7 +18,7 @@ export default function DesktopNav() {
   const handleRefresh = () => {
     if (refreshing) return
     setRefreshing(true)
-    queryClient.invalidateQueries().finally(() => setRefreshing(false))
+    queryClient.refetchQueries({ type: 'active' }).finally(() => setRefreshing(false))
   }
 
   const navItems = [
@@ -55,6 +56,7 @@ export default function DesktopNav() {
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
+                    onPointerEnter={() => { void prefetchRouteModule(item.path) }}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive
                         ? 'text-white bg-white/8'

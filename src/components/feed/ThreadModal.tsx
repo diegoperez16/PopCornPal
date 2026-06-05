@@ -86,7 +86,7 @@ export default function ThreadModal({
 
   const submitAndRefresh = async (parentId: string) => {
     await onSubmitComment(threadModalPostId, parentId)
-    setTimeout(refreshModal, 500)
+    await refreshModal()
   }
 
   return (
@@ -243,7 +243,7 @@ export default function ThreadModal({
                         <button
                           onClick={async () => {
                             await onUpdateComment(threadModalComment.id, threadModalPostId)
-                            setTimeout(refreshModal, 500)
+                            await refreshModal()
                           }}
                           disabled={!editText.trim()}
                           className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg disabled:opacity-50"

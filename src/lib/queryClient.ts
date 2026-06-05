@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { persistQueryClient } from '@tanstack/react-query-persist-client'
+import { createStore, del, get, set } from 'idb-keyval'
 import { supabase } from './supabase'
 
 function isAuthError(error: any): boolean {
@@ -35,9 +36,18 @@ export const queryClient = new QueryClient({
   },
 })
 
-const persister = createSyncStoragePersister({
-  storage: window.localStorage,
-  key: 'popcorn-query-cache',
+const queryCacheStore = createStore('popcornpal', 'query-cache')
+const persistedQueryCacheKey = 'popcorn-query-cache'
+
+const persistedQueryStorage = {
+  getItem: (key: string) => get<string>(key, queryCacheStore),
+  setItem: (key: string, value: string) => set(key, value, queryCacheStore),
+  removeItem: (key: string) => del(key, queryCacheStore),
+}
+
+const persister = createAsyncStoragePersister({
+  storage: persistedQueryStorage,
+  key: persistedQueryCacheKey,
   throttleTime: 1000,
 })
 
@@ -53,6 +63,10 @@ persistQueryClient({
     },
   },
 })
+
+export async function clearPersistedQueryCache() {
+  await persistedQueryStorage.removeItem(persistedQueryCacheKey)
+}
 
 // Run a Supabase query with automatic token refresh on auth failure.
 // On the first 401/JWT error, force a token refresh and retry once.
@@ -98,7 +112,8 @@ export const peopleKeys = {
 
 export const profileKeys = {
   own: (userId: string) => ['profile', 'own', userId] as const,
-  user: (username: string) => ['profile', 'user', username] as const,
+  user: (username: string, viewerId: string | null = null) =>
+    ['profile', 'user', username, viewerId ?? 'anon'] as const,
 }
 
 export const activityKeys = {

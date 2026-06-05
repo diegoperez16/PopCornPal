@@ -1,11 +1,75 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { feedKeys } from '../../lib/queryClient'
-import { sendMentionNotifications } from '../../lib/mentions'
+import { feedKeys, mediaKeys } from '../../lib/queryClient'
+import { executeQueuedMutationOrRun } from '../../lib/offlineMutationQueue'
+import { useAuthStore } from '../../store/authStore'
+import {
+  createComment as createCommentMutation,
+  createPost as createPostMutation,
+  deleteComment as deleteCommentMutation,
+  deletePost as deletePostMutation,
+  toggleCommentLike as toggleCommentLikeMutation,
+  togglePostLike as togglePostLikeMutation,
+  updateComment as updateCommentMutation,
+} from '../../lib/userMutations'
 import type { Post } from '../../store/socialStore'
 import type { Comment } from '../../components/feed/feedTypes'
+import type { MediaEntry } from './useMediaQueries'
 
 const PAGE_SIZE = 20
+
+type CommentsTree = {
+  rootComments: Comment[]
+  commentsMap: Map<string, Comment>
+}
+
+function cloneComment(comment: Comment): Comment {
+  return {
+    ...comment,
+    profiles: { ...comment.profiles },
+    replies: comment.replies?.map(cloneComment) ?? [],
+  }
+}
+
+function cloneCommentsTree(tree: CommentsTree): CommentsTree {
+  const rootComments = tree.rootComments.map(cloneComment)
+  const commentsMap = new Map<string, Comment>()
+
+  const register = (comments: Comment[]) => {
+    comments.forEach((comment) => {
+      commentsMap.set(comment.id, comment)
+      if (comment.replies?.length) {
+        register(comment.replies)
+      }
+    })
+  }
+
+  register(rootComments)
+  return { rootComments, commentsMap }
+}
+
+function appendOptimisticComment(
+  tree: CommentsTree | undefined,
+  comment: Comment
+): CommentsTree {
+  const nextTree = tree
+    ? cloneCommentsTree(tree)
+    : { rootComments: [], commentsMap: new Map<string, Comment>() }
+
+  if (comment.parent_comment_id) {
+    const parent = nextTree.commentsMap.get(comment.parent_comment_id)
+    if (parent) {
+      parent.replies = [...(parent.replies ?? []), comment]
+    } else {
+      nextTree.rootComments.push(comment)
+    }
+  } else {
+    nextTree.rootComments.push(comment)
+  }
+
+  nextTree.commentsMap.set(comment.id, comment)
+  return nextTree
+}
 
 // ─── Single post fetch (for realtime prepend) ───────────────────────────────
 
@@ -78,7 +142,7 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
   )
   if (isNetworkError) {
     console.warn('fetchFeedPage: network error, skipping fallback')
-    return { posts: [], hasMore: false }
+    throw rpcError
   }
 
   // 2. Fallback to standard query
@@ -90,7 +154,6 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
     .eq('follower_id', userId)
 
   const followingIds = followingData?.map(f => f.following_id) ?? []
-  const limitedIds = followingIds.length > 50 ? followingIds.slice(0, 50) : followingIds
 
   const { data, error } = await supabase
     .from('posts')
@@ -101,7 +164,7 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
       likes:post_likes(count),
       comments:post_comments(count)
     `)
-    .in('user_id', [...limitedIds, userId])
+    .in('user_id', [...followingIds, userId])
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
 
@@ -141,7 +204,10 @@ export function useFeed(userId: string) {
 
 // ─── Comments ───────────────────────────────────────────────────────────────
 
-async function fetchComments(postId: string): Promise<{ rootComments: Comment[]; commentsMap: Map<string, Comment> }> {
+export async function fetchCommentsTree(
+  postId: string,
+  currentUserId: string | null
+): Promise<CommentsTree> {
   const { data, error } = await supabase
     .from('post_comments')
     .select(`*, profiles:user_id (username, avatar_url, avatar_crop)`)
@@ -173,9 +239,6 @@ async function fetchComments(postId: string): Promise<{ rootComments: Comment[];
   // Fetch comment likes — non-fatal if table doesn't exist yet
   if (data && data.length > 0) {
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const currentUserId = sessionData?.session?.user?.id // needed to compute is_liked per comment
-
       const commentIds = data.map((c: any) => c.id)
       const allLikesPromise = supabase.from('comment_likes').select('comment_id').in('comment_id', commentIds)
       const userLikesPromise = currentUserId
@@ -203,10 +266,10 @@ async function fetchComments(postId: string): Promise<{ rootComments: Comment[];
   return { rootComments, commentsMap }
 }
 
-export function useComments(postId: string | null) {
+export function useComments(postId: string | null, currentUserId: string | null) {
   return useQuery({
     queryKey: feedKeys.comments(postId ?? ''),
-    queryFn: () => fetchComments(postId!),
+    queryFn: () => fetchCommentsTree(postId!, currentUserId),
     enabled: !!postId,
     staleTime: 20 * 1000,
   })
@@ -218,13 +281,13 @@ export function useToggleLike(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ postId, isLiked }: { postId: string; isLiked: boolean }) => {
-      if (isLiked) {
-        const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', userId)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: userId })
-        if (error) throw error
-      }
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'toggle-post-like',
+          payload: { userId, postId, isLiked },
+        },
+        () => togglePostLikeMutation({ userId, postId, isLiked })
+      )
     },
     onMutate: async ({ postId, isLiked }) => {
       await queryClient.cancelQueries({ queryKey: feedKeys.list(userId) })
@@ -259,14 +322,91 @@ export function useCreatePost(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (variables: { content: string; media_entry_id: string | null; image_url: string | null }) => {
-      const { data, error } = await supabase.from('posts').insert({ user_id: userId, ...variables }).select('id').single()
-      if (error) throw error
-      if (data?.id && variables.content) {
-        sendMentionNotifications(variables.content, userId, data.id).catch(console.error)
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'create-post',
+          payload: {
+            userId,
+            content: variables.content,
+            media_entry_id: variables.media_entry_id,
+            image_url: variables.image_url,
+          },
+        },
+        () =>
+          createPostMutation({
+            userId,
+            content: variables.content,
+            media_entry_id: variables.media_entry_id,
+            image_url: variables.image_url,
+          })
+      )
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: feedKeys.list(userId) })
+      const previousData = queryClient.getQueryData(feedKeys.list(userId))
+      const profile = useAuthStore.getState().profile
+      const mediaEntries = queryClient.getQueryData<MediaEntry[]>(mediaKeys.entries(userId)) ?? []
+      const selectedMediaEntry = variables.media_entry_id
+        ? mediaEntries.find((entry) => entry.id === variables.media_entry_id)
+        : undefined
+
+      const optimisticPost: Post = {
+        id: `offline-post-${crypto.randomUUID()}`,
+        user_id: userId,
+        content: variables.content,
+        media_entry_id: variables.media_entry_id,
+        image_url: variables.image_url,
+        created_at: new Date().toISOString(),
+        updated_at: null,
+        profiles: {
+          username: profile?.username ?? 'you',
+          avatar_url: profile?.avatar_url ?? null,
+          avatar_crop: profile?.avatar_crop ?? null,
+        },
+        media_entries: selectedMediaEntry
+          ? {
+              title: selectedMediaEntry.title,
+              media_type: selectedMediaEntry.media_type,
+              rating: selectedMediaEntry.rating,
+              cover_image_url: selectedMediaEntry.cover_image_url ?? null,
+            }
+          : undefined,
+        likes_count: 0,
+        comments_count: 0,
+        is_liked: false,
+      }
+
+      queryClient.setQueryData(feedKeys.list(userId), (old: any) => {
+        if (!old?.pages?.length) {
+          return {
+            pages: [{ posts: [optimisticPost], hasMore: false }],
+            pageParams: [0],
+          }
+        }
+
+        return {
+          ...old,
+          pages: [
+            {
+              ...old.pages[0],
+              posts: [optimisticPost, ...old.pages[0].posts],
+            },
+            ...old.pages.slice(1),
+          ],
+        }
+      })
+
+      return { previousData }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(feedKeys.list(userId), context.previousData)
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.list(userId) })
+    onSuccess: (result) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.list(userId) })
+      }
     },
   })
 }
@@ -275,11 +415,40 @@ export function useDeletePost(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (postId: string) => {
-      const { error } = await supabase.from('posts').delete().eq('id', postId).eq('user_id', userId)
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'delete-post',
+          payload: { userId, postId },
+        },
+        () => deletePostMutation(userId, postId)
+      )
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.list(userId) })
+    onMutate: async (postId) => {
+      await queryClient.cancelQueries({ queryKey: feedKeys.list(userId) })
+      const previousData = queryClient.getQueryData(feedKeys.list(userId))
+
+      queryClient.setQueryData(feedKeys.list(userId), (old: any) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.filter((post: Post) => post.id !== postId),
+          })),
+        }
+      })
+
+      return { previousData }
+    },
+    onError: (_error, _postId, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(feedKeys.list(userId), context.previousData)
+      }
+    },
+    onSuccess: (result) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.list(userId) })
+      }
     },
   })
 }
@@ -293,21 +462,56 @@ export function useCreateComment(userId: string) {
       parent_comment_id: string | null
       image_url: string | null
     }) => {
-      const { error } = await supabase.from('post_comments').insert({
-        post_id: variables.postId,
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'create-comment',
+          payload: {
+            userId,
+            postId: variables.postId,
+            content: variables.content,
+            parent_comment_id: variables.parent_comment_id,
+            image_url: variables.image_url,
+          },
+        },
+        () =>
+          createCommentMutation({
+            userId,
+            postId: variables.postId,
+            content: variables.content,
+            parent_comment_id: variables.parent_comment_id,
+            image_url: variables.image_url,
+          })
+      )
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: feedKeys.comments(variables.postId) })
+      await queryClient.cancelQueries({ queryKey: feedKeys.list(userId) })
+      const previousComments = queryClient.getQueryData<CommentsTree>(feedKeys.comments(variables.postId))
+      const previousFeed = queryClient.getQueryData(feedKeys.list(userId))
+      const profile = useAuthStore.getState().profile
+      const optimisticComment: Comment = {
+        id: `offline-comment-${crypto.randomUUID()}`,
         user_id: userId,
         content: variables.content,
-        parent_comment_id: variables.parent_comment_id,
         image_url: variables.image_url,
-      })
-      if (error) throw error
-      if (variables.content) {
-        sendMentionNotifications(variables.content, userId, variables.postId).catch(console.error)
+        created_at: new Date().toISOString(),
+        updated_at: null,
+        parent_comment_id: variables.parent_comment_id,
+        profiles: {
+          username: profile?.username ?? 'you',
+          avatar_url: profile?.avatar_url ?? null,
+          avatar_crop: profile?.avatar_crop ?? null,
+        },
+        replies: [],
+        likes_count: 0,
+        is_liked: false,
       }
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
-      // Optimistically bump comment count in feed cache
+
+      queryClient.setQueryData(
+        feedKeys.comments(variables.postId),
+        (old: CommentsTree | undefined) => appendOptimisticComment(old, optimisticComment)
+      )
+
       queryClient.setQueryData(feedKeys.list(userId), (old: any) => {
         if (!old) return old
         return {
@@ -320,6 +524,25 @@ export function useCreateComment(userId: string) {
           })),
         }
       })
+
+      return { previousComments, previousFeed }
+    },
+    onError: (_error, variables, context) => {
+      if (context?.previousComments) {
+        queryClient.setQueryData(feedKeys.comments(variables.postId), context.previousComments)
+      } else {
+        queryClient.removeQueries({ queryKey: feedKeys.comments(variables.postId), exact: true })
+      }
+      if (context?.previousFeed) {
+        queryClient.setQueryData(feedKeys.list(userId), context.previousFeed)
+      } else {
+        queryClient.removeQueries({ queryKey: feedKeys.list(userId), exact: true })
+      }
+    },
+    onSuccess: (result, variables) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+      }
     },
   })
 }
@@ -328,15 +551,18 @@ export function useDeleteComment(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ commentId }: { commentId: string; postId: string }) => {
-      const { error } = await supabase
-        .from('post_comments')
-        .delete()
-        .eq('id', commentId)
-        .eq('user_id', userId)
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'delete-comment',
+          payload: { userId, commentId },
+        },
+        () => deleteCommentMutation(userId, commentId)
+      )
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+    onSuccess: (result, variables) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+      }
       // Decrement comment count in feed cache
       queryClient.setQueryData(feedKeys.list(userId), (old: any) => {
         if (!old) return old
@@ -358,15 +584,18 @@ export function useUpdateComment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ commentId, content, userId }: { commentId: string; postId: string; content: string; userId: string }) => {
-      const { error } = await supabase
-        .from('post_comments')
-        .update({ content })
-        .eq('id', commentId)
-        .eq('user_id', userId)
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'update-comment',
+          payload: { commentId, userId, content },
+        },
+        () => updateCommentMutation({ commentId, userId, content })
+      )
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+    onSuccess: (result, variables) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+      }
     },
   })
 }
@@ -375,16 +604,18 @@ export function useToggleCommentLike(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ commentId, isLiked }: { commentId: string; postId: string; isLiked: boolean }) => {
-      if (isLiked) {
-        const { error } = await supabase.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', userId)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: userId })
-        if (error) throw error
-      }
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'toggle-comment-like',
+          payload: { userId, commentId, isLiked },
+        },
+        () => toggleCommentLikeMutation({ userId, commentId, isLiked })
+      )
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+    onSuccess: (result, variables) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.comments(variables.postId) })
+      }
     },
   })
 }

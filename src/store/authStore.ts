@@ -184,12 +184,20 @@ export const useAuthStore = create<AuthState>()(
   },
 
   signUp: async (email, password, username) => {
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username)
+      .maybeSingle()
+
+    if (existing) throw new Error('Username is already taken. Please choose a different one.')
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { 
-        data: { username }, 
-        emailRedirectTo: `${window.location.origin}/auth/callback?confirmed=true` 
+      options: {
+        data: { username },
+        emailRedirectTo: `${window.location.origin}/auth/callback?confirmed=true`
       }
     })
 
@@ -230,9 +238,9 @@ export const useAuthStore = create<AuthState>()(
       _signingOut = false
     }
     // Clear TanStack Query cache and persisted cache
-    const { queryClient } = await import('../lib/queryClient')
+    const { clearPersistedQueryCache, queryClient } = await import('../lib/queryClient')
     queryClient.clear()
-    localStorage.removeItem('popcorn-query-cache')
+    await clearPersistedQueryCache()
     // Clear user-specific localStorage drafts
     Object.keys(localStorage)
       .filter(k => k.startsWith('popcorn_') && k !== 'popcorn-auth')

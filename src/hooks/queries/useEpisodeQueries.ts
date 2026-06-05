@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import { executeQueuedMutationOrRun } from '../../lib/offlineMutationQueue'
+import { upsertEpisodeRating as upsertEpisodeRatingMutation } from '../../lib/userMutations'
 
 export const episodeKeys = {
   all: ['episodes'] as const,
@@ -55,18 +57,20 @@ export function useUpsertEpisodeRating(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: EpisodeRatingInput) => {
-      const { error } = await supabase
-        .from('episode_ratings')
-        .upsert(
-          { user_id: userId, ...input },
-          { onConflict: 'user_id,show_title,season_number,episode_number' }
-        )
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'upsert-episode-rating',
+          payload: { userId, ...input },
+        },
+        () => upsertEpisodeRatingMutation({ userId, ...input })
+      )
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: episodeKeys.show(userId, variables.show_title),
-      })
+    onSuccess: (result, variables) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({
+          queryKey: episodeKeys.show(userId, variables.show_title),
+        })
+      }
     },
   })
 }

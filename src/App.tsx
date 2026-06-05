@@ -1,8 +1,8 @@
 import { useEffect, useState, lazy, Suspense, Component, useCallback, useRef } from 'react'
-import type { ReactNode, ErrorInfo } from 'react'
+import type { ReactNode } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from './store/authStore'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import { queryClient } from './lib/queryClient'
@@ -11,21 +11,44 @@ import MobileHeader from './components/MobileHeader'
 import DesktopNav from './components/DesktopNav'
 import SplashLoader from './components/SplashLoader'
 import WelcomeModal, { shouldShowWelcome } from './components/WelcomeModal'
+import {
+  flushOfflineMutationQueue,
+  initializeOfflineMutationQueue,
+  useOfflineMutationCount,
+} from './lib/offlineMutationQueue'
 import { registerOfflineSync } from './lib/push'
+import {
+  loadActivityPage,
+  loadAddEntryPage,
+  loadAdminBadgePanel,
+  loadFeedPage,
+  loadLibraryPage,
+  loadPeoplePage,
+  loadProfilePage,
+  loadUserProfilePage,
+  prefetchPrimaryRoutes,
+} from './lib/routeLoaders'
 
 // Auth pages load immediately — needed before any session exists
 import AuthPage from './pages/AuthPage'
 import UpdatePasswordPage from './pages/UpdatePasswordPage'
 
 // App pages are lazy-loaded — each becomes its own JS chunk downloaded only when visited
-const FeedPage = lazy(() => import('./pages/FeedPage'))
-const PeoplePage = lazy(() => import('./pages/PeoplePage'))
-const ActivityPage = lazy(() => import('./pages/ActivityPage'))
-const LibraryPage = lazy(() => import('./pages/LibraryPage'))
-const ProfilePage = lazy(() => import('./pages/ProfilePage'))
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
-const AddEntryPage = lazy(() => import('./pages/AddEntryPage'))
-const AdminBadgePanel = lazy(() => import('./pages/AdminBadgePanel'))
+const FeedPage = lazy(loadFeedPage)
+const PeoplePage = lazy(loadPeoplePage)
+const ActivityPage = lazy(loadActivityPage)
+const LibraryPage = lazy(loadLibraryPage)
+const ProfilePage = lazy(loadProfilePage)
+const UserProfilePage = lazy(loadUserProfilePage)
+const AddEntryPage = lazy(loadAddEntryPage)
+const AdminBadgePanel = lazy(loadAdminBadgePanel)
+const QueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import('@tanstack/react-query-devtools').then(({ ReactQueryDevtools }) => ({
+        default: ReactQueryDevtools,
+      }))
+    )
+  : null
 
 function RedirectToProfile() {
   const { username } = useParams<{ username: string }>()
@@ -51,7 +74,10 @@ function SetupMessage() {
 }
 
 function HomePage() {
-  const { user, profile } = useAuthStore()
+  const { user, profile } = useAuthStore(useShallow(state => ({
+    user: state.user,
+    profile: state.profile,
+  })))
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -132,7 +158,7 @@ function isChunkLoadError(error: unknown): boolean {
   return (
     error.message.includes('dynamically imported module') ||
     error.message.includes('Importing a module script failed') ||
-    (error as any).name === 'ChunkLoadError'
+    error.name === 'ChunkLoadError'
   )
 }
 
@@ -151,7 +177,7 @@ function reloadForChunkError() {
 class ChunkErrorBoundary extends Component<{ children: ReactNode }, { crashed: boolean }> {
   state = { crashed: false }
 
-  componentDidCatch(error: Error, _info: ErrorInfo) {
+  componentDidCatch(error: Error) {
     if (isChunkLoadError(error)) {
       reloadForChunkError()
     } else {
@@ -192,18 +218,36 @@ if (typeof window !== 'undefined') {
 }
 
 function App() {
-  const { initialize, resumeSession, user } = useAuthStore()
+  const { initialize, resumeSession, user } = useAuthStore(useShallow(state => ({
+    initialize: state.initialize,
+    resumeSession: state.resumeSession,
+    user: state.user,
+  })))
   const [appReady, setAppReady] = useState(false)
+
+  const flushPendingMutations = useCallback(async () => {
+    const { flushed } = await flushOfflineMutationQueue()
+    if (flushed > 0) {
+      queryClient.invalidateQueries({
+        predicate: query =>
+          ['feed', 'media', 'activity', 'profile', 'people', 'episodes'].includes(
+            query.queryKey[0] as string
+          ),
+      })
+    }
+  }, [])
 
   useEffect(() => {
     const init = async () => {
       if (isSupabaseConfigured) {
         await initialize()
       }
+      await initializeOfflineMutationQueue()
+      await flushPendingMutations()
       setAppReady(true)
     }
     init()
-  }, [initialize])
+  }, [flushPendingMutations, initialize])
 
   // Manage Supabase's auto-refresh timer based on tab visibility.
   // Only refresh the session here — TanStack Query's refetchOnWindowFocus handles
@@ -213,27 +257,32 @@ function App() {
       if (document.visibilityState === 'visible') {
         supabase.auth.startAutoRefresh()
         await resumeSession()
+        await flushPendingMutations()
       } else {
         supabase.auth.stopAutoRefresh()
       }
     }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [resumeSession])
+    window.addEventListener('online', flushPendingMutations)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', flushPendingMutations)
+    }
+  }, [flushPendingMutations, resumeSession])
 
   // Listen for FLUSH_OFFLINE_QUEUE messages from the service worker (background sync)
   // Only invalidate feed and media since those are what offline writes affect.
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'FLUSH_OFFLINE_QUEUE') {
-        queryClient.invalidateQueries({ queryKey: ['feed'] })
-        queryClient.invalidateQueries({ queryKey: ['media'] })
+        await flushPendingMutations()
       }
     }
     navigator.serviceWorker.addEventListener('message', handleMessage)
     return () => navigator.serviceWorker.removeEventListener('message', handleMessage)
-  }, [])
+  }, [flushPendingMutations])
 
   // Register background sync so queued writes are replayed when back online
   useEffect(() => {
@@ -253,7 +302,11 @@ function App() {
       <Router>
         <AppContent />
       </Router>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {QueryDevtools ? (
+        <Suspense fallback={null}>
+          <QueryDevtools initialIsOpen={false} />
+        </Suspense>
+      ) : null}
     </QueryClientProvider>
   )
 }
@@ -291,9 +344,9 @@ function PullToRefresh() {
       if (dist >= PTR_THRESHOLD * 0.8 && !refreshingRef.current) {
         refreshingRef.current = true
         setRefreshing(true)
-        // Invalidate all queries so active ones refetch in the background.
-        // Cached data stays visible — no blank screen flash like a full reload would cause.
-        queryClient.invalidateQueries().finally(() => {
+        // Only refetch active queries for the current screen to avoid turning a
+        // route-local gesture into app-wide network churn.
+        queryClient.refetchQueries({ type: 'active' }).finally(() => {
           refreshingRef.current = false
           setRefreshing(false)
         })
@@ -369,9 +422,37 @@ function NetworkErrorBanner() {
   )
 }
 
+function OfflineQueueBanner() {
+  const queuedCount = useOfflineMutationCount()
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  )
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  if (queuedCount === 0) return null
+
+  return (
+    <div className="fixed bottom-32 md:bottom-6 left-1/2 -translate-x-1/2 z-[520] rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100 shadow-2xl backdrop-blur">
+      {isOnline
+        ? `Syncing ${queuedCount} queued ${queuedCount === 1 ? 'change' : 'changes'}...`
+        : `${queuedCount} ${queuedCount === 1 ? 'change is' : 'changes are'} queued and will sync when you're back online.`}
+    </div>
+  )
+}
+
 function AppContent() {
   const location = useLocation()
-  const { user } = useAuthStore()
+  const user = useAuthStore(state => state.user)
   const showNav = user && location.pathname !== '/auth'
 
   // Show welcome modal for logged-in users on a version bump
@@ -381,6 +462,32 @@ function AppContent() {
       // Small delay so the page content renders first
       const t = setTimeout(() => setShowWelcome(true), 800)
       return () => clearTimeout(t)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+
+    let timeoutId: number | null = null
+    let idleId: number | null = null
+
+    const runPrefetch = () => {
+      void prefetchPrimaryRoutes()
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleId = window.requestIdleCallback(runPrefetch, { timeout: 1500 })
+    } else {
+      timeoutId = window.setTimeout(runPrefetch, 1200)
+    }
+
+    return () => {
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId)
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
     }
   }, [user])
 
@@ -412,6 +519,7 @@ function AppContent() {
       {showNav && <MobileNav />}
       <PullToRefresh />
       <NetworkErrorBanner />
+      <OfflineQueueBanner />
 
       {/* Welcome / PWA onboarding modal */}
       {showWelcome && user && (

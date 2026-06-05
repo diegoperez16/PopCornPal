@@ -144,29 +144,29 @@ export function usePeopleCounts(userId: string) {
   })
 }
 
-export function useFollowers(userId: string) {
+export function useFollowers(userId: string, enabled = true) {
   return useQuery({
     queryKey: peopleKeys.followers(userId),
     queryFn: () => fetchFollowers(userId),
-    enabled: !!userId,
+    enabled: !!userId && enabled,
     staleTime: 2 * 60 * 1000,
   })
 }
 
-export function useFollowing(userId: string) {
+export function useFollowing(userId: string, enabled = true) {
   return useQuery({
     queryKey: peopleKeys.following(userId),
     queryFn: () => fetchFollowing(userId),
-    enabled: !!userId,
+    enabled: !!userId && enabled,
     staleTime: 2 * 60 * 1000,
   })
 }
 
-export function useExploreUsers(userId: string) {
+export function useExploreUsers(userId: string, enabled = true) {
   return useQuery({
     queryKey: peopleKeys.explore(userId),
     queryFn: () => fetchExploreUsers(userId),
-    enabled: !!userId,
+    enabled: !!userId && enabled,
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -203,10 +203,11 @@ export function useUnfollowUser(userId: string) {
 }
 
 export function useSearchPeople(userId: string, query: string) {
+  const normalizedQuery = query.trim()
   return useQuery({
-    queryKey: ['people', 'search', userId, query],
-    queryFn: () => fetchSearchPeople(userId, query),
-    enabled: !!userId && query.length >= 2,
+    queryKey: ['people', 'search', userId, normalizedQuery],
+    queryFn: () => fetchSearchPeople(userId, normalizedQuery),
+    enabled: !!userId && normalizedQuery.length >= 2,
     staleTime: 30 * 1000,
   })
 }

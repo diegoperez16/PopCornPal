@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from 'react'
+import { useDeferredValue, useState, useEffect, useLayoutEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -34,15 +34,14 @@ export default function PeoplePage() {
 
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
+  const deferredSearchQuery = useDeferredValue(searchQuery)
 
   // TanStack Query data
   const { data: counts } = usePeopleCounts(user?.id ?? '')
-  const { data: followersData = [], isLoading: followersLoading } = useFollowers(user?.id ?? '')
-  const { data: followingData = [], isLoading: followingLoading } = useFollowing(user?.id ?? '')
-  const { data: exploreData = [], isLoading: exploreLoading } = useExploreUsers(
-    peopleActiveTab === 'explore' ? (user?.id ?? '') : ''
-  )
-  const { data: searchResults = [] } = useSearchPeople(user?.id ?? '', searchQuery)
+  const { data: followersData = [], isLoading: followersLoading } = useFollowers(user?.id ?? '', peopleActiveTab === 'followers')
+  const { data: followingData = [], isLoading: followingLoading } = useFollowing(user?.id ?? '', peopleActiveTab === 'following')
+  const { data: exploreData = [], isLoading: exploreLoading } = useExploreUsers(user?.id ?? '', peopleActiveTab === 'explore')
+  const { data: searchResults = [] } = useSearchPeople(user?.id ?? '', deferredSearchQuery)
 
   const { mutate: followUser } = useFollowUser(user?.id ?? '')
   const { mutate: unfollowUser } = useUnfollowUser(user?.id ?? '')

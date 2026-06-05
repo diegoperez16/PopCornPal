@@ -1,5 +1,6 @@
 import { Plus, Home, Search, BookMarked, User } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { prefetchRouteModule } from '../lib/routeLoaders'
 
 const navItems = [
   { path: '/feed',    Icon: Home,       label: 'Home'     },
@@ -19,6 +20,8 @@ export default function MobileNav() {
       <div className="absolute left-1/2 -translate-x-1/2 -top-6 z-10">
         <button
           onClick={() => navigate('/add')}
+          onPointerEnter={() => { void prefetchRouteModule('/add') }}
+          onTouchStart={() => { void prefetchRouteModule('/add') }}
           aria-label="Add entry"
           className={`w-14 h-14 rounded-full bg-gradient-to-br from-red-500 to-pink-600 shadow-lg shadow-red-500/30 flex items-center justify-center transition-transform active:scale-90 ${
             location.pathname === '/add' ? 'ring-2 ring-white/20' : ''
@@ -36,6 +39,8 @@ export default function MobileNav() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
+              onPointerEnter={() => { void prefetchRouteModule(item.path) }}
+              onTouchStart={() => { void prefetchRouteModule(item.path) }}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors duration-200 ${
                 isActive ? 'text-white' : 'text-gray-600 active:text-gray-400'
               }`}
@@ -63,6 +68,8 @@ export default function MobileNav() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
+              onPointerEnter={() => { void prefetchRouteModule(item.path) }}
+              onTouchStart={() => { void prefetchRouteModule(item.path) }}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors duration-200 ${
                 isActive ? 'text-white' : 'text-gray-600 active:text-gray-400'
               }`}

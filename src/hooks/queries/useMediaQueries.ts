@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { mediaKeys } from '../../lib/queryClient'
+import { executeQueuedMutationOrRun } from '../../lib/offlineMutationQueue'
+import {
+  createMediaEntry,
+  deleteMediaEntry,
+  updateMediaEntry,
+  type MediaEntryMutationInput,
+} from '../../lib/userMutations'
 
 export type MediaEntry = {
   id: string
@@ -33,7 +40,7 @@ export type UserStats = {
   followers_count?: number
 }
 
-async function fetchMediaEntries(userId: string): Promise<MediaEntry[]> {
+export async function fetchMediaEntries(userId: string): Promise<MediaEntry[]> {
   const { data, error } = await supabase
     .from('media_entries')
     .select('*')
@@ -74,30 +81,84 @@ export function useAddEntry(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (entry: Omit<MediaEntry, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
-      // Add logged copy if status is completed or in-progress (same logic as original store)
-      if (entry.status === 'completed' || entry.status === 'in-progress') {
-        const { data: existingLibrary } = await supabase
-          .from('media_entries')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('media_type', entry.media_type)
-          .eq('title', entry.title)
-          .eq('status', 'logged')
-          .maybeSingle()
-
-        if (!existingLibrary) {
-          await supabase.from('media_entries').insert([{
-            ...entry, status: 'logged', user_id: userId, completed_date: null
-          }])
-        }
+      const mutationEntry: MediaEntryMutationInput = {
+        media_type: entry.media_type,
+        title: entry.title,
+        rating: entry.rating,
+        status: entry.status,
+        completed_date: entry.completed_date,
+        notes: entry.notes,
+        genre: entry.genre ?? null,
+        year: entry.year ?? null,
+        cover_image_url: entry.cover_image_url ?? null,
       }
 
-      const { error } = await supabase.from('media_entries').insert([{ ...entry, user_id: userId }])
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'add-entry',
+          payload: { userId, entry: mutationEntry },
+        },
+        () => createMediaEntry(userId, mutationEntry)
+      )
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: mediaKeys.entries(userId) })
-      queryClient.invalidateQueries({ queryKey: mediaKeys.stats(userId) })
+    onMutate: async (entry) => {
+      await queryClient.cancelQueries({ queryKey: mediaKeys.entries(userId) })
+      const previousEntries = queryClient.getQueryData(mediaKeys.entries(userId)) as MediaEntry[] | undefined
+      const timestamp = new Date().toISOString()
+      const optimisticEntries = [...(previousEntries ?? [])]
+
+      optimisticEntries.unshift({
+        id: `offline-entry-${crypto.randomUUID()}`,
+        user_id: userId,
+        media_type: entry.media_type,
+        title: entry.title,
+        rating: entry.rating,
+        status: entry.status,
+        completed_date: entry.completed_date,
+        notes: entry.notes,
+        created_at: timestamp,
+        updated_at: timestamp,
+        genre: entry.genre ?? null,
+        year: entry.year ?? null,
+        cover_image_url: entry.cover_image_url ?? null,
+      })
+
+      if ((entry.status === 'completed' || entry.status === 'in-progress') && !optimisticEntries.some(
+        existing =>
+          existing.status === 'logged' &&
+          existing.media_type === entry.media_type &&
+          existing.title.toLowerCase() === entry.title.toLowerCase()
+      )) {
+        optimisticEntries.unshift({
+          id: `offline-entry-${crypto.randomUUID()}`,
+          user_id: userId,
+          media_type: entry.media_type,
+          title: entry.title,
+          rating: entry.rating,
+          status: 'logged',
+          completed_date: null,
+          notes: entry.notes,
+          created_at: timestamp,
+          updated_at: timestamp,
+          genre: entry.genre ?? null,
+          year: entry.year ?? null,
+          cover_image_url: entry.cover_image_url ?? null,
+        })
+      }
+
+      queryClient.setQueryData(mediaKeys.entries(userId), optimisticEntries)
+      return { previousEntries }
+    },
+    onError: (_error, _entry, context) => {
+      if (context?.previousEntries) {
+        queryClient.setQueryData(mediaKeys.entries(userId), context.previousEntries)
+      }
+    },
+    onSuccess: (result) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: mediaKeys.entries(userId) })
+        queryClient.invalidateQueries({ queryKey: mediaKeys.stats(userId) })
+      }
     },
   })
 }
@@ -106,12 +167,40 @@ export function useUpdateEntry(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<MediaEntry> }) => {
-      const { error } = await supabase.from('media_entries').update(updates).eq('id', id)
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'update-entry',
+          payload: { id, updates },
+        },
+        () => updateMediaEntry(id, updates)
+      )
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: mediaKeys.entries(userId) })
-      queryClient.invalidateQueries({ queryKey: mediaKeys.stats(userId) })
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: mediaKeys.entries(userId) })
+      const previousEntries = queryClient.getQueryData(mediaKeys.entries(userId)) as MediaEntry[] | undefined
+      queryClient.setQueryData(mediaKeys.entries(userId), (old: MediaEntry[] | undefined) =>
+        (old ?? []).map(entry =>
+          entry.id === id
+            ? {
+                ...entry,
+                ...updates,
+                updated_at: new Date().toISOString(),
+              }
+            : entry
+        )
+      )
+      return { previousEntries }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousEntries) {
+        queryClient.setQueryData(mediaKeys.entries(userId), context.previousEntries)
+      }
+    },
+    onSuccess: (result) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: mediaKeys.entries(userId) })
+        queryClient.invalidateQueries({ queryKey: mediaKeys.stats(userId) })
+      }
     },
   })
 }
@@ -120,8 +209,13 @@ export function useDeleteEntry(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('media_entries').delete().eq('id', id)
-      if (error) throw error
+      return executeQueuedMutationOrRun(
+        {
+          kind: 'delete-entry',
+          payload: { id },
+        },
+        () => deleteMediaEntry(id)
+      )
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: mediaKeys.entries(userId) })
@@ -136,9 +230,11 @@ export function useDeleteEntry(userId: string) {
         queryClient.setQueryData(mediaKeys.entries(userId), context.previousEntries)
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: mediaKeys.entries(userId) })
-      queryClient.invalidateQueries({ queryKey: mediaKeys.stats(userId) })
+    onSuccess: (result) => {
+      if (!result.queued) {
+        queryClient.invalidateQueries({ queryKey: mediaKeys.entries(userId) })
+        queryClient.invalidateQueries({ queryKey: mediaKeys.stats(userId) })
+      }
     },
   })
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { useActivity } from '../hooks/queries/useActivityQueries'
@@ -14,7 +14,6 @@ export default function ActivityPage() {
   const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
   const { data: entries = [] } = useActivity(user?.id ?? '')
   const navigate = useNavigate()
-  const [groupedEntries, setGroupedEntries] = useState<GroupedEntries>({})
 
   useEffect(() => {
     if (!user) {
@@ -23,10 +22,10 @@ export default function ActivityPage() {
     }
   }, [user, navigate])
 
-  useEffect(() => {
+  const groupedEntries = useMemo(() => {
     // Group entries by LOCAL date, excluding 'logged' status entries
     const grouped: GroupedEntries = {}
-    
+
     entries
       .filter(entry => entry.status !== 'logged')
       .forEach(entry => {
@@ -42,15 +41,15 @@ export default function ActivityPage() {
         }
         grouped[localDateKey].push(entry)
       })
-    
+
     // Sort entries within each day by time (newest first)
     Object.keys(grouped).forEach(date => {
       grouped[date].sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
     })
-    
-    setGroupedEntries(grouped)
+
+    return grouped
   }, [entries])
 
   const getMediaIcon = (type: string) => {

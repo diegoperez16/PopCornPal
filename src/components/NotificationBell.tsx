@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Bell, X, Heart, MessageCircle, UserPlus, Megaphone, Check, AtSign } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -59,12 +59,31 @@ function NotifIcon({ type }: { type: AppNotification['type'] }) {
 }
 
 export default function NotificationBell({ dropUp = false }: { dropUp?: boolean }) {
-  const { user } = useAuthStore()
+  const user = useAuthStore(state => state.user)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const panelRef = useRef<HTMLDivElement>(null)
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return
+    const { data, error } = await supabase
+      .from('notifications')
+      .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url, avatar_crop)`)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.message?.includes('does not exist')) return
+      return
+    }
+
+    const notifs = (data ?? []) as AppNotification[]
+    setNotifications(notifs)
+    setUnreadCount(notifs.filter(n => !n.read).length)
+  }, [user])
 
   useEffect(() => {
     if (!user) return
@@ -92,7 +111,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       supabase.removeChannel(channel)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [user])
+  }, [fetchNotifications, user])
 
   // Close on outside click
   useEffect(() => {
@@ -105,25 +124,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
-
-  const fetchNotifications = async () => {
-    if (!user) return
-    const { data, error } = await supabase
-      .from('notifications')
-      .select(`*, from_profile:profiles!notifications_from_user_id_fkey(username, avatar_url, avatar_crop)`)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(30)
-
-    if (error) {
-      if (error.code === 'PGRST205' || error.message?.includes('does not exist')) return
-      return
-    }
-
-    const notifs = (data ?? []) as AppNotification[]
-    setNotifications(notifs)
-    setUnreadCount(notifs.filter(n => !n.read).length)
-  }
 
   const markAllRead = async () => {
     if (!user || unreadCount === 0) return

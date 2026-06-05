@@ -58,5 +58,23 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Expose to network
     port: 5173,
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-data': [
+            '@supabase/supabase-js',
+            '@tanstack/react-query',
+            '@tanstack/react-query-persist-client',
+            '@tanstack/query-async-storage-persister',
+            'idb-keyval',
+            'zustand',
+          ],
+          'vendor-icons': ['lucide-react'],
+        },
+      },
+    },
+  },
 })

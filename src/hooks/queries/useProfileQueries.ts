@@ -125,7 +125,7 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
 
 export function useUserProfile(username: string | undefined, currentUserId: string | null) {
   return useQuery({
-    queryKey: profileKeys.user(username ?? ''),
+    queryKey: profileKeys.user(username ?? '', currentUserId),
     queryFn: () => fetchUserProfile(username!, currentUserId),
     enabled: !!username,
     staleTime: 3 * 60 * 1000,
@@ -211,7 +211,7 @@ export function useFollowUserProfile(currentUserId: string | null) {
       }
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: profileKeys.user(variables.username) })
+      queryClient.invalidateQueries({ queryKey: profileKeys.user(variables.username, currentUserId) })
       if (currentUserId) {
         queryClient.invalidateQueries({ queryKey: peopleKeys.counts(currentUserId) })
         queryClient.invalidateQueries({ queryKey: peopleKeys.following(currentUserId) })
