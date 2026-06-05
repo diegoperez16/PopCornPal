@@ -97,21 +97,47 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
 
   if (profileError) throw profileError
 
+  const profileId = profileData.id
+
   const [
     badgesResult,
     followersResult,
     followingResult,
     currentUserFollowResult,
     favoritesResult,
+    postsResult,
+    recentActivityResult,
   ] = await Promise.all([
-    supabase.from('user_badges').select('*, badges(*)').eq('user_id', profileData.id),
-    supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileData.id),
-    supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', profileData.id),
+    supabase.from('user_badges').select('*, badges(*)').eq('user_id', profileId),
+    supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileId),
+    supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', profileId),
     currentUserId
-      ? supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', currentUserId).eq('following_id', profileData.id)
+      ? supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', currentUserId).eq('following_id', profileId)
       : Promise.resolve({ count: 0, error: null }),
-    supabase.from('profile_favorites').select('*, media_entry:media_entries(*)').eq('user_id', profileData.id).order('created_at', { ascending: true }),
+    supabase.from('profile_favorites').select('*, media_entry:media_entries(*)').eq('user_id', profileId).order('created_at', { ascending: true }),
+    supabase.from('posts')
+      .select('*, profiles:user_id(username, avatar_url, avatar_crop), media_entries:media_entry_id(title, media_type, rating, cover_image_url)')
+      .eq('user_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase.from('media_entries')
+      .select('*')
+      .eq('user_id', profileId)
+      .neq('status', 'logged')
+      .order('updated_at', { ascending: false })
+      .limit(5),
   ])
+
+  const rawPosts = postsResult.data ?? []
+  const likedPostIds = new Set<string>()
+  if (currentUserId && rawPosts.length > 0) {
+    const { data: userLikes } = await supabase
+      .from('post_likes')
+      .select('post_id')
+      .eq('user_id', currentUserId)
+      .in('post_id', rawPosts.map((p: any) => p.id))
+    if (userLikes) userLikes.forEach((like: any) => likedPostIds.add(like.post_id))
+  }
 
   return {
     profile: profileData as UserProfile,
@@ -120,6 +146,13 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
     followingCount: followingResult.count ?? 0,
     isFollowing: (currentUserFollowResult.count ?? 0) > 0,
     favorites: (favoritesResult.data ?? []) as Favorite[],
+    posts: rawPosts.map((post: any) => ({
+      ...post,
+      likes_count: post.likes_count ?? 0,
+      comments_count: post.comments_count ?? 0,
+      user_liked: likedPostIds.has(post.id),
+    })) as ProfilePost[],
+    recentActivity: (recentActivityResult.data ?? []) as ProfileMediaEntry[],
   }
 }
 
@@ -221,7 +254,7 @@ export function useFollowUserProfile(currentUserId: string | null) {
   })
 }
 
-export function useToggleUserPostLike(currentUserId: string | null, profileUserId: string | undefined) {
+export function useToggleUserPostLike(currentUserId: string | null, username: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ postId, isLiked }: { postId: string; isLiked: boolean }) => {
@@ -235,21 +268,22 @@ export function useToggleUserPostLike(currentUserId: string | null, profileUserI
       }
     },
     onMutate: async ({ postId, isLiked }) => {
-      const queryKey = ['profile', 'posts', profileUserId, currentUserId]
+      const queryKey = profileKeys.user(username ?? '', currentUserId)
       await queryClient.cancelQueries({ queryKey })
-      const previousPosts = queryClient.getQueryData(queryKey)
-      queryClient.setQueryData(queryKey, (old: ProfilePost[] | undefined) =>
-        (old ?? []).map(p =>
+      const previous = queryClient.getQueryData(queryKey)
+      queryClient.setQueryData(queryKey, (old: any) => old ? {
+        ...old,
+        posts: (old.posts ?? []).map((p: ProfilePost) =>
           p.id === postId
             ? { ...p, user_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 }
             : p
-        )
-      )
-      return { previousPosts }
+        ),
+      } : old)
+      return { previous }
     },
     onError: (_err, _vars, context) => {
-      if (context?.previousPosts) {
-        queryClient.setQueryData(['profile', 'posts', profileUserId, currentUserId], context.previousPosts)
+      if (context?.previous) {
+        queryClient.setQueryData(profileKeys.user(username ?? '', currentUserId), context.previous)
       }
     },
   })
@@ -306,6 +340,27 @@ export function useFollowingList(profileUserId: string | undefined, currentUserI
   return useQuery({
     queryKey: ['profile', 'following-list', profileUserId, currentUserId],
     queryFn: () => fetchFollowingList(profileUserId!, currentUserId),
+    enabled: !!profileUserId && enabled,
+    staleTime: 2 * 60 * 1000,
+  })
+}
+
+// ─── Full library (lazy, cached) ─────────────────────────────────────────────
+
+async function fetchUserLibrary(profileUserId: string): Promise<ProfileMediaEntry[]> {
+  const { data, error } = await supabase
+    .from('media_entries')
+    .select('*')
+    .eq('user_id', profileUserId)
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as ProfileMediaEntry[]
+}
+
+export function useUserLibrary(profileUserId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['profile', 'library', profileUserId],
+    queryFn: () => fetchUserLibrary(profileUserId!),
     enabled: !!profileUserId && enabled,
     staleTime: 2 * 60 * 1000,
   })

@@ -4,12 +4,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase, type UserBadge, type BackgroundCrop } from '../lib/supabase'
 import {
   useUserProfile,
-  useUserPosts,
-  useUserRecentActivity,
   useFollowUserProfile,
   useToggleUserPostLike,
   useFollowersList,
   useFollowingList,
+  useUserLibrary,
 } from './queries/useProfileQueries'
 import type { ProfileMediaEntry } from './queries/useProfileQueries'
 
@@ -67,11 +66,8 @@ export function useUserProfilePage(
 
   const profileUserId = profileData?.profile?.id
 
-  const postsQuery = useUserPosts(profileUserId, currentUserId)
-  const recentActivityQuery = useUserRecentActivity(profileUserId)
-
   const followMutation = useFollowUserProfile(currentUserId)
-  const likeMutation = useToggleUserPostLike(currentUserId, profileUserId)
+  const likeMutation = useToggleUserPostLike(currentUserId, username)
 
   // ─── Local UI state ───────────────────────────────────────────────────────────
 
@@ -89,9 +85,9 @@ export function useUserProfilePage(
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Full library (loaded lazily when modal opens)
-  const [fullLibrary, setFullLibrary] = useState<MediaEntry[]>([])
-  const [libraryLoading, setLibraryLoading] = useState(false)
+  const libraryQuery = useUserLibrary(profileUserId, showLibraryModal)
+  const fullLibrary = libraryQuery.data ?? []
+  const libraryLoading = libraryQuery.isFetching
 
   // ─── Cached followers/following via TanStack Query ────────────────────────────
 
@@ -106,9 +102,9 @@ export function useUserProfilePage(
   // ─── Derived loading states ───────────────────────────────────────────────────
 
   const initialLoading = profileQuery.isLoading
-  const loading = profileQuery.isFetching || postsQuery.isFetching || recentActivityQuery.isFetching
-  const postsLoaded = postsQuery.isSuccess
-  const recentActivityLoaded = recentActivityQuery.isSuccess
+  const loading = profileQuery.isFetching
+  const postsLoaded = profileQuery.isSuccess
+  const recentActivityLoaded = profileQuery.isSuccess
   const followLoading = followMutation.isPending
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -124,7 +120,7 @@ export function useUserProfilePage(
 
   const handleLike = (postId: string) => {
     if (!currentUser) return
-    const post = (postsQuery.data ?? []).find(p => p.id === postId)
+    const post = posts.find(p => p.id === postId)
     if (!post) return
     likeMutation.mutate({ postId, isLiked: post.user_liked })
   }
@@ -166,32 +162,6 @@ export function useUserProfilePage(
     navigate(`/profile/${targetUsername}`, { state: { initialProfile: optimisticProfile } })
   }
 
-  const fetchFullLibrary = async () => {
-    if (!profileUserId) return
-    setLibraryLoading(true)
-    try {
-      await supabase.auth.getSession()
-      const { data, error } = await supabase
-        .from('media_entries')
-        .select('*')
-        .eq('user_id', profileUserId)
-        .order('updated_at', { ascending: false })
-      if (error) throw error
-      setFullLibrary(data as MediaEntry[])
-    } catch (error) {
-      console.error('Error fetching library:', error)
-    } finally {
-      setLibraryLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (showLibraryModal && fullLibrary.length === 0 && profileUserId && !libraryLoading) {
-      fetchFullLibrary()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showLibraryModal, profileUserId])
-
   const getFilteredLibrary = () => {
     let filtered = fullLibrary.filter(e => e.status === 'logged')
     if (libraryFilterType) filtered = filtered.filter(e => e.media_type === libraryFilterType)
@@ -210,8 +180,8 @@ export function useUserProfilePage(
   const followingCount = profileData?.followingCount ?? 0
   const isFollowing = profileData?.isFollowing ?? false
   const favorites = (profileData?.favorites ?? []) as Favorite[]
-  const posts = (postsQuery.data ?? []) as Post[]
-  const recentActivity = (recentActivityQuery.data ?? []) as MediaEntry[]
+  const posts = (profileData?.posts ?? []) as Post[]
+  const recentActivity = (profileData?.recentActivity ?? []) as MediaEntry[]
 
   const creatorBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'creator')
   const alphaBadge = userBadges.find(ub => ub.badges?.name.toLowerCase() === 'alpha tester')
