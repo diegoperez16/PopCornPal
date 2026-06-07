@@ -1,29 +1,30 @@
 #!/usr/bin/env node
 /**
- * One-time cleanup: re-host base64 images inlined in posts.image_url.
+ * One-time cleanup: re-host base64 images that were inlined into database
+ * columns because the project had no Storage buckets.
  *
- * A number of posts store the whole image as a `data:<mime>;base64,...` URI
- * directly in posts.image_url (multi-MB each). That bloats every feed page —
- * get_feed ships those bytes inline. This script decodes each blob, uploads it
- * to the `post-images` Storage bucket (same convention as src/lib/postImages.ts),
- * and rewrites image_url to the resulting public URL.
+ * Covers every base64 source in the app:
+ *   posts.image_url       -> post-images bucket
+ *   profiles.avatar_url   -> avatars bucket      (renders on EVERY page)
+ *   profiles.bg_url       -> backgrounds bucket
+ *
+ * For each row whose column holds a `data:<mime>;base64,...` URI, it decodes
+ * the blob, uploads it to the matching bucket (path: <owner-id>/<uuid>.<ext>,
+ * the same convention as src/lib/postImages.ts), and rewrites the column to
+ * the public URL. The image bytes are unchanged, so everything renders
+ * identically — it just streams from the CDN instead of riding inside the JSON.
  *
  * SAFETY:
- *   - Dry-run by default. It only writes when you pass --apply.
- *   - Processes one post at a time (selecting all base64 rows at once hits the
- *     statement timeout because the column is so large).
- *   - Per-post try/catch: one bad row never aborts the run.
+ *   - Dry-run by default. Writes only with --apply.
+ *   - Processes one row at a time (selecting all base64 rows at once hits the
+ *     statement timeout — the columns are huge).
+ *   - The DB update only runs AFTER a successful upload, so a failed upload
+ *     never corrupts a row. Per-row try/catch; one bad row never aborts.
+ *   - Re-runnable: rows already converted to URLs are skipped.
  *
- * USAGE:
- *   # 1. Dry run — see exactly what it would touch, write nothing:
- *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/cleanup-base64-images.mjs
- *
- *   # 2. For real:
- *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/cleanup-base64-images.mjs --apply
- *
- * The service-role key is required because this updates posts across all users
- * (bypassing RLS). Get it from Dashboard → Project Settings → API → service_role.
- * NEVER commit it or put it in a VITE_* var (those ship to the browser).
+ * USAGE (key is read from .env.local / .env, never the command line):
+ *   node scripts/cleanup-base64-images.mjs            # dry run
+ *   node scripts/cleanup-base64-images.mjs --apply    # for real
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -33,11 +34,16 @@ import { dirname, resolve } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APPLY = process.argv.includes('--apply')
-const BUCKET = 'post-images'
 
-// ─── Resolve credentials ────────────────────────────────────────────────────
-// URL comes from .env (VITE_SUPABASE_URL); service key must be passed in the
-// environment and is never read from any VITE_* value.
+// What to clean: (table, column) -> bucket. ownerCol names the column used as
+// the storage folder so a user's files are grouped under their id.
+const TARGETS = [
+  { table: 'posts',    urlCol: 'image_url',  ownerCol: 'user_id', bucket: 'post-images' },
+  { table: 'profiles', urlCol: 'avatar_url', ownerCol: 'id',      bucket: 'avatars' },
+  { table: 'profiles', urlCol: 'bg_url',     ownerCol: 'id',      bucket: 'backgrounds' },
+]
+
+// ─── Credentials (env or gitignored .env.local / .env; never hardcoded) ──────
 function readEnvFile(path) {
   try {
     const out = {}
@@ -50,150 +56,106 @@ function readEnvFile(path) {
     return {}
   }
 }
-
 const envFile = readEnvFile(resolve(__dirname, '..', '.env'))
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || envFile.VITE_SUPABASE_URL
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const envLocal = readEnvFile(resolve(__dirname, '..', '.env.local'))
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || envLocal.VITE_SUPABASE_URL || envFile.VITE_SUPABASE_URL
+const SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || envLocal.SUPABASE_SERVICE_ROLE_KEY || envFile.SUPABASE_SERVICE_ROLE_KEY
 
-if (!SUPABASE_URL) {
-  console.error('✗ Missing Supabase URL (set VITE_SUPABASE_URL in .env or SUPABASE_URL in env).')
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  console.error('✗ Need VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (put the latter in .env.local).')
   process.exit(1)
 }
-if (!SERVICE_KEY) {
-  console.error('✗ Missing SUPABASE_SERVICE_ROLE_KEY.')
-  console.error('  Get it from Dashboard → Project Settings → API → service_role, then:')
-  console.error('  SUPABASE_SERVICE_ROLE_KEY=... node scripts/cleanup-base64-images.mjs')
-  process.exit(1)
-}
-
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const EXT_BY_MIME = {
-  'image/gif': 'gif',
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/jpg': 'jpg',
-  'image/webp': 'webp',
-  'image/avif': 'avif',
+  'image/gif': 'gif', 'image/png': 'png', 'image/jpeg': 'jpg',
+  'image/jpg': 'jpg', 'image/webp': 'webp', 'image/avif': 'avif',
 }
-
 function parseDataUri(uri) {
-  // data:<mime>;base64,<payload>
   const m = uri.match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/)
-  if (!m) return null
-  const mime = (m[1] || 'application/octet-stream').toLowerCase()
-  const isBase64 = !!m[2]
-  if (!isBase64) return null // only handling base64 payloads
-  const buffer = Buffer.from(m[3], 'base64')
-  return { mime, buffer }
+  if (!m || !m[2]) return null
+  return { mime: (m[1] || 'application/octet-stream').toLowerCase(), buffer: Buffer.from(m[3], 'base64') }
 }
+const fmtBytes = (n) =>
+  n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`
 
-const fmtBytes = (n) => {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / 1024 / 1024).toFixed(2)} MB`
+// ─── Process one (table, column) target ─────────────────────────────────────
+async function processTarget(t, totals) {
+  console.log(`\n▸ ${t.table}.${t.urlCol}  →  bucket "${t.bucket}"`)
+  const { data: rows, error } = await supabase
+    .from(t.table)
+    .select(`id, ${t.ownerCol}`)
+  if (error) {
+    console.error(`  ✗ could not list ${t.table}: ${error.message}`)
+    return
+  }
+
+  for (const row of rows) {
+    // Fetch this row's big column alone (one row never times out).
+    const { data: one, error: oneErr } = await supabase
+      .from(t.table).select(t.urlCol).eq('id', row.id).single()
+    if (oneErr) { console.warn(`  ! ${row.id} read failed: ${oneErr.message}`); continue }
+
+    const url = one?.[t.urlCol]
+    if (!url || !url.startsWith('data:')) continue
+    const parsed = parseDataUri(url)
+    if (!parsed) { console.warn(`  ! ${row.id} unparseable data URI, skipping`); continue }
+
+    totals.count++
+    totals.bytes += parsed.buffer.length
+    const ext = EXT_BY_MIME[parsed.mime] || 'bin'
+    const owner = row[t.ownerCol] || 'unknown'
+    const objectPath = `${owner}/${crypto.randomUUID()}.${ext}`
+
+    if (!APPLY) {
+      console.log(`  • ${row.id}  ${parsed.mime.padEnd(10)} ${fmtBytes(parsed.buffer.length).padStart(10)}  →  ${t.bucket}/${objectPath}`)
+      continue
+    }
+    try {
+      const { error: upErr } = await supabase.storage
+        .from(t.bucket).upload(objectPath, parsed.buffer, { contentType: parsed.mime, upsert: false })
+      if (upErr) throw new Error(`upload: ${upErr.message}`)
+      const { data: pub } = supabase.storage.from(t.bucket).getPublicUrl(objectPath)
+      if (!pub?.publicUrl) throw new Error('no public URL')
+      const { error: updErr } = await supabase
+        .from(t.table).update({ [t.urlCol]: pub.publicUrl }).eq('id', row.id)
+      if (updErr) throw new Error(`update: ${updErr.message} (blob orphaned at ${objectPath})`)
+      totals.migrated++
+      console.log(`  ✓ ${row.id}  ${fmtBytes(parsed.buffer.length).padStart(10)}  →  ${pub.publicUrl}`)
+    } catch (e) {
+      totals.failed++
+      totals.failures.push({ row: row.id, target: `${t.table}.${t.urlCol}`, error: e.message })
+      console.error(`  ✗ ${row.id} — ${e.message}`)
+    }
+  }
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`\n${APPLY ? '⚙️  APPLY MODE — will upload and rewrite rows' : '🔍 DRY RUN — no writes (pass --apply to execute)'}`)
+  console.log(`\n${APPLY ? '⚙️  APPLY MODE — uploading and rewriting rows' : '🔍 DRY RUN — no writes (pass --apply to execute)'}`)
   console.log(`   project: ${SUPABASE_URL}`)
-  console.log(`   bucket:  ${BUCKET}\n`)
 
-  // 1. Get every post id (tiny payload). We deliberately do NOT select image_url
-  //    here — pulling all the big columns at once times out.
-  const { data: ids, error: idsErr } = await supabase
-    .from('posts')
-    .select('id, user_id')
-    .order('created_at', { ascending: true })
-  if (idsErr) {
-    console.error('✗ Failed to list posts:', idsErr.message)
-    process.exit(1)
-  }
-  console.log(`Scanning ${ids.length} posts (fetching image_url one at a time)…\n`)
+  const totals = { count: 0, bytes: 0, migrated: 0, failed: 0, failures: [] }
+  for (const t of TARGETS) await processTarget(t, totals)
 
-  let inlineCount = 0
-  let inlineBytes = 0
-  let migrated = 0
-  let failed = 0
-  const failures = []
-
-  for (const { id, user_id } of ids) {
-    // 2. Fetch this single post's image_url (one row — never times out).
-    const { data: row, error: rowErr } = await supabase
-      .from('posts')
-      .select('image_url')
-      .eq('id', id)
-      .single()
-    if (rowErr) {
-      console.warn(`  ! ${id} — could not read image_url: ${rowErr.message}`)
-      continue
-    }
-    const url = row?.image_url
-    if (!url || !url.startsWith('data:')) continue // already a URL, or no image
-
-    const parsed = parseDataUri(url)
-    if (!parsed) {
-      console.warn(`  ! ${id} — image_url is data: but not parseable base64, skipping`)
-      continue
-    }
-
-    inlineCount++
-    inlineBytes += parsed.buffer.length
-    const ext = EXT_BY_MIME[parsed.mime] || 'bin'
-    const objectPath = `${user_id}/${crypto.randomUUID()}.${ext}`
-
-    if (!APPLY) {
-      console.log(`  • ${id}  ${parsed.mime.padEnd(10)} ${fmtBytes(parsed.buffer.length).padStart(10)}  →  ${BUCKET}/${objectPath}`)
-      continue
-    }
-
-    try {
-      const { error: upErr } = await supabase.storage
-        .from(BUCKET)
-        .upload(objectPath, parsed.buffer, { contentType: parsed.mime, upsert: false })
-      if (upErr) throw new Error(`upload: ${upErr.message}`)
-
-      const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(objectPath)
-      const publicUrl = pub?.publicUrl
-      if (!publicUrl) throw new Error('no public URL returned')
-
-      const { error: updErr } = await supabase
-        .from('posts')
-        .update({ image_url: publicUrl })
-        .eq('id', id)
-      if (updErr) throw new Error(`update: ${updErr.message} (uploaded blob orphaned at ${objectPath})`)
-
-      migrated++
-      console.log(`  ✓ ${id}  ${fmtBytes(parsed.buffer.length).padStart(10)}  →  ${publicUrl}`)
-    } catch (e) {
-      failed++
-      failures.push({ id, error: e.message })
-      console.error(`  ✗ ${id} — ${e.message}`)
-    }
-  }
-
-  // ─── Summary ──────────────────────────────────────────────────────────────
   console.log(`\n${'─'.repeat(60)}`)
-  console.log(`base64 posts found: ${inlineCount}`)
-  console.log(`total inlined size: ${fmtBytes(inlineBytes)}`)
+  console.log(`base64 values found: ${totals.count}`)
+  console.log(`total inlined size:  ${fmtBytes(totals.bytes)}`)
   if (APPLY) {
-    console.log(`migrated:           ${migrated}`)
-    console.log(`failed:             ${failed}`)
-    if (failures.length) {
-      console.log('\nFailures (safe to re-run — migrated rows are skipped on the next pass):')
-      for (const f of failures) console.log(`  ${f.id}: ${f.error}`)
+    console.log(`migrated:            ${totals.migrated}`)
+    console.log(`failed:              ${totals.failed}`)
+    if (totals.failures.length) {
+      console.log('\nFailures (safe to re-run — migrated rows are skipped):')
+      for (const f of totals.failures) console.log(`  ${f.target} ${f.row}: ${f.error}`)
     }
   } else {
-    console.log(`\nNothing was written. Re-run with --apply to migrate these ${inlineCount} posts.`)
+    console.log(`\nNothing written. Re-run with --apply to migrate these ${totals.count} values.`)
   }
   console.log(`${'─'.repeat(60)}\n`)
 }
-
-main().catch((e) => {
-  console.error('Fatal:', e)
-  process.exit(1)
-})
+main().catch((e) => { console.error('Fatal:', e); process.exit(1) })

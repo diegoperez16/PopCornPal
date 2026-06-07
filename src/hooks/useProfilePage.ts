@@ -7,6 +7,7 @@ import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMe
 import type { MediaEntry } from './queries/useMediaQueries'
 import { supabase, type UserBadge } from '../lib/supabase'
 import { authedQuery } from '../lib/queryClient'
+import { persistProfileImage } from '../lib/profileImages'
 import type { CropData } from '../components/ImageCropper'
 import type { AvatarCrop } from '../lib/supabase'
 
@@ -499,17 +500,25 @@ export function useProfilePage() {
     if (!user) return
     setSavingProfile(true)
     try {
-      const bgUrlToSave = originalBgImageUrl
+      const bgRawToSave = originalBgImageUrl
         ? originalBgImageUrl
         : (uploadedBgImage || profileBgUrl.trim() || null)
       const bgCropToSave = originalBgImageUrl && desktopCropData && mobileCropData
         ? { desktop: desktopCropData, mobile: mobileCropData }
         : null
 
+      // Upload any base64 avatar/background to Storage and store the URL instead
+      // of the blob — keeps multi-MB images out of the profiles row (they render
+      // on every page). http(s) URLs pass through untouched.
+      const [avatarUrlToSave, bgUrlToSave] = await Promise.all([
+        persistProfileImage(user.id, 'avatars', uploadedAvatar || avatarUrl.trim() || null),
+        persistProfileImage(user.id, 'backgrounds', bgRawToSave),
+      ])
+
       await updateProfile({
         full_name: fullName.trim() || null,
         bio: bio.trim() || null,
-        avatar_url: uploadedAvatar || avatarUrl.trim() || null,
+        avatar_url: avatarUrlToSave,
         bg_url: bgUrlToSave,
         bg_opacity: profileBgOpacity,
         bg_crop: bgCropToSave,
