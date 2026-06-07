@@ -289,20 +289,27 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         supabase.auth.startAutoRefresh()
-        await resumeSession()
-        await flushPendingMutations()
+        // Fire the refetch FIRST and unconditionally. Do NOT await the session
+        // refresh before refetching: supabase-js's auth lock can hang after the
+        // tab was backgrounded, and gating the refetch behind `await resumeSession()`
+        // meant a hung refresh left the app stuck on stale data until a manual
+        // reload. The session refresh + queue flush run in the background; any
+        // query that races ahead of the new token and 401s is recovered by the
+        // QueryCache auth handler in queryClient.ts.
         refreshActiveStaleQueries()
+        void resumeSession()
+        void flushPendingMutations()
       } else {
         supabase.auth.stopAutoRefresh()
       }
     }
 
-    const handleOnlineResume = async () => {
-      await flushPendingMutations()
+    const handleOnlineResume = () => {
       refreshActiveStaleQueries()
+      void flushPendingMutations()
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)

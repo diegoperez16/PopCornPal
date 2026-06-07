@@ -150,7 +150,20 @@ export const useAuthStore = create<AuthState>()(
       // Use refreshSession() (not getSession()) so we always get a fresh JWT.
       // getSession() can return a locally-cached token the client thinks is valid
       // but has actually expired on the server while the PWA was backgrounded.
-      const { data, error } = await supabase.auth.refreshSession()
+      //
+      // Bound it with a timeout: supabase-js's auth lock can hang after the tab
+      // was backgrounded, and we never want this to block indefinitely. If it
+      // times out we keep the cached session — queries self-heal via the
+      // QueryCache auth-error recovery if the token really is dead.
+      const refreshResult = await Promise.race([
+        supabase.auth.refreshSession(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ])
+      if (!refreshResult) {
+        console.warn('resumeSession: token refresh timed out, keeping cached state')
+        return
+      }
+      const { data, error } = refreshResult
 
       if (error) {
         // Network error — keep cached user so the app stays usable offline.
