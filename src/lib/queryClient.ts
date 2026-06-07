@@ -1,6 +1,6 @@
 import { QueryClient, QueryCache } from '@tanstack/react-query'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
-import { persistQueryClient } from '@tanstack/react-query-persist-client'
+import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstack/react-query-persist-client'
 import { createStore, del, get, set } from 'idb-keyval'
 import { supabase } from './supabase'
 
@@ -70,24 +70,36 @@ const persistedQueryStorage = {
   removeItem: (key: string) => del(key, queryCacheStore),
 }
 
+declare const __BUILD_TIMESTAMP__: string
+
 const persister = createAsyncStoragePersister({
   storage: persistedQueryStorage,
   key: persistedQueryCacheKey,
   throttleTime: 1000,
 })
 
-persistQueryClient({
+const persistOptions = {
   queryClient,
   persister,
   maxAge: 24 * 60 * 60 * 1000,
+  buster: typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : 'dev',
   dehydrateOptions: {
-    shouldDehydrateQuery: (query) => {
+    shouldDehydrateQuery: (query: { queryKey: readonly unknown[]; state: { status: string } }) => {
       const key = query.queryKey[0] as string
-      // Persist all main data domains so returning users see cached content instantly.
       return ['feed', 'media', 'activity', 'profile', 'people'].includes(key) && query.state.status === 'success'
     },
   },
+}
+
+// Restore cached queries from IndexedDB, then mark them all stale so mounted
+// queries refetch in the background on every page load. Users still see cached
+// data instantly (no loading spinner), but it's always verified against the
+// server. The buster key changes on every build, so deploys discard the old
+// IndexedDB cache entirely.
+persistQueryClientRestore(persistOptions).then(() => {
+  queryClient.invalidateQueries()
 })
+persistQueryClientSubscribe(persistOptions)
 
 export async function clearPersistedQueryCache() {
   await persistedQueryStorage.removeItem(persistedQueryCacheKey)

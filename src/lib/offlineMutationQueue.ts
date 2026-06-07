@@ -1,6 +1,7 @@
 import { createStore, get, set } from 'idb-keyval'
 import { useSyncExternalStore } from 'react'
 import { registerOfflineSync } from './push'
+import { supabase } from './supabase'
 import {
   createComment,
   createMediaEntry,
@@ -107,6 +108,17 @@ function canQueueOffline() {
   return typeof navigator !== 'undefined' && !navigator.onLine
 }
 
+function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const e = error as Record<string, unknown>
+  return (
+    e.code === 'PGRST301' ||
+    e.status === 401 ||
+    (typeof e.message === 'string' &&
+      (e.message.includes('JWT') || e.message.includes('token is expired')))
+  )
+}
+
 function isRetryableMutationError(error: unknown) {
   if (canQueueOffline()) return true
   if (!(error instanceof Error)) return false
@@ -159,6 +171,20 @@ export async function executeQueuedMutationOrRun<T>(
     const result = await action()
     return { queued: false, result }
   } catch (error) {
+    if (isAuthError(error)) {
+      const { error: refreshError } = await supabase.auth.refreshSession()
+      if (!refreshError) {
+        try {
+          const result = await action()
+          return { queued: false, result }
+        } catch (retryError) {
+          if (!isRetryableMutationError(retryError)) throw retryError
+          await enqueueOfflineMutation(mutation)
+          return { queued: true }
+        }
+      }
+      throw error
+    }
     if (!isRetryableMutationError(error)) throw error
     await enqueueOfflineMutation(mutation)
     return { queued: true }
@@ -182,6 +208,7 @@ export async function flushOfflineMutationQueue() {
 
     const remaining: OfflineMutation[] = []
     let flushedCount = 0
+    let tokenRefreshed = false
 
     for (let index = 0; index < queue.length; index += 1) {
       const mutation = queue[index]
@@ -189,6 +216,25 @@ export async function flushOfflineMutationQueue() {
         await runOfflineMutation(mutation)
         flushedCount += 1
       } catch (error) {
+        if (isAuthError(error) && !tokenRefreshed) {
+          tokenRefreshed = true
+          const { error: refreshError } = await supabase.auth.refreshSession()
+          if (!refreshError) {
+            try {
+              await runOfflineMutation(mutation)
+              flushedCount += 1
+              continue
+            } catch (retryError) {
+              if (isRetryableMutationError(retryError)) {
+                remaining.push(...queue.slice(index))
+                break
+              }
+              console.error('[offline-queue] dropping mutation after auth-retry failure', mutation, retryError)
+              continue
+            }
+          }
+        }
+
         if (isRetryableMutationError(error)) {
           remaining.push(...queue.slice(index))
           break
