@@ -1,4 +1,5 @@
-import { Film, Tv, Gamepad2, Book, Star, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus } from 'lucide-react'
+import DecimalRating from '../components/DecimalRating'
 import GifPicker from '../components/GifPicker'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import ImageCropper from '../components/ImageCropper'
@@ -774,8 +775,9 @@ export default function ProfilePage() {
                         {entry.completed_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(entry.completed_date)}</span>}
                       </div>
                       {entry.rating && (
-                        <div className="flex items-center gap-0.5 mt-1.5">
-                          {[1,2,3,4,5].map(s => <Star key={s} className={`w-3 h-3 ${s <= entry.rating! ? 'fill-yellow-400 text-yellow-400' : 'text-gray-700'}`} />)}
+                        <div className="mt-1.5">
+                          <span className="text-xs font-bold text-yellow-400 tabular-nums">{entry.rating}</span>
+                          <span className="text-xs text-gray-600"> / 10</span>
                         </div>
                       )}
                       {entry.notes && <p className="text-gray-500 text-xs mt-1 line-clamp-1 italic">"{entry.notes}"</p>}
@@ -832,9 +834,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Rating {editRating > 0 && `· ${editRating}/5`}</label>
-                  <div className="flex gap-1 items-center justify-center mb-2">{[1, 2, 3, 4, 5].map((star) => (<Star key={star} className={`w-6 h-6 cursor-pointer ${editRating >= star ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}`} onClick={() => setEditRating(star)} />))}</div>
-                  <input type="range" min="0" max="10" step="1" value={editRating * 2} onChange={(e) => setEditRating(parseFloat(e.target.value) / 2)} className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Rating {editRating > 0 && <span className="normal-case font-normal text-gray-500">· {editRating} / 10</span>}</label>
+                  <DecimalRating value={editRating} onChange={setEditRating} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Notes</label>
