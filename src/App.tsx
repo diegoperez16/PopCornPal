@@ -26,7 +26,7 @@ import {
   loadPeoplePage,
   loadProfilePage,
   loadUserProfilePage,
-  prefetchPrimaryRoutes,
+  prefetchRouteModules,
 } from './lib/routeLoaders'
 
 // Auth pages load immediately — needed before any session exists
@@ -239,14 +239,21 @@ function App() {
 
   useEffect(() => {
     let settled = false
-    // Safety net: if init hangs (e.g. Supabase auth lock stuck), force the
-    // app to render after 4 seconds so the user isn't stuck on the splash.
-    const safetyTimer = setTimeout(() => {
-      if (!settled) {
-        console.warn('App init timed out — forcing ready state')
-        setAppReady(true)
-      }
-    }, 4000)
+    const markReady = () => {
+      if (settled) return
+      settled = true
+      setAppReady(true)
+    }
+
+    // Failsafe: never let the splash block the app for more than 8s. supabase-js's
+    // auth lock can occasionally deadlock (notably after the tab was backgrounded),
+    // leaving init() awaiting forever — which previously stuck users on the loading
+    // screen permanently. If that happens we render anyway; the onAuthStateChange
+    // listener and the resume coordinator below bring state up to date afterward.
+    const failsafe = window.setTimeout(() => {
+      console.warn('App init failsafe fired — rendering before init settled')
+      markReady()
+    }, 8000)
 
     const init = async () => {
       try {
@@ -258,37 +265,62 @@ function App() {
       } catch (e) {
         console.error('App init error:', e)
       } finally {
-        settled = true
-        clearTimeout(safetyTimer)
-        setAppReady(true)
+        window.clearTimeout(failsafe)
+        markReady()
       }
     }
     init()
-
-    return () => clearTimeout(safetyTimer)
+    return () => window.clearTimeout(failsafe)
   }, [flushPendingMutations, initialize])
 
-  // Manage Supabase's auto-refresh timer based on tab visibility.
-  // Only refresh the session here — TanStack Query's refetchOnWindowFocus handles
-  // re-fetching stale queries naturally based on each query's staleTime.
+  // Resume coordinator: refetchOnWindowFocus/refetchOnReconnect are disabled
+  // globally (they caused visible spinners on every tab switch), so nothing
+  // else refreshes stale data when the app comes back from the background.
+  // Realtime channels also silently die while a mobile tab is backgrounded
+  // and don't always reconnect cleanly. This is the single place that brings
+  // the app back to a correct, fresh state on resume:
+  //   1. resume the auth session (token may have expired while backgrounded)
+  //   2. flush any offline-queued mutations
+  //   3. refetch only ACTIVE queries that are currently STALE — cheap (skips
+  //      fresh data, skips inactive/background queries) but guarantees the
+  //      screen the user is looking at is never silently out of date
+  const refreshActiveStaleQueries = useCallback(() => {
+    void queryClient.refetchQueries({ type: 'active', stale: true })
+  }, [])
+
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         supabase.auth.startAutoRefresh()
-        await resumeSession()
-        await flushPendingMutations()
+        // Fire the refetch FIRST and unconditionally. Do NOT await the session
+        // refresh before refetching: supabase-js's auth lock can hang after the
+        // tab was backgrounded, and gating the refetch behind `await resumeSession()`
+        // meant a hung refresh left the app stuck on stale data until a manual
+        // reload. The session refresh + queue flush run in the background; any
+        // query that races ahead of the new token and 401s is recovered by the
+        // QueryCache auth handler in queryClient.ts.
+        refreshActiveStaleQueries()
+        void resumeSession()
+        void flushPendingMutations()
       } else {
         supabase.auth.stopAutoRefresh()
       }
     }
 
+    const handleOnlineResume = () => {
+      refreshActiveStaleQueries()
+      void flushPendingMutations()
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('online', flushPendingMutations)
+    window.addEventListener('online', handleOnlineResume)
+    window.addEventListener('pageshow', refreshActiveStaleQueries)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('online', flushPendingMutations)
+      window.removeEventListener('online', handleOnlineResume)
+      window.removeEventListener('pageshow', refreshActiveStaleQueries)
     }
-  }, [flushPendingMutations, resumeSession])
+  }, [flushPendingMutations, refreshActiveStaleQueries, resumeSession])
 
   // Listen for FLUSH_OFFLINE_QUEUE messages from the service worker (background sync)
   // Only invalidate feed and media since those are what offline writes affect.
@@ -331,6 +363,44 @@ function App() {
 }
 
 const PTR_THRESHOLD = 70 // px of damped pull needed to trigger
+
+// Warm only the most likely next screens on mobile instead of importing the
+// full authenticated route set right after login.
+const MOBILE_ROUTE_WARMUP_TARGETS: Record<string, string[]> = {
+  '/feed': ['/add', '/people'],
+  '/people': ['/add', '/feed'],
+  '/library': ['/feed', '/profile'],
+  '/profile': ['/library', '/feed'],
+  '/add': ['/feed'],
+}
+
+type NavigatorConnection = {
+  effectiveType?: string
+  saveData?: boolean
+}
+
+function shouldWarmMobileRoutes() {
+  const isMobileViewport = window.matchMedia('(max-width: 767px)').matches
+  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches
+  if (!isMobileViewport && !hasCoarsePointer) return false
+
+  const connection = (navigator as Navigator & { connection?: NavigatorConnection }).connection
+  if (!connection) return true
+
+  return !connection.saveData && connection.effectiveType !== 'slow-2g' && connection.effectiveType !== '2g'
+}
+
+function getMobileRouteWarmupTargets(pathname: string) {
+  if (pathname.startsWith('/profile/')) {
+    return ['/feed', '/people']
+  }
+
+  if (pathname.startsWith('/admin/')) {
+    return ['/feed']
+  }
+
+  return MOBILE_ROUTE_WARMUP_TARGETS[pathname] ?? ['/add']
+}
 
 function PullToRefresh() {
   const [pullY, setPullY] = useState(0)
@@ -492,13 +562,18 @@ function AppContent() {
   }, [user])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !shouldWarmMobileRoutes()) return
+
+    const targets = getMobileRouteWarmupTargets(location.pathname)
+      .filter(path => path !== location.pathname)
+
+    if (targets.length === 0) return
 
     let timeoutId: number | null = null
     let idleId: number | null = null
 
     const runPrefetch = () => {
-      void prefetchPrimaryRoutes()
+      void prefetchRouteModules(targets)
     }
 
     if (typeof window.requestIdleCallback === 'function') {
@@ -515,7 +590,7 @@ function AppContent() {
         window.clearTimeout(timeoutId)
       }
     }
-  }, [user])
+  }, [location.pathname, user])
 
   return (
     <>

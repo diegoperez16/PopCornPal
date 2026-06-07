@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { type Post, useSocialStore } from '../store/socialStore'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUp, Image as ImageIcon, RefreshCw, WifiOff, X } from 'lucide-react'
+import { ArrowUp, RefreshCw, WifiOff } from 'lucide-react'
 
 import { supabase } from '../lib/supabase'
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query'
@@ -19,17 +19,20 @@ import {
   useComments,
   fetchCommentsTree,
   fetchSinglePost,
+  buildRealtimeComment,
+  appendCommentToTree,
+  removeCommentFromTree,
+  setCommentLikeInTree,
+  type CommentsTree,
 } from '../hooks/queries/useFeedQueries'
-import { useMediaEntries } from '../hooks/queries/useMediaQueries'
 import GifPicker from '../components/GifPicker'
 import FeedSkeleton from '../components/FeedSkeleton'
+import CommentComposer from '../components/feed/CommentComposer'
 import CommentThread from '../components/feed/CommentThread'
 import FeedComposer from '../components/feed/FeedComposer'
 import FeedPostCard from '../components/feed/FeedPostCard'
 import ThreadModal from '../components/feed/ThreadModal'
-import { type Comment, findImageLink } from '../components/feed/feedTypes'
-import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete'
-import MentionDropdown from '../components/MentionDropdown'
+import { type Comment } from '../components/feed/feedTypes'
 import { uploadPostImage } from '../lib/postImages'
 
 type FeedPageChunk = {
@@ -50,8 +53,21 @@ type PostInsertPayload = { new?: { id?: string; user_id?: string } }
 type PostDeletePayload = { old?: { id?: string } }
 type PostLikeInsertPayload = { new?: { post_id?: string; user_id?: string } }
 type PostLikeDeletePayload = { old?: { post_id?: string; user_id?: string } }
-type CommentInsertPayload = { new?: { post_id?: string; user_id?: string } }
-type CommentDeletePayload = { old?: { post_id?: string } }
+type CommentInsertPayload = {
+  new?: {
+    id?: string
+    post_id?: string
+    user_id?: string
+    content?: string
+    image_url?: string | null
+    parent_comment_id?: string | null
+    created_at?: string
+    updated_at?: string | null
+  }
+}
+type CommentDeletePayload = { old?: { id?: string; post_id?: string } }
+type CommentLikeInsertPayload = { new?: { comment_id?: string; user_id?: string } }
+type CommentLikeDeletePayload = { old?: { comment_id?: string; user_id?: string } }
 type FollowChangePayload = {
   new?: { following_id?: string }
   old?: { following_id?: string }
@@ -91,9 +107,6 @@ export default function FeedPage() {
 
   const initialLoading = feedIsLoading && posts.length === 0
 
-  // Media entries for media selector
-  const { data: entries = [] } = useMediaEntries(user?.id ?? '')
-
   // Active comments (only one post expanded at a time)
   const [expandedComments, setExpandedComments] = useState<string | null>(null)
   const { data: activeComments = { rootComments: [], commentsMap: new Map() } } = useComments(expandedComments, user?.id ?? null)
@@ -107,16 +120,11 @@ export default function FeedPage() {
   const { mutate: toggleCommentLike } = useToggleCommentLike(user?.id ?? '')
 
   const [refreshing] = useState(false)
-  const [commentText, setCommentText] = useState('')
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
-  const [commentImageUrl, setCommentImageUrl] = useState('')
-  const [uploadedCommentImage, setUploadedCommentImage] = useState<string | null>(null)
-  const [uploadingCommentImage, setUploadingCommentImage] = useState(false)
   const [replyImageUrl, setReplyImageUrl] = useState('')
   const [uploadedReplyImage, setUploadedReplyImage] = useState<string | null>(null)
   const [uploadingReplyImage, setUploadingReplyImage] = useState(false)
-  const [showCommentGifPicker, setShowCommentGifPicker] = useState(false)
   const [showReplyGifPicker, setShowReplyGifPicker] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -126,9 +134,6 @@ export default function FeedPage() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
-
-  // Mention autocomplete for each input
-  const commentMention = useMentionAutocomplete()
 
   // 1. Restore scroll position on mount
   useLayoutEffect(() => {
@@ -144,14 +149,8 @@ export default function FeedPage() {
     }
   }, [setFeedScrollPos])
 
-  // Restore all drafts on mount
+  // Restore reply drafts on mount (top-level comment drafts are owned by CommentComposer)
   useEffect(() => {
-    const savedComment = localStorage.getItem('popcorn_comment_draft')
-    if (savedComment) setCommentText(savedComment)
-    const savedCommentImgUrl = localStorage.getItem('popcorn_comment_img_url')
-    if (savedCommentImgUrl) setCommentImageUrl(savedCommentImgUrl)
-    const savedCommentUpload = localStorage.getItem('popcorn_comment_upload')
-    if (savedCommentUpload) setUploadedCommentImage(savedCommentUpload)
     const savedReply = localStorage.getItem('popcorn_reply_draft')
     if (savedReply) setReplyText(savedReply)
     const savedReplyTo = localStorage.getItem('popcorn_reply_to')
@@ -161,16 +160,6 @@ export default function FeedPage() {
     const savedReplyUpload = localStorage.getItem('popcorn_reply_upload')
     if (savedReplyUpload) setUploadedReplyImage(savedReplyUpload)
   }, [])
-
-  // Save Comment Draft
-  useEffect(() => {
-    localStorage.setItem('popcorn_comment_draft', commentText)
-    if (commentImageUrl) localStorage.setItem('popcorn_comment_img_url', commentImageUrl)
-    else localStorage.removeItem('popcorn_comment_img_url')
-    if (uploadedCommentImage) {
-      try { localStorage.setItem('popcorn_comment_upload', uploadedCommentImage) } catch { console.warn('Image too large to persist') }
-    } else localStorage.removeItem('popcorn_comment_upload')
-  }, [commentText, commentImageUrl, uploadedCommentImage])
 
   // Save Reply Draft
   useEffect(() => {
@@ -344,11 +333,14 @@ export default function FeedPage() {
       })
     }
 
-    const handleCommentInsert = (payload: CommentInsertPayload) => {
-      const postId = payload.new?.post_id
-      const commentUserId = payload.new?.user_id
+    const handleCommentInsert = async (payload: CommentInsertPayload) => {
+      const row = payload.new
+      const postId = row?.post_id
+      const commentUserId = row?.user_id
       // Own comments are already handled optimistically by useCreateComment
       if (!postId || commentUserId === user.id) return
+
+      // Bump the comments_count on the feed card.
       queryClient.setQueryData<FeedCache>(feedKeys.list(user.id), (old) => {
         if (!old) return old
         return {
@@ -361,10 +353,29 @@ export default function FeedPage() {
           })),
         }
       })
+
+      // If this post's thread is open, insert the new comment/reply live (not just
+      // the count). Skip the profile fetch entirely when the thread isn't cached.
+      const openThread = queryClient.getQueryData<CommentsTree>(feedKeys.comments(postId))
+      if (!openThread || !row?.id || openThread.commentsMap.has(row.id)) return
+      const comment = await buildRealtimeComment({
+        id: row.id,
+        user_id: commentUserId!,
+        post_id: postId,
+        content: row.content ?? '',
+        image_url: row.image_url ?? null,
+        parent_comment_id: row.parent_comment_id ?? null,
+        created_at: row.created_at ?? new Date().toISOString(),
+        updated_at: row.updated_at ?? null,
+      })
+      queryClient.setQueryData<CommentsTree>(feedKeys.comments(postId), (old) =>
+        old ? appendCommentToTree(old, comment) : old
+      )
     }
 
     const handleCommentDelete = (payload: CommentDeletePayload) => {
       const postId = payload.old?.post_id
+      const commentId = payload.old?.id
       if (!postId) {
         // No REPLICA IDENTITY FULL — can't determine which post, just invalidate
         queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
@@ -384,6 +395,38 @@ export default function FeedPage() {
           })),
         }
       })
+
+      // Remove it from the open thread too, if cached.
+      if (commentId) {
+        queryClient.setQueryData<CommentsTree>(feedKeys.comments(postId), (old) =>
+          old ? removeCommentFromTree(old, commentId) : old
+        )
+      }
+    }
+
+    // Comment likes (#2): update likes_count / is_liked in whichever open thread
+    // holds the comment. Own likes are handled by the toggle mutation, so skip them.
+    const applyCommentLike = (commentId: string, delta: number) => {
+      const threads = queryClient.getQueryCache().findAll({ queryKey: ['feed', 'comments'] })
+      for (const cache of threads) {
+        const tree = cache.state.data as CommentsTree | undefined
+        if (tree?.commentsMap.has(commentId)) {
+          queryClient.setQueryData(cache.queryKey, setCommentLikeInTree(tree, commentId, delta))
+          break
+        }
+      }
+    }
+
+    const handleCommentLikeInsert = (payload: CommentLikeInsertPayload) => {
+      const commentId = payload.new?.comment_id
+      if (!commentId || payload.new?.user_id === user.id) return
+      applyCommentLike(commentId, 1)
+    }
+
+    const handleCommentLikeDelete = (payload: CommentLikeDeletePayload) => {
+      const commentId = payload.old?.comment_id
+      if (!commentId || payload.old?.user_id === user.id) return
+      applyCommentLike(commentId, -1)
     }
 
     const subscribeChannel = () => supabase
@@ -394,6 +437,8 @@ export default function FeedPage() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_likes' }, handleLikeDelete)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments' }, handleCommentInsert)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_comments' }, handleCommentDelete)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_likes' }, handleCommentLikeInsert)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' }, handleCommentLikeDelete)
       .subscribe((status, err) => {
         if (err) console.error('[Feed] realtime error:', err)
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -486,30 +531,14 @@ export default function FeedPage() {
     }
   }
 
-  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    e.target.style.height = 'auto'
-    e.target.style.height = `${e.target.scrollHeight}px`
-    commentMention.handleTextChange(value, e.target.selectionStart ?? value.length)
-    if (!commentImageUrl && !uploadedCommentImage) {
-      const result = findImageLink(value)
-      if (result) {
-        setCommentImageUrl(result.renderableUrl)
-        setCommentText(value.replace(result.foundLink, '').trim())
-        return
-      }
-    }
-    setCommentText(value)
-  }
-
   const handleLike = useCallback((postId: string, isLiked: boolean) => {
     if (!user) return
     doToggleLike({ postId, isLiked })
   }, [doToggleLike, user])
 
-  const handleComment = async (postId: string, parentCommentId: string | null = null) => {
-    const text = parentCommentId ? replyText : commentText
-    const imgUrl = parentCommentId ? (uploadedReplyImage || replyImageUrl) : (uploadedCommentImage || commentImageUrl)
+  const handleReply = async (postId: string, parentCommentId: string) => {
+    const text = replyText
+    const imgUrl = uploadedReplyImage || replyImageUrl
     if (!user || !text.trim()) return
 
     try {
@@ -520,24 +549,14 @@ export default function FeedPage() {
         image_url: imgUrl || null,
       })
 
-      if (parentCommentId) {
-        setReplyText('')
-        setReplyingTo(null)
-        setReplyImageUrl('')
-        setUploadedReplyImage(null)
-        localStorage.removeItem('popcorn_reply_draft')
-        localStorage.removeItem('popcorn_reply_to')
-        localStorage.removeItem('popcorn_reply_img_url')
-        localStorage.removeItem('popcorn_reply_upload')
-        return
-      }
-
-      setCommentText('')
-      setCommentImageUrl('')
-      setUploadedCommentImage(null)
-      localStorage.removeItem('popcorn_comment_draft')
-      localStorage.removeItem('popcorn_comment_img_url')
-      localStorage.removeItem('popcorn_comment_upload')
+      setReplyText('')
+      setReplyingTo(null)
+      setReplyImageUrl('')
+      setUploadedReplyImage(null)
+      localStorage.removeItem('popcorn_reply_draft')
+      localStorage.removeItem('popcorn_reply_to')
+      localStorage.removeItem('popcorn_reply_img_url')
+      localStorage.removeItem('popcorn_reply_upload')
     } catch (error) {
       console.error('Error creating comment:', error)
       alert('Failed to post comment. Your draft is saved.')
@@ -557,19 +576,6 @@ export default function FeedPage() {
     const comment = findInTree(activeComments.rootComments)
     const isLiked = comment?.is_liked ?? false
     toggleCommentLike({ commentId, postId, isLiked })
-  }
-
-  const handleCommentImageUpload = async (file: File) => {
-    if (!user) return
-    try {
-      setUploadingCommentImage(true)
-      setUploadedCommentImage(await uploadPostImage(user.id, file))
-    } catch (error) {
-      console.error('Error uploading comment image:', error)
-      alert('Failed to upload image')
-    } finally {
-      setUploadingCommentImage(false)
-    }
   }
 
   const handleReplyImageUpload = async (file: File) => {
@@ -663,7 +669,7 @@ export default function FeedPage() {
 
 
 <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
-        {user ? <FeedComposer userId={user.id} profile={profile} entries={entries} /> : null}
+        {user ? <FeedComposer userId={user.id} profile={profile} /> : null}
 
         {/* Feed section label */}
         <div className="flex items-center gap-3 mb-5">
@@ -705,7 +711,7 @@ export default function FeedPage() {
                             replyingTo={replyingTo}
                             replyText={replyText}
                             setReplyText={setReplyText}
-                            onSubmitReply={handleComment}
+                            onSubmitReply={handleReply}
                             postingComment={postingComment}
                             replyImageUrl={replyImageUrl}
                             setReplyImageUrl={setReplyImageUrl}
@@ -730,79 +736,7 @@ export default function FeedPage() {
                     )}
 
                     {/* Comment Input */}
-                    <div className="mt-3 pl-3 border-l-2 border-gray-700/50">
-                      <div className="flex items-end gap-2 bg-gray-900/50 border border-gray-600 rounded-3xl p-2 relative transition-all focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
-                        <MentionDropdown
-                          users={commentMention.mention.users}
-                          loading={commentMention.mention.loading}
-                          query={commentMention.mention.query}
-                          selectedIndex={commentMention.mention.selectedIndex}
-                          onSelect={(username) => setCommentText(commentMention.selectUser(commentText, username))}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <textarea
-                            value={commentText}
-                            onChange={handleCommentChange}
-                            onKeyDown={(e) => {
-                              if (commentMention.mention.isOpen) {
-                                if (e.key === 'ArrowUp') { e.preventDefault(); commentMention.moveUp(); return }
-                                if (e.key === 'ArrowDown') { e.preventDefault(); commentMention.moveDown(); return }
-                                if (e.key === 'Enter' && commentMention.mention.users.length > 0) {
-                                  e.preventDefault()
-                                  setCommentText(commentMention.selectUser(commentText, commentMention.mention.users[commentMention.mention.selectedIndex].username))
-                                  return
-                                }
-                                if (e.key === 'Escape') { commentMention.close(); return }
-                              }
-                              if (e.key === 'Enter' && !e.shiftKey && !postingComment && commentText.trim()) {
-                                e.preventDefault()
-                                handleComment(post.id, null)
-                              }
-                            }}
-                            placeholder="Write a comment..."
-                            rows={1}
-                            className="w-full bg-transparent border-none text-sm text-white placeholder-gray-500 focus:ring-0 resize-none max-h-32 py-2 px-2"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1 pb-1">
-                          <label htmlFor={`comment-image-${post.id}`} className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-gray-800 rounded-full cursor-pointer transition-colors" title="Upload Image">
-                            <ImageIcon className="w-4 h-4" />
-                            <input type="file" accept="image/*,image/gif" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleCommentImageUpload(file) }} className="hidden" id={`comment-image-${post.id}`} />
-                          </label>
-                          <button onClick={() => setShowCommentGifPicker(true)} className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-gray-800 rounded-full transition-colors font-bold text-[10px]" title="Add GIF">
-                            <span className="border border-current rounded px-1">GIF</span>
-                          </button>
-                          <button
-                            onClick={() => handleComment(post.id, null)}
-                            disabled={(!commentText.trim() && !commentImageUrl && !uploadedCommentImage && !uploadingCommentImage) || postingComment}
-                            className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all disabled:opacity-50 disabled:scale-95 shadow-lg shadow-blue-500/20 ml-1"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {(commentImageUrl || uploadedCommentImage || uploadingCommentImage) && (
-                        <div className="mt-2 ml-2">
-                          {uploadingCommentImage ? (
-                            <div className="text-xs text-gray-400 flex items-center gap-2">
-                              <div className="w-3 h-3 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin"></div>
-                              Uploading image...
-                            </div>
-                          ) : (
-                            <div className="relative inline-block group">
-                              <img loading="lazy" decoding="async" src={uploadedCommentImage || commentImageUrl} alt="Comment attachment" className="h-20 rounded-lg border border-gray-700" />
-                              <button
-                                onClick={() => { setUploadedCommentImage(null); setCommentImageUrl('') }}
-                                className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    {user && <CommentComposer postId={post.id} userId={user.id} />}
                   </div>
                 ) : undefined}
               />
@@ -846,11 +780,6 @@ export default function FeedPage() {
       </div>
 
       {/* GIF Pickers */}
-      {showCommentGifPicker && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowCommentGifPicker(false)}>
-          <GifPicker onSelect={(gifUrl) => { setUploadedCommentImage(gifUrl); setCommentImageUrl(''); setShowCommentGifPicker(false) }} onClose={() => setShowCommentGifPicker(false)} />
-        </div>
-      )}
       {showReplyGifPicker && (
         <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowReplyGifPicker(false)}>
           <GifPicker onSelect={(gifUrl) => { setUploadedReplyImage(gifUrl); setReplyImageUrl(''); setShowReplyGifPicker(false) }} onClose={() => setShowReplyGifPicker(false)} />
@@ -891,7 +820,7 @@ export default function FeedPage() {
           onClose={() => { setThreadModalComment(null); setThreadModalPostId(null) }}
           onSetReplyingTo={setReplyingTo}
           onSetComment={setThreadModalComment}
-          onSubmitComment={handleComment}
+          onSubmitComment={handleReply}
           onDeleteComment={handleDeleteComment}
           onUpdateComment={handleUpdateComment}
           onFetchComments={fetchComments}

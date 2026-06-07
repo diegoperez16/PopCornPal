@@ -7,6 +7,7 @@ import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMe
 import type { MediaEntry } from './queries/useMediaQueries'
 import { supabase, type UserBadge } from '../lib/supabase'
 import { authedQuery } from '../lib/queryClient'
+import { persistProfileImage } from '../lib/profileImages'
 import type { CropData } from '../components/ImageCropper'
 import type { AvatarCrop } from '../lib/supabase'
 
@@ -551,18 +552,23 @@ export function useProfilePage() {
           }
         }
 
-        const bgUrlToSave = originalBgImageUrl
+        const bgRawToSave = originalBgImageUrl
           ? originalBgImageUrl
           : (uploadedBgImage || profileBgUrl.trim() || null)
         const bgCropToSave = originalBgImageUrl && desktopCropData && mobileCropData
           ? { desktop: desktopCropData, mobile: mobileCropData }
           : null
 
+        const [avatarUrlToSave, bgUrlToSave] = await Promise.all([
+          persistProfileImage(user.id, 'avatars', uploadedAvatar || avatarUrl.trim() || null),
+          persistProfileImage(user.id, 'backgrounds', bgRawToSave),
+        ])
+
         await updateProfile({
           username: trimmedUsername,
           full_name: fullName.trim() || null,
           bio: bio.trim() || null,
-          avatar_url: uploadedAvatar || avatarUrl.trim() || null,
+          avatar_url: avatarUrlToSave,
           bg_url: bgUrlToSave,
           bg_opacity: profileBgOpacity,
           bg_crop: bgCropToSave,

@@ -6,7 +6,7 @@ import MentionDropdown from '../MentionDropdown'
 import MediaSelectorModal from './MediaSelectorModal'
 import { findImageLink } from './feedTypes'
 import { useCreatePost } from '../../hooks/queries/useFeedQueries'
-import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
+import { useMediaEntries } from '../../hooks/queries/useMediaQueries'
 import { useMentionAutocomplete } from '../../hooks/useMentionAutocomplete'
 import { uploadPostImage } from '../../lib/postImages'
 import type { Profile } from '../../lib/supabase'
@@ -14,7 +14,6 @@ import type { Profile } from '../../lib/supabase'
 type FeedComposerProps = {
   userId: string
   profile: Profile | null
-  entries: MediaEntry[]
 }
 
 type MediaFilterType = 'all' | 'movie' | 'show' | 'game' | 'book'
@@ -42,13 +41,16 @@ const getMediaIcon = (type: string) => {
   }
 }
 
-export default function FeedComposer({ userId, profile, entries }: FeedComposerProps) {
+export default function FeedComposer({ userId, profile }: FeedComposerProps) {
   const { mutateAsync: createPost, isPending: posting } = useCreatePost(userId)
   const [newPost, setNewPost] = useState(() => loadDraft('popcorn_new_post_draft'))
   const [selectedMediaEntry, setSelectedMediaEntry] = useState<string | null>(() =>
     loadDraft('popcorn_post_media') || null
   )
   const [showMediaSelector, setShowMediaSelector] = useState(false)
+  // Lazy: only fetch the user's library when the selector is opened or a
+  // previously-selected media entry needs to be resolved for display.
+  const { data: entries = [] } = useMediaEntries(userId, showMediaSelector || !!selectedMediaEntry)
   const [imageUrl, setImageUrl] = useState(() => loadDraft('popcorn_post_img_url'))
   const [uploadedImage, setUploadedImage] = useState<string | null>(() =>
     loadDraft('popcorn_post_upload') || null

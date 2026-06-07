@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryCache } from '@tanstack/react-query'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { persistQueryClient } from '@tanstack/react-query-persist-client'
 import { createStore, del, get, set } from 'idb-keyval'
@@ -13,13 +13,36 @@ function isAuthError(error: any): boolean {
   )
 }
 
+// Global recovery for expired access tokens. While the PWA is backgrounded the
+// browser suspends timers, so supabase-js's auto-refresh never fires and the
+// JWT silently expires. On return, a query can fail with an auth error — and
+// since the retry policy below skips auth errors (no point retrying with the
+// same dead token), without this the stale cached data would just sit on screen.
+// Here we refresh the session once per query, then re-run that query with the
+// fresh token. The per-query guard (reset on success) prevents refresh loops if
+// the session is genuinely gone.
+const authRecoveryAttempted = new WeakSet<object>()
+const queryCache = new QueryCache({
+  onError: (error, query) => {
+    if (!isAuthError(error) || authRecoveryAttempted.has(query)) return
+    authRecoveryAttempted.add(query)
+    void supabase.auth
+      .refreshSession()
+      .then(({ error: refreshError }) => {
+        if (!refreshError) void query.fetch().catch(() => {})
+      })
+      .catch(() => {})
+  },
+  onSuccess: (_data, query) => {
+    authRecoveryAttempted.delete(query)
+  },
+})
+
 export const queryClient = new QueryClient({
+  queryCache,
   defaultOptions: {
     queries: {
-      // 1 min default — short enough that returning to the app sees fresh data,
-      // long enough to avoid hammering Supabase during normal navigation.
-      // Hot paths (feed, comments) override this with tighter values.
-      staleTime: 60 * 1000,
+      staleTime: 5 * 60 * 1000,
       gcTime: 24 * 60 * 60 * 1000,
       // 'always' lets queries fire even when navigator.onLine is false (common on
       // device wake / PWA resume). Without this, TanStack Query silently pauses
@@ -29,8 +52,10 @@ export const queryClient = new QueryClient({
         if (isAuthError(error)) return false
         return count < 2
       },
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
+      // Disabled — realtime subscriptions keep data fresh. Window focus refetches
+      // cause visible loading spinners every time the user switches tabs.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
     mutations: { retry: false },
   },

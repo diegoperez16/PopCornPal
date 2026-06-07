@@ -17,17 +17,26 @@ const routePrefetchers: Record<string, () => Promise<unknown>> = {
   '/admin/badges': loadAdminBadgePanel,
 }
 
+const routePrefetchPromises = new Map<string, Promise<unknown>>()
+
 export function prefetchRouteModule(path: string) {
-  return routePrefetchers[path]?.()
+  const routePrefetcher = routePrefetchers[path]
+  if (!routePrefetcher) return Promise.resolve(undefined)
+
+  const existingPrefetch = routePrefetchPromises.get(path)
+  if (existingPrefetch) return existingPrefetch
+
+  const prefetchPromise = routePrefetcher().catch(error => {
+    routePrefetchPromises.delete(path)
+    throw error
+  })
+
+  routePrefetchPromises.set(path, prefetchPromise)
+  return prefetchPromise
 }
 
-export function prefetchPrimaryRoutes() {
-  return Promise.all([
-    loadFeedPage(),
-    loadPeoplePage(),
-    loadActivityPage(),
-    loadLibraryPage(),
-    loadProfilePage(),
-    loadAddEntryPage(),
-  ])
+export async function prefetchRouteModules(paths: string[]) {
+  for (const path of paths) {
+    await prefetchRouteModule(path)
+  }
 }
