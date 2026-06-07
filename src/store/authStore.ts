@@ -101,18 +101,39 @@ export const useAuthStore = create<AuthState>()(
         }
       })
 
-      const { data: { session: cachedSession } } = await supabase.auth.getSession()
-      let session = cachedSession
+      // getSession() uses navigator.locks internally with no timeout —
+      // if a lock is stuck (crashed tab, browser bug), it hangs forever.
+      // Race it against a 3-second deadline so the app always proceeds.
+      let session = null as Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('getSession timed out')), 3000)
+          ),
+        ])
+        session = result.data.session
+      } catch (e) {
+        console.warn('getSession failed or timed out, proceeding without cached session:', e)
+      }
 
       // If the cached token is expired or expiring within 60s, refresh it now
       // before any queries fire. This avoids needing two reloads after backgrounding.
-      if (cachedSession) {
-        const expiresAt = cachedSession.expires_at ?? 0
+      if (session) {
+        const expiresAt = session.expires_at ?? 0
         const expiredOrExpiringSoon = expiresAt < Math.floor(Date.now() / 1000) + 60
         if (expiredOrExpiringSoon) {
-          const { data } = await supabase.auth.refreshSession()
-          // Only use refreshed session if we actually got one back (network may be down)
-          if (data.session) session = data.session
+          try {
+            const { data } = await Promise.race([
+              supabase.auth.refreshSession(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('refreshSession timed out')), 3000)
+              ),
+            ])
+            if (data.session) session = data.session
+          } catch {
+            // Network down or timed out — keep the existing session
+          }
         }
       }
 

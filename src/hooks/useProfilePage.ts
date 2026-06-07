@@ -47,6 +47,11 @@ export function useProfilePage() {
   // Profile Editing State
   const [isEditing, setIsEditing] = useState(() => localStorage.getItem('popcorn_profile_is_editing') === 'true')
 
+  const [username, setUsername] = useState(() =>
+    localStorage.getItem('popcorn_profile_username') || profile?.username || ''
+  )
+  const [usernameError, setUsernameError] = useState('')
+  const [saveError, setSaveError] = useState('')
   const [fullName, setFullName] = useState(() =>
     localStorage.getItem('popcorn_profile_fullname') || profile?.full_name || ''
   )
@@ -336,6 +341,7 @@ export function useProfilePage() {
     if (isEditing) {
       try {
         localStorage.setItem('popcorn_profile_is_editing', 'true')
+        localStorage.setItem('popcorn_profile_username', username)
         localStorage.setItem('popcorn_profile_fullname', fullName)
         localStorage.setItem('popcorn_profile_bio', bio)
         // Skip base64 data URLs — too large for localStorage
@@ -352,6 +358,7 @@ export function useProfilePage() {
       }
     } else {
       localStorage.removeItem('popcorn_profile_is_editing')
+      localStorage.removeItem('popcorn_profile_username')
       localStorage.removeItem('popcorn_profile_fullname')
       localStorage.removeItem('popcorn_profile_bio')
       localStorage.removeItem('popcorn_profile_avatar_url')
@@ -359,7 +366,7 @@ export function useProfilePage() {
       localStorage.removeItem('popcorn_profile_bg_opacity')
       localStorage.removeItem('popcorn_profile_badges')
     }
-  }, [isEditing, fullName, bio, avatarUrl, profileBgUrl, profileBgOpacity, selectedBadgeIds])
+  }, [isEditing, username, fullName, bio, avatarUrl, profileBgUrl, profileBgOpacity, selectedBadgeIds])
 
   useEffect(() => {
     if (!user) {
@@ -432,6 +439,8 @@ export function useProfilePage() {
 
   useEffect(() => {
     if (profile && !isEditing) {
+      setUsername(profile.username || '')
+      setUsernameError('')
       setFullName(profile.full_name || '')
       setBio(profile.bio || '')
       setAvatarUrl(profile.avatar_url || '')
@@ -497,60 +506,107 @@ export function useProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!user) return
+
+    const trimmedUsername = username.trim().toLowerCase()
+    if (!trimmedUsername) {
+      setUsernameError('Username cannot be empty')
+      return
+    }
+    if (trimmedUsername.length < 3) {
+      setUsernameError('Username must be at least 3 characters')
+      return
+    }
+    if (trimmedUsername.length > 20) {
+      setUsernameError('Username must be 20 characters or less')
+      return
+    }
+    if (!/^[a-z0-9_]+$/.test(trimmedUsername)) {
+      setUsernameError('Only lowercase letters, numbers, and underscores')
+      return
+    }
+
+    setUsernameError('')
+    setSaveError('')
     setSavingProfile(true)
+
+    const SAVE_TIMEOUT = 15_000
+    let clearSaveTimeout: (() => void) | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      const id = setTimeout(() => reject(new Error('Save timed out — please check your connection and try again.')), SAVE_TIMEOUT)
+      clearSaveTimeout = () => clearTimeout(id)
+    })
+
     try {
-      const bgUrlToSave = originalBgImageUrl
-        ? originalBgImageUrl
-        : (uploadedBgImage || profileBgUrl.trim() || null)
-      const bgCropToSave = originalBgImageUrl && desktopCropData && mobileCropData
-        ? { desktop: desktopCropData, mobile: mobileCropData }
-        : null
+      await Promise.race([timeout, (async () => {
+        if (trimmedUsername !== profile?.username) {
+          const { data: existing } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', trimmedUsername)
+            .neq('id', user.id)
+            .maybeSingle()
+          if (existing) {
+            setUsernameError('Username is already taken')
+            return
+          }
+        }
 
-      await updateProfile({
-        full_name: fullName.trim() || null,
-        bio: bio.trim() || null,
-        avatar_url: uploadedAvatar || avatarUrl.trim() || null,
-        bg_url: bgUrlToSave,
-        bg_opacity: profileBgOpacity,
-        bg_crop: bgCropToSave,
-        avatar_crop: pendingAvatarGifCrop,
-      })
-      // Only manage non-admin badges here — admin badges can only be removed by admins
-      const adminBadgeIds = new Set(availableBadges.filter(b => b.admin_only).map(b => b.id))
-      const currentBadgeIds = userBadges.map(ub => ub.badge_id).filter(id => !adminBadgeIds.has(id))
-      const selectedNonAdminIds = selectedBadgeIds.filter(id => !adminBadgeIds.has(id))
-      const badgesToAdd = selectedNonAdminIds.filter(id => !currentBadgeIds.includes(id))
-      const badgesToRemove = currentBadgeIds.filter(id => !selectedNonAdminIds.includes(id))
-      if (badgesToAdd.length > 0) {
-        await supabase
+        const bgUrlToSave = originalBgImageUrl
+          ? originalBgImageUrl
+          : (uploadedBgImage || profileBgUrl.trim() || null)
+        const bgCropToSave = originalBgImageUrl && desktopCropData && mobileCropData
+          ? { desktop: desktopCropData, mobile: mobileCropData }
+          : null
+
+        await updateProfile({
+          username: trimmedUsername,
+          full_name: fullName.trim() || null,
+          bio: bio.trim() || null,
+          avatar_url: uploadedAvatar || avatarUrl.trim() || null,
+          bg_url: bgUrlToSave,
+          bg_opacity: profileBgOpacity,
+          bg_crop: bgCropToSave,
+          avatar_crop: pendingAvatarGifCrop,
+        })
+        // Only manage non-admin badges here — admin badges can only be removed by admins
+        const adminBadgeIds = new Set(availableBadges.filter(b => b.admin_only).map(b => b.id))
+        const currentBadgeIds = userBadges.map(ub => ub.badge_id).filter(id => !adminBadgeIds.has(id))
+        const selectedNonAdminIds = selectedBadgeIds.filter(id => !adminBadgeIds.has(id))
+        const badgesToAdd = selectedNonAdminIds.filter(id => !currentBadgeIds.includes(id))
+        const badgesToRemove = currentBadgeIds.filter(id => !selectedNonAdminIds.includes(id))
+        if (badgesToAdd.length > 0) {
+          await supabase
+            .from('user_badges')
+            .insert(badgesToAdd.map(badge_id => ({
+              user_id: user.id,
+              badge_id,
+              given_by: user.id
+            })))
+        }
+        if (badgesToRemove.length > 0) {
+          await supabase
+            .from('user_badges')
+            .delete()
+            .eq('user_id', user.id)
+            .in('badge_id', badgesToRemove)
+        }
+        const { data } = await supabase
           .from('user_badges')
-          .insert(badgesToAdd.map(badge_id => ({
-            user_id: user.id,
-            badge_id,
-            given_by: user.id
-          })))
-      }
-      if (badgesToRemove.length > 0) {
-        await supabase
-          .from('user_badges')
-          .delete()
+          .select('*, badges(*)')
           .eq('user_id', user.id)
-          .in('badge_id', badgesToRemove)
-      }
-      const { data } = await supabase
-        .from('user_badges')
-        .select('*, badges(*)')
-        .eq('user_id', user.id)
-      if (data) setUserBadges(data as UserBadge[])
+        if (data) setUserBadges(data as UserBadge[])
 
-      setIsEditing(false)
-      setUploadedAvatar(null)
-      setUploadedBgImage(null)
-      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
-      if (bgFileInputRef.current) bgFileInputRef.current.value = ''
-    } catch (error) {
+        setIsEditing(false)
+        setUploadedAvatar(null)
+        setUploadedBgImage(null)
+        if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
+        if (bgFileInputRef.current) bgFileInputRef.current.value = ''
+      })()])
+    } catch (error: any) {
       console.error('Error updating profile:', error)
+      setSaveError(error?.message || 'Failed to save profile. Please try again.')
     } finally {
+      clearSaveTimeout?.()
       setSavingProfile(false)
     }
   }
@@ -847,6 +903,10 @@ export function useProfilePage() {
     initialLoading,
     isEditing,
     setIsEditing,
+    username,
+    setUsername,
+    usernameError,
+    saveError,
     fullName,
     setFullName,
     bio,

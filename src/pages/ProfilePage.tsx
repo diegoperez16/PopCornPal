@@ -16,6 +16,10 @@ export default function ProfilePage() {
     initialLoading,
     isEditing,
     setIsEditing,
+    username,
+    setUsername,
+    usernameError,
+    saveError,
     fullName,
     setFullName,
     bio,
@@ -424,6 +428,23 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                  {/* Username */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Username</p>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">@</span>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                        maxLength={20}
+                        className={`w-full pl-8 pr-4 py-2.5 bg-gray-800/60 border rounded-xl text-white placeholder-gray-500 focus:outline-none text-sm ${usernameError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-gray-500'}`}
+                        placeholder="username"
+                      />
+                    </div>
+                    {usernameError && <p className="text-red-400 text-xs mt-1.5">{usernameError}</p>}
+                  </div>
+
                   {/* Name & Bio */}
                   <div>
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Info</p>
@@ -460,13 +481,20 @@ export default function ProfilePage() {
               </div>
 
               {/* Footer */}
-              <div className="flex-shrink-0 px-5 py-4 border-t border-gray-800 flex gap-2">
-                <button onClick={() => { setIsEditing(false); setUploadedAvatar(null); if (avatarFileInputRef.current) avatarFileInputRef.current.value = '' }} className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-full text-sm text-gray-300 transition-colors">
-                  Cancel
-                </button>
-                <button onClick={handleSaveProfile} disabled={savingProfile} className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-2.5 rounded-full text-sm hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50">
-                  {savingProfile ? 'Saving...' : 'Save Changes'}
-                </button>
+              <div className="flex-shrink-0 px-5 py-4 border-t border-gray-800 space-y-3">
+                {saveError && (
+                  <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs">
+                    {saveError}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => { setIsEditing(false); setUploadedAvatar(null); if (avatarFileInputRef.current) avatarFileInputRef.current.value = '' }} className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-full text-sm text-gray-300 transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleSaveProfile} disabled={savingProfile} className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-2.5 rounded-full text-sm hover:from-red-600 hover:to-pink-600 transition-all disabled:opacity-50">
+                    {savingProfile ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

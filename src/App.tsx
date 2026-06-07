@@ -238,6 +238,16 @@ function App() {
   }, [])
 
   useEffect(() => {
+    let settled = false
+    // Safety net: if init hangs (e.g. Supabase auth lock stuck), force the
+    // app to render after 4 seconds so the user isn't stuck on the splash.
+    const safetyTimer = setTimeout(() => {
+      if (!settled) {
+        console.warn('App init timed out — forcing ready state')
+        setAppReady(true)
+      }
+    }, 4000)
+
     const init = async () => {
       try {
         if (isSupabaseConfigured) {
@@ -248,10 +258,14 @@ function App() {
       } catch (e) {
         console.error('App init error:', e)
       } finally {
+        settled = true
+        clearTimeout(safetyTimer)
         setAppReady(true)
       }
     }
     init()
+
+    return () => clearTimeout(safetyTimer)
   }, [flushPendingMutations, initialize])
 
   // Manage Supabase's auto-refresh timer based on tab visibility.
