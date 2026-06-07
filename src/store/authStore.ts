@@ -118,10 +118,14 @@ export const useAuthStore = create<AuthState>()(
 
       if (session?.user) {
         set({ user: session.user, lastAuthCheck: Date.now() })
-        // Skip the network round-trip if we already have a cached profile
-        // (zustand persist). This keeps initialize() near-instant for returning
-        // users so the splash screen is barely visible.
-        if (!get().profile) {
+        if (get().profile) {
+          // We have a cached profile (zustand persist) — render instantly with it,
+          // but ALWAYS refresh in the background (non-blocking) so profile edits made
+          // elsewhere (e.g. a username change on another device/deploy) actually show
+          // up. Previously this was skipped entirely, so a stale cached profile —
+          // including an old username — would never refetch.
+          void get().fetchProfile(session.user.id).catch(() => {})
+        } else {
           const fetchProfilePromise = get().fetchProfile(session.user.id)
           const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
           await Promise.race([fetchProfilePromise, timeoutPromise])
@@ -273,6 +277,16 @@ export const useAuthStore = create<AuthState>()(
 
     if (error) throw error
     set({ profile: data })
+
+    // The username/avatar are denormalized into feed posts, comments, people
+    // lists and profile pages (all cached + persisted). Invalidate those domains
+    // so a profile edit — e.g. a username change — propagates instead of showing
+    // the old value from cache until staleTime lapses.
+    const { queryClient } = await import('../lib/queryClient')
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        ['feed', 'people', 'profile', 'activity'].includes(query.queryKey[0] as string),
+    })
   },
   }),
   {

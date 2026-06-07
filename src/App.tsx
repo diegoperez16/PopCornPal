@@ -238,6 +238,23 @@ function App() {
   }, [])
 
   useEffect(() => {
+    let settled = false
+    const markReady = () => {
+      if (settled) return
+      settled = true
+      setAppReady(true)
+    }
+
+    // Failsafe: never let the splash block the app for more than 8s. supabase-js's
+    // auth lock can occasionally deadlock (notably after the tab was backgrounded),
+    // leaving init() awaiting forever — which previously stuck users on the loading
+    // screen permanently. If that happens we render anyway; the onAuthStateChange
+    // listener and the resume coordinator below bring state up to date afterward.
+    const failsafe = window.setTimeout(() => {
+      console.warn('App init failsafe fired — rendering before init settled')
+      markReady()
+    }, 8000)
+
     const init = async () => {
       try {
         if (isSupabaseConfigured) {
@@ -248,10 +265,12 @@ function App() {
       } catch (e) {
         console.error('App init error:', e)
       } finally {
-        setAppReady(true)
+        window.clearTimeout(failsafe)
+        markReady()
       }
     }
     init()
+    return () => window.clearTimeout(failsafe)
   }, [flushPendingMutations, initialize])
 
   // Resume coordinator: refetchOnWindowFocus/refetchOnReconnect are disabled
