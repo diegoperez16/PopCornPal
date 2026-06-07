@@ -18,7 +18,7 @@ import type { MediaEntry } from './useMediaQueries'
 
 const PAGE_SIZE = 20
 
-type CommentsTree = {
+export type CommentsTree = {
   rootComments: Comment[]
   commentsMap: Map<string, Comment>
 }
@@ -69,6 +69,83 @@ function appendOptimisticComment(
 
   nextTree.commentsMap.set(comment.id, comment)
   return nextTree
+}
+
+// ─── Realtime cache helpers (used by the feed's comment subscriptions) ───────
+export { appendOptimisticComment as appendCommentToTree }
+
+// Build a Comment node from a realtime post_comments row, resolving the author's
+// profile (the realtime payload only carries the raw row, no joined profile).
+export async function buildRealtimeComment(row: {
+  id: string
+  user_id: string
+  post_id: string
+  content: string
+  image_url?: string | null
+  parent_comment_id?: string | null
+  created_at: string
+  updated_at?: string | null
+}): Promise<Comment> {
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('username, avatar_url, avatar_crop')
+    .eq('id', row.user_id)
+    .maybeSingle()
+
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    content: row.content,
+    image_url: row.image_url ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at ?? null,
+    parent_comment_id: row.parent_comment_id ?? null,
+    profiles: {
+      username: prof?.username ?? 'Someone',
+      avatar_url: prof?.avatar_url ?? null,
+      avatar_crop: prof?.avatar_crop ?? null,
+    },
+    replies: [],
+    likes_count: 0,
+    is_liked: false,
+  }
+}
+
+// Remove a comment (and its replies) from a thread by id. Returns the same tree
+// reference if the comment isn't present, so callers can no-op cheaply.
+export function removeCommentFromTree(tree: CommentsTree, commentId: string): CommentsTree {
+  if (!tree.commentsMap.has(commentId)) return tree
+  const filter = (list: Comment[]): Comment[] =>
+    list
+      .filter((c) => c.id !== commentId)
+      .map((c) => ({ ...c, replies: c.replies?.length ? filter(c.replies) : c.replies }))
+  const rootComments = filter(tree.rootComments)
+  const commentsMap = new Map<string, Comment>()
+  const register = (list: Comment[]) =>
+    list.forEach((c) => {
+      commentsMap.set(c.id, c)
+      if (c.replies?.length) register(c.replies)
+    })
+  register(rootComments)
+  return { rootComments, commentsMap }
+}
+
+// Apply a like delta (and optionally the viewer's is_liked state) to a single
+// comment in a thread. No-ops (returns same reference) if the comment isn't here.
+export function setCommentLikeInTree(
+  tree: CommentsTree,
+  commentId: string,
+  likeDelta: number,
+  isLikedForViewer?: boolean
+): CommentsTree {
+  if (!tree.commentsMap.has(commentId)) return tree
+  const next = cloneCommentsTree(tree)
+  const node = next.commentsMap.get(commentId)
+  if (node) {
+    node.likes_count = Math.max(0, (node.likes_count ?? 0) + likeDelta)
+    if (isLikedForViewer !== undefined) node.is_liked = isLikedForViewer
+  }
+  return next
 }
 
 // ─── Single post fetch (for realtime prepend) ───────────────────────────────
@@ -610,6 +687,21 @@ export function useToggleCommentLike(userId: string) {
         },
         () => toggleCommentLikeMutation({ userId, commentId, isLiked })
       )
+    },
+    onMutate: async ({ commentId, postId, isLiked }) => {
+      // Optimistic: flip the like in the open thread immediately so the user's own
+      // tap is instant (the realtime subscription covers other users' likes).
+      await queryClient.cancelQueries({ queryKey: feedKeys.comments(postId) })
+      const previous = queryClient.getQueryData<CommentsTree>(feedKeys.comments(postId))
+      queryClient.setQueryData<CommentsTree>(feedKeys.comments(postId), (old) =>
+        old ? setCommentLikeInTree(old, commentId, isLiked ? -1 : 1, !isLiked) : old
+      )
+      return { previous, postId }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(feedKeys.comments(context.postId), context.previous)
+      }
     },
     onSuccess: (result, variables) => {
       if (!result.queued) {

@@ -19,6 +19,11 @@ import {
   useComments,
   fetchCommentsTree,
   fetchSinglePost,
+  buildRealtimeComment,
+  appendCommentToTree,
+  removeCommentFromTree,
+  setCommentLikeInTree,
+  type CommentsTree,
 } from '../hooks/queries/useFeedQueries'
 import GifPicker from '../components/GifPicker'
 import FeedSkeleton from '../components/FeedSkeleton'
@@ -48,8 +53,21 @@ type PostInsertPayload = { new?: { id?: string; user_id?: string } }
 type PostDeletePayload = { old?: { id?: string } }
 type PostLikeInsertPayload = { new?: { post_id?: string; user_id?: string } }
 type PostLikeDeletePayload = { old?: { post_id?: string; user_id?: string } }
-type CommentInsertPayload = { new?: { post_id?: string; user_id?: string } }
-type CommentDeletePayload = { old?: { post_id?: string } }
+type CommentInsertPayload = {
+  new?: {
+    id?: string
+    post_id?: string
+    user_id?: string
+    content?: string
+    image_url?: string | null
+    parent_comment_id?: string | null
+    created_at?: string
+    updated_at?: string | null
+  }
+}
+type CommentDeletePayload = { old?: { id?: string; post_id?: string } }
+type CommentLikeInsertPayload = { new?: { comment_id?: string; user_id?: string } }
+type CommentLikeDeletePayload = { old?: { comment_id?: string; user_id?: string } }
 type FollowChangePayload = {
   new?: { following_id?: string }
   old?: { following_id?: string }
@@ -315,11 +333,14 @@ export default function FeedPage() {
       })
     }
 
-    const handleCommentInsert = (payload: CommentInsertPayload) => {
-      const postId = payload.new?.post_id
-      const commentUserId = payload.new?.user_id
+    const handleCommentInsert = async (payload: CommentInsertPayload) => {
+      const row = payload.new
+      const postId = row?.post_id
+      const commentUserId = row?.user_id
       // Own comments are already handled optimistically by useCreateComment
       if (!postId || commentUserId === user.id) return
+
+      // Bump the comments_count on the feed card.
       queryClient.setQueryData<FeedCache>(feedKeys.list(user.id), (old) => {
         if (!old) return old
         return {
@@ -332,10 +353,29 @@ export default function FeedPage() {
           })),
         }
       })
+
+      // If this post's thread is open, insert the new comment/reply live (not just
+      // the count). Skip the profile fetch entirely when the thread isn't cached.
+      const openThread = queryClient.getQueryData<CommentsTree>(feedKeys.comments(postId))
+      if (!openThread || !row?.id || openThread.commentsMap.has(row.id)) return
+      const comment = await buildRealtimeComment({
+        id: row.id,
+        user_id: commentUserId!,
+        post_id: postId,
+        content: row.content ?? '',
+        image_url: row.image_url ?? null,
+        parent_comment_id: row.parent_comment_id ?? null,
+        created_at: row.created_at ?? new Date().toISOString(),
+        updated_at: row.updated_at ?? null,
+      })
+      queryClient.setQueryData<CommentsTree>(feedKeys.comments(postId), (old) =>
+        old ? appendCommentToTree(old, comment) : old
+      )
     }
 
     const handleCommentDelete = (payload: CommentDeletePayload) => {
       const postId = payload.old?.post_id
+      const commentId = payload.old?.id
       if (!postId) {
         // No REPLICA IDENTITY FULL — can't determine which post, just invalidate
         queryClient.invalidateQueries({ queryKey: feedKeys.list(user.id) })
@@ -355,6 +395,38 @@ export default function FeedPage() {
           })),
         }
       })
+
+      // Remove it from the open thread too, if cached.
+      if (commentId) {
+        queryClient.setQueryData<CommentsTree>(feedKeys.comments(postId), (old) =>
+          old ? removeCommentFromTree(old, commentId) : old
+        )
+      }
+    }
+
+    // Comment likes (#2): update likes_count / is_liked in whichever open thread
+    // holds the comment. Own likes are handled by the toggle mutation, so skip them.
+    const applyCommentLike = (commentId: string, delta: number) => {
+      const threads = queryClient.getQueryCache().findAll({ queryKey: ['feed', 'comments'] })
+      for (const cache of threads) {
+        const tree = cache.state.data as CommentsTree | undefined
+        if (tree?.commentsMap.has(commentId)) {
+          queryClient.setQueryData(cache.queryKey, setCommentLikeInTree(tree, commentId, delta))
+          break
+        }
+      }
+    }
+
+    const handleCommentLikeInsert = (payload: CommentLikeInsertPayload) => {
+      const commentId = payload.new?.comment_id
+      if (!commentId || payload.new?.user_id === user.id) return
+      applyCommentLike(commentId, 1)
+    }
+
+    const handleCommentLikeDelete = (payload: CommentLikeDeletePayload) => {
+      const commentId = payload.old?.comment_id
+      if (!commentId || payload.old?.user_id === user.id) return
+      applyCommentLike(commentId, -1)
     }
 
     const subscribeChannel = () => supabase
@@ -365,6 +437,8 @@ export default function FeedPage() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_likes' }, handleLikeDelete)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments' }, handleCommentInsert)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_comments' }, handleCommentDelete)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_likes' }, handleCommentLikeInsert)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' }, handleCommentLikeDelete)
       .subscribe((status, err) => {
         if (err) console.error('[Feed] realtime error:', err)
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
