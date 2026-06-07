@@ -20,7 +20,6 @@ import {
   fetchCommentsTree,
   fetchSinglePost,
 } from '../hooks/queries/useFeedQueries'
-import { useMediaEntries } from '../hooks/queries/useMediaQueries'
 import GifPicker from '../components/GifPicker'
 import FeedSkeleton from '../components/FeedSkeleton'
 import CommentThread from '../components/feed/CommentThread'
@@ -90,9 +89,6 @@ export default function FeedPage() {
   const hasMore = !!hasNextPage
 
   const initialLoading = feedIsLoading && posts.length === 0
-
-  // Media entries for media selector
-  const { data: entries = [] } = useMediaEntries(user?.id ?? '')
 
   // Active comments (only one post expanded at a time)
   const [expandedComments, setExpandedComments] = useState<string | null>(null)
@@ -663,7 +659,7 @@ export default function FeedPage() {
 
 
 <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
-        {user ? <FeedComposer userId={user.id} profile={profile} entries={entries} /> : null}
+        {user ? <FeedComposer userId={user.id} profile={profile} /> : null}
 
         {/* Feed section label */}
         <div className="flex items-center gap-3 mb-5">

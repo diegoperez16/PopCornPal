@@ -59,11 +59,11 @@ async function fetchMediaStats(userId: string): Promise<UserStats | null> {
   return data as UserStats | null
 }
 
-export function useMediaEntries(userId: string) {
+export function useMediaEntries(userId: string, enabled = true) {
   return useQuery({
     queryKey: mediaKeys.entries(userId),
     queryFn: () => fetchMediaEntries(userId),
-    enabled: !!userId,
+    enabled: !!userId && enabled,
   })
 }
 

@@ -16,10 +16,7 @@ function isAuthError(error: any): boolean {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 1 min default — short enough that returning to the app sees fresh data,
-      // long enough to avoid hammering Supabase during normal navigation.
-      // Hot paths (feed, comments) override this with tighter values.
-      staleTime: 60 * 1000,
+      staleTime: 5 * 60 * 1000,
       gcTime: 24 * 60 * 60 * 1000,
       // 'always' lets queries fire even when navigator.onLine is false (common on
       // device wake / PWA resume). Without this, TanStack Query silently pauses
@@ -29,8 +26,10 @@ export const queryClient = new QueryClient({
         if (isAuthError(error)) return false
         return count < 2
       },
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
+      // Disabled — realtime subscriptions keep data fresh. Window focus refetches
+      // cause visible loading spinners every time the user switches tabs.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
     mutations: { retry: false },
   },

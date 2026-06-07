@@ -198,7 +198,6 @@ export function useFeed(userId: string) {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasMore ? allPages.length * PAGE_SIZE : undefined,
     enabled: !!userId,
-    staleTime: 30 * 1000,
   })
 }
 
@@ -271,7 +270,7 @@ export function useComments(postId: string | null, currentUserId: string | null)
     queryKey: feedKeys.comments(postId ?? ''),
     queryFn: () => fetchCommentsTree(postId!, currentUserId),
     enabled: !!postId,
-    staleTime: 20 * 1000,
+    staleTime: 2 * 60 * 1000,
   })
 }
 
