@@ -79,12 +79,18 @@ CREATE TRIGGER trg_post_comments_count_del AFTER DELETE ON public.post_comments
   FOR EACH ROW EXECUTE FUNCTION public.bump_post_comments_count();
 
 -- ─── 3. Indexes for the feed query plan ─────────────────────────────
+-- This composite index is what get_feed actually needs: it filters posts by
+-- user_id (the followed set) and returns them in created_at DESC order, so the
+-- planner can walk this index instead of sorting the whole table.
 CREATE INDEX IF NOT EXISTS idx_posts_user_created_at_desc
   ON public.posts(user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_posts_feed_covering
-  ON public.posts(user_id, created_at DESC)
-  INCLUDE (id, content, image_url, media_entry_id, likes_count, comments_count, updated_at);
+-- NOTE: a covering index with INCLUDE (content, image_url, ...) was removed.
+-- INCLUDE columns are stored in the btree leaf and count against the ~8191
+-- byte per-index-row limit; at least one post's image_url holds a ~1.6 MB
+-- base64 data URI, which blew that limit (ERROR 54000). The plain composite
+-- index above is sufficient — Postgres does a cheap heap lookup for the row
+-- body. (See note at end of file re: cleaning up oversized image_url values.)
 
 CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON public.follows(follower_id);
 CREATE INDEX IF NOT EXISTS idx_post_likes_post_user ON public.post_likes(post_id, user_id);
@@ -228,3 +234,24 @@ ANALYZE public.follows;
 -- 4. Counter triggers are installed (expect 4 rows):
 --      SELECT tgname FROM pg_trigger
 --      WHERE tgname LIKE 'trg_post_%_count_%';
+
+-- ─── KNOWN DATA ISSUE: base64 images inlined in posts.image_url ─────
+-- A number of posts store the entire image as a `data:image/...;base64,`
+-- URI directly in image_url (multi-MB each). The posts table is ~70 MB
+-- across ~116 rows because of this, and get_feed ships those bytes inline
+-- on every feed page — the dominant cause of slow feed loads. This is a
+-- DATA problem, independent of platform (a native app would be just as
+-- slow). It is NOT fixed by this migration; it needs a one-time cleanup
+-- that re-hosts those blobs in Supabase Storage and rewrites image_url to
+-- the resulting URL (a node script with the service-role key, since it
+-- updates rows across users). Size up the damage with:
+--      SELECT count(*) AS base64_posts,
+--             pg_size_pretty(sum(length(image_url))) AS total_inlined
+--      FROM public.posts WHERE image_url LIKE 'data:%';
+--
+-- Optional guardrail once the cleanup is done and the client is confirmed
+-- to only store URLs (GifPicker -> giphy CDN url, uploadPostImage ->
+-- storage url):
+--      ALTER TABLE public.posts
+--        ADD CONSTRAINT posts_image_url_not_inline
+--        CHECK (image_url IS NULL OR image_url NOT LIKE 'data:%') NOT VALID;
