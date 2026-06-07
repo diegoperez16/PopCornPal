@@ -19,10 +19,21 @@ ALTER TABLE public.posts
   ADD COLUMN IF NOT EXISTS likes_count integer NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS comments_count integer NOT NULL DEFAULT 0;
 
--- Backfill from current state (safe to re-run; recomputes from source of truth)
+-- Backfill from source of truth, but only touch rows whose counters are
+-- actually wrong. The triggers below already keep these in sync in prod, so
+-- on a re-run this updates zero rows and takes no write lock.
 UPDATE public.posts p
-SET likes_count = COALESCE((SELECT COUNT(*) FROM public.post_likes l WHERE l.post_id = p.id), 0),
-    comments_count = COALESCE((SELECT COUNT(*) FROM public.post_comments c WHERE c.post_id = p.id), 0);
+SET likes_count = c.real_likes,
+    comments_count = c.real_comments
+FROM (
+  SELECT p2.id,
+         COALESCE((SELECT COUNT(*) FROM public.post_likes l WHERE l.post_id = p2.id), 0)    AS real_likes,
+         COALESCE((SELECT COUNT(*) FROM public.post_comments k WHERE k.post_id = p2.id), 0) AS real_comments
+  FROM public.posts p2
+) c
+WHERE c.id = p.id
+  AND (p.likes_count IS DISTINCT FROM c.real_likes
+       OR p.comments_count IS DISTINCT FROM c.real_comments);
 
 -- ─── 2. Trigger functions to keep counters in sync ──────────────────
 CREATE OR REPLACE FUNCTION public.bump_post_likes_count()
@@ -81,9 +92,18 @@ CREATE INDEX IF NOT EXISTS idx_post_likes_post_user ON public.post_likes(post_id
 -- ─── 4. get_feed RPC — single round trip, server-shaped read ────────
 -- Returns exactly the columns the client maps 1:1 (see fetchFeedPage in
 -- src/hooks/queries/useFeedQueries.ts). Uses the trigger-maintained
--- counters instead of COUNT(*) subqueries, and a single LATERAL join
--- per related entity instead of N+1 round trips.
-CREATE OR REPLACE FUNCTION public.get_feed(p_user_id uuid, p_limit integer, p_offset integer)
+-- counters instead of COUNT(*) subqueries, and a single join per related
+-- entity instead of N+1 round trips.
+--
+-- IMPORTANT: the previously-deployed get_feed was broken — its is_liked
+-- check referenced post_likes.id, but post_likes has no id column (its PK is
+-- (post_id, user_id)). It therefore threw 42703 on every call, forcing the
+-- client onto its slow 3-round-trip fallback for every feed load. We DROP
+-- first because CREATE OR REPLACE cannot change an existing function's
+-- return type if the old signature's RETURNS TABLE shape differs.
+DROP FUNCTION IF EXISTS public.get_feed(uuid, integer, integer);
+
+CREATE FUNCTION public.get_feed(p_user_id uuid, p_limit integer, p_offset integer)
 RETURNS TABLE (
   id uuid,
   user_id uuid,
@@ -149,14 +169,26 @@ GRANT EXECUTE ON FUNCTION public.get_feed(uuid, integer, integer) TO authenticat
 -- FULL replica identity means DELETE payloads carry the complete old row
 -- (post_id, user_id, etc.), so the client can apply targeted cache updates
 -- instead of falling back to a full feed invalidation.
+-- Add each table independently: if they were batched into one ADD TABLE and
+-- any single table were already a member, the whole statement would raise
+-- duplicate_object and the genuinely-missing tables would silently never be
+-- added. Per-table loop makes each membership idempotent on its own.
 DO $$
+DECLARE
+  t text;
 BEGIN
-  BEGIN
-    ALTER PUBLICATION supabase_realtime ADD TABLE
-      public.posts, public.post_likes, public.post_comments, public.follows, public.notifications;
-  EXCEPTION WHEN duplicate_object THEN
-    NULL; -- already added
-  END;
+  FOREACH t IN ARRAY ARRAY[
+    'posts', 'post_likes', 'post_comments', 'follows', 'notifications'
+  ] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
 END $$;
 
 ALTER TABLE public.posts          REPLICA IDENTITY FULL;
@@ -175,3 +207,24 @@ ANALYZE public.follows;
 -- counters, indexes match its access pattern, and realtime DELETE
 -- payloads carry full rows for cheap client-side updates.
 -- ================================================================
+
+-- ─── Verification (run these by hand after applying) ────────────────
+-- 1. get_feed returns rows without error (replace the uuid with a real
+--    user id; it should return that user's feed, not raise 42703):
+--      SELECT id, username, likes_count, comments_count, is_liked
+--      FROM public.get_feed('<your-user-id>'::uuid, 5, 0);
+--
+-- 2. All five tables are in the realtime publication (expect 5 rows):
+--      SELECT tablename FROM pg_publication_tables
+--      WHERE pubname = 'supabase_realtime' AND schemaname = 'public'
+--        AND tablename IN
+--          ('posts','post_likes','post_comments','follows','notifications');
+--
+-- 3. Those tables have REPLICA IDENTITY FULL (relreplident should be 'f'):
+--      SELECT relname, relreplident FROM pg_class
+--      WHERE relname IN
+--        ('posts','post_likes','post_comments','follows','notifications');
+--
+-- 4. Counter triggers are installed (expect 4 rows):
+--      SELECT tgname FROM pg_trigger
+--      WHERE tgname LIKE 'trg_post_%_count_%';
