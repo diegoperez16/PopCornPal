@@ -37,6 +37,21 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
   }
 }
 
+// Bypass navigator.locks entirely. The default Supabase auth lock uses
+// navigator.locks with acquireTimeout: -1 (infinite). If a lock is stuck
+// (crashed tab, browser bug, or slow token refresh), _getAccessToken() hangs
+// on every single query because it calls getSession() → _acquireLock().
+// A no-op lock lets the auth client's internal pendingInLock queue handle
+// serialization within a single tab — cross-tab coordination is lost but
+// the app never deadlocks.
+const lockNoOp = async <R>(
+  _name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>,
+): Promise<R> => {
+  return await fn()
+}
+
 // Create the client via a factory so resetSupabaseClient reuses the exact same config
 const makeClient = () =>
   createClient(
@@ -46,6 +61,7 @@ const makeClient = () =>
       : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder',
     {
       global: { fetch: fetchWithTimeout },
+      auth: { lock: lockNoOp },
     }
   )
 
