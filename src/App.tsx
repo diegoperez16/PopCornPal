@@ -26,7 +26,7 @@ import {
   loadPeoplePage,
   loadProfilePage,
   loadUserProfilePage,
-  prefetchPrimaryRoutes,
+  prefetchRouteModules,
 } from './lib/routeLoaders'
 
 // Auth pages load immediately — needed before any session exists
@@ -338,6 +338,44 @@ function App() {
 
 const PTR_THRESHOLD = 70 // px of damped pull needed to trigger
 
+// Warm only the most likely next screens on mobile instead of importing the
+// full authenticated route set right after login.
+const MOBILE_ROUTE_WARMUP_TARGETS: Record<string, string[]> = {
+  '/feed': ['/add', '/people'],
+  '/people': ['/add', '/feed'],
+  '/library': ['/feed', '/profile'],
+  '/profile': ['/library', '/feed'],
+  '/add': ['/feed'],
+}
+
+type NavigatorConnection = {
+  effectiveType?: string
+  saveData?: boolean
+}
+
+function shouldWarmMobileRoutes() {
+  const isMobileViewport = window.matchMedia('(max-width: 767px)').matches
+  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches
+  if (!isMobileViewport && !hasCoarsePointer) return false
+
+  const connection = (navigator as Navigator & { connection?: NavigatorConnection }).connection
+  if (!connection) return true
+
+  return !connection.saveData && connection.effectiveType !== 'slow-2g' && connection.effectiveType !== '2g'
+}
+
+function getMobileRouteWarmupTargets(pathname: string) {
+  if (pathname.startsWith('/profile/')) {
+    return ['/feed', '/people']
+  }
+
+  if (pathname.startsWith('/admin/')) {
+    return ['/feed']
+  }
+
+  return MOBILE_ROUTE_WARMUP_TARGETS[pathname] ?? ['/add']
+}
+
 function PullToRefresh() {
   const [pullY, setPullY] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -498,13 +536,18 @@ function AppContent() {
   }, [user])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !shouldWarmMobileRoutes()) return
+
+    const targets = getMobileRouteWarmupTargets(location.pathname)
+      .filter(path => path !== location.pathname)
+
+    if (targets.length === 0) return
 
     let timeoutId: number | null = null
     let idleId: number | null = null
 
     const runPrefetch = () => {
-      void prefetchPrimaryRoutes()
+      void prefetchRouteModules(targets)
     }
 
     if (typeof window.requestIdleCallback === 'function') {
@@ -521,7 +564,7 @@ function AppContent() {
         window.clearTimeout(timeoutId)
       }
     }
-  }, [user])
+  }, [location.pathname, user])
 
   return (
     <>
