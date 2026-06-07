@@ -254,27 +254,47 @@ function App() {
     init()
   }, [flushPendingMutations, initialize])
 
-  // Manage Supabase's auto-refresh timer based on tab visibility.
-  // Only refresh the session here — TanStack Query's refetchOnWindowFocus handles
-  // re-fetching stale queries naturally based on each query's staleTime.
+  // Resume coordinator: refetchOnWindowFocus/refetchOnReconnect are disabled
+  // globally (they caused visible spinners on every tab switch), so nothing
+  // else refreshes stale data when the app comes back from the background.
+  // Realtime channels also silently die while a mobile tab is backgrounded
+  // and don't always reconnect cleanly. This is the single place that brings
+  // the app back to a correct, fresh state on resume:
+  //   1. resume the auth session (token may have expired while backgrounded)
+  //   2. flush any offline-queued mutations
+  //   3. refetch only ACTIVE queries that are currently STALE — cheap (skips
+  //      fresh data, skips inactive/background queries) but guarantees the
+  //      screen the user is looking at is never silently out of date
+  const refreshActiveStaleQueries = useCallback(() => {
+    void queryClient.refetchQueries({ type: 'active', stale: true })
+  }, [])
+
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         supabase.auth.startAutoRefresh()
         await resumeSession()
         await flushPendingMutations()
+        refreshActiveStaleQueries()
       } else {
         supabase.auth.stopAutoRefresh()
       }
     }
 
+    const handleOnlineResume = async () => {
+      await flushPendingMutations()
+      refreshActiveStaleQueries()
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('online', flushPendingMutations)
+    window.addEventListener('online', handleOnlineResume)
+    window.addEventListener('pageshow', refreshActiveStaleQueries)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('online', flushPendingMutations)
+      window.removeEventListener('online', handleOnlineResume)
+      window.removeEventListener('pageshow', refreshActiveStaleQueries)
     }
-  }, [flushPendingMutations, resumeSession])
+  }, [flushPendingMutations, refreshActiveStaleQueries, resumeSession])
 
   // Listen for FLUSH_OFFLINE_QUEUE messages from the service worker (background sync)
   // Only invalidate feed and media since those are what offline writes affect.
