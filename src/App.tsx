@@ -315,10 +315,15 @@ function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('online', handleOnlineResume)
     window.addEventListener('pageshow', refreshActiveStaleQueries)
+    // Page Lifecycle 'resume' fires when a FROZEN page is unfrozen — the common
+    // path on mobile, where backgrounded tabs are frozen rather than just hidden
+    // and visibilitychange isn't always a reliable resume signal.
+    document.addEventListener('resume', refreshActiveStaleQueries)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnlineResume)
       window.removeEventListener('pageshow', refreshActiveStaleQueries)
+      document.removeEventListener('resume', refreshActiveStaleQueries)
     }
   }, [flushPendingMutations, refreshActiveStaleQueries, resumeSession])
 
