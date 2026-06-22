@@ -281,51 +281,62 @@ function App() {
   // the app back to a correct, fresh state on resume:
   //   1. resume the auth session (token may have expired while backgrounded)
   //   2. flush any offline-queued mutations
-  //   3. refetch only ACTIVE queries that are currently STALE — cheap (skips
-  //      fresh data, skips inactive/background queries) but guarantees the
-  //      screen the user is looking at is never silently out of date
-  const refreshActiveStaleQueries = useCallback(() => {
-    void queryClient.refetchQueries({ type: 'active', stale: true })
-  }, [])
+  //   3. invalidate all queries so active ones refetch in the background —
+  //      the user sees cached data instantly (no spinner) while fresh data
+  //      loads behind the scenes
+  const hiddenAtRef = useRef(0)
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        const away = hiddenAtRef.current > 0
+          ? Date.now() - hiddenAtRef.current
+          : Infinity
+
         supabase.auth.startAutoRefresh()
-        // Fire the refetch FIRST and unconditionally. Do NOT await the session
-        // refresh before refetching: supabase-js's auth lock can hang after the
-        // tab was backgrounded, and gating the refetch behind `await resumeSession()`
-        // meant a hung refresh left the app stuck on stale data until a manual
-        // reload. The session refresh + queue flush run in the background; any
-        // query that races ahead of the new token and 401s is recovered by the
-        // QueryCache auth handler in queryClient.ts.
-        refreshActiveStaleQueries()
+        // Invalidate FIRST and unconditionally. Do NOT await the session
+        // refresh before invalidating: supabase-js's auth lock can hang after
+        // the tab was backgrounded, and gating the refresh behind
+        // `await resumeSession()` meant a hung refresh left the app stuck on
+        // stale data until a manual reload. The session refresh + queue flush
+        // run in the background; any query that races ahead of the new token
+        // and 401s is recovered by the QueryCache auth handler in queryClient.ts.
+        //
+        // Quick tab switches (< 10s) skip invalidation — realtime subscriptions
+        // are still alive and staleTime covers the gap.
+        if (away > 10_000) {
+          queryClient.invalidateQueries()
+        }
         void resumeSession()
         void flushPendingMutations()
       } else {
+        hiddenAtRef.current = Date.now()
         supabase.auth.stopAutoRefresh()
       }
     }
 
     const handleOnlineResume = () => {
-      refreshActiveStaleQueries()
+      queryClient.invalidateQueries()
       void flushPendingMutations()
+    }
+
+    // pageshow (bfcache restore) and resume (mobile unfreeze) indicate the page
+    // was suspended for a non-trivial period — always invalidate.
+    const handlePageResume = () => {
+      queryClient.invalidateQueries()
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('online', handleOnlineResume)
-    window.addEventListener('pageshow', refreshActiveStaleQueries)
-    // Page Lifecycle 'resume' fires when a FROZEN page is unfrozen — the common
-    // path on mobile, where backgrounded tabs are frozen rather than just hidden
-    // and visibilitychange isn't always a reliable resume signal.
-    document.addEventListener('resume', refreshActiveStaleQueries)
+    window.addEventListener('pageshow', handlePageResume)
+    document.addEventListener('resume', handlePageResume)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnlineResume)
-      window.removeEventListener('pageshow', refreshActiveStaleQueries)
-      document.removeEventListener('resume', refreshActiveStaleQueries)
+      window.removeEventListener('pageshow', handlePageResume)
+      document.removeEventListener('resume', handlePageResume)
     }
-  }, [flushPendingMutations, refreshActiveStaleQueries, resumeSession])
+  }, [flushPendingMutations, resumeSession])
 
   // Listen for FLUSH_OFFLINE_QUEUE messages from the service worker (background sync)
   // Only invalidate feed and media since those are what offline writes affect.
