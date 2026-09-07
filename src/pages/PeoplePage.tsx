@@ -1,6 +1,7 @@
 import { useDeferredValue, useState, useEffect, useLayoutEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
+import PalMark from '../components/brand/PalMark'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore, type ProfileWithFollowStatus } from '../store/socialStore'
@@ -110,7 +111,7 @@ export default function PeoplePage() {
         currentUserId={user?.id}
         className="flex items-center gap-3 flex-1 min-w-0"
       >
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
           {profile.avatar_url ? (
             <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
           ) : (
@@ -144,7 +145,7 @@ export default function PeoplePage() {
         className={`flex-shrink-0 h-9 px-4 rounded-full font-bold text-xs transition-all duration-200 active:scale-95 ${
           profile.isFollowing
             ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:text-white'
-            : 'bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500'
+            : 'bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-[#2b1310] hover:from-[#ff8175] hover:to-[#f6cd66]'
         }`}
       >
         {profile.isFollowing ? (
@@ -166,7 +167,7 @@ export default function PeoplePage() {
         currentUserId={user?.id}
         className="flex flex-col items-center mb-3 w-full"
       >
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
           {profile.avatar_url ? (
             <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
           ) : (
@@ -240,7 +241,7 @@ export default function PeoplePage() {
           {peopleActiveTab === 'search' && (
             <div className="animate-in fade-in duration-200">
               <div className="relative mb-6 group">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-pink-500/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#ff655b]/10 to-[#f6cd66]/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
                 <div className="relative bg-gray-800/60 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-500 transition-colors">
                   <div className="pl-4 text-gray-500 group-focus-within:text-white transition-colors">
                     <Search className="w-5 h-5" />
@@ -269,8 +270,8 @@ export default function PeoplePage() {
               )}
               {searchResults.length === 0 && searchQuery.trim().length < 2 && (
                 <div className="text-center py-24">
-                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Search className="w-7 h-7 text-gray-600" />
+                  <div className="mx-auto mb-4 flex w-16 justify-center opacity-90">
+                    <PalMark size={64} />
                   </div>
                   <p className="text-gray-400 font-semibold">Find people you know</p>
                   <p className="text-gray-600 text-sm mt-1">Search by username to connect with friends</p>

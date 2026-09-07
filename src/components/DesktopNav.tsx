@@ -12,7 +12,7 @@ export default function DesktopNav() {
   const signOut = useAuthStore((s) => s.signOut)
   const navigate = useNavigate()
   return (
-    <header className="sticky top-0 z-40 hidden border-b border-white/[0.07] bg-[#101113]/95 backdrop-blur-xl md:block">
+    <header className="sticky top-0 z-40 hidden border-b border-white/[0.07] bg-[#17120d]/95 backdrop-blur-xl md:block">
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-6 px-6">
         <Link to="/feed" aria-label="Popcorn Pal home">
           <Brand />

@@ -639,7 +639,7 @@ export default function FeedPage() {
 
   if (feedIsError && posts.length === 0) {
     return (
-      <div className="min-h-screen bg-[#101113] text-white flex flex-col items-center justify-center gap-4 pb-20">
+      <div className="min-h-screen bg-[#17120d] text-white flex flex-col items-center justify-center gap-4 pb-20">
         <RefreshCw className="w-8 h-8 text-gray-500" />
         <p className="text-gray-400 text-sm">Something went wrong.</p>
         <button
@@ -653,11 +653,11 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="app-page bg-[#101113] text-white">
+    <div className="app-page bg-[#17120d] text-white">
       {/* Loading Bar */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
-          <div className="h-full bg-gradient-to-r from-red-500 to-pink-500 animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+          <div className="h-full bg-gradient-to-r from-[#ff655b] to-[#eab84f] animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
         </div>
       )}
 
@@ -799,7 +799,7 @@ export default function FeedPage() {
       {/* Scroll to Top Button */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 p-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-full shadow-lg shadow-red-500/30 z-40 hover:scale-110 transition-all duration-300 ${
+        className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 p-3 bg-gradient-to-r from-[#ff655b] to-[#eab84f] hover:from-[#ff8175] hover:to-[#f6cd66] text-white rounded-full shadow-lg shadow-red-500/30 z-40 hover:scale-110 transition-all duration-300 ${
           showScrollTop ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-16 pointer-events-none'
         }`}
         aria-label="Scroll to top"

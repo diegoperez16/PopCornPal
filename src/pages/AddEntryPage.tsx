@@ -105,7 +105,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
         </header>
         <div className="overflow-y-auto overscroll-contain p-5 space-y-6">
           {item.type === 'show' && (
-            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#141517] p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#1b1509] p-1">
               <button
                 className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-[#343332] text-white' : 'text-gray-400'}`}
                 aria-pressed={!w.episodeMode}
@@ -236,7 +236,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                       type="button"
                       onClick={() => w.setStatus(status.value)}
                       aria-pressed={w.status === status.value}
-                      className={`min-h-[78px] rounded-xl border p-3 text-left ${w.status === status.value ? 'border-[#ff8175] bg-[#ff655b]/10' : 'border-white/10 bg-[#141517]'}`}
+                      className={`min-h-[78px] rounded-xl border p-3 text-left ${w.status === status.value ? 'border-[#ff8175] bg-[#ff655b]/10' : 'border-white/10 bg-[#1b1509]'}`}
                     >
                       <span
                         className={`block text-sm font-semibold ${w.status === status.value ? 'text-[#ff9b8e]' : 'text-gray-200'}`}

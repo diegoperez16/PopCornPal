@@ -133,7 +133,7 @@ export default function ActivityPage() {
             <p className="text-gray-400 mb-8 max-w-xs text-center">Start logging movies, games, or books to see your timeline build up.</p>
             <button
               onClick={() => navigate('/add')}
-              className="bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
+              className="bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
             >
               <ArrowUpRight className="w-5 h-5" />
               Log Activity
@@ -144,7 +144,7 @@ export default function ActivityPage() {
             {sortedDates.map(date => (
               <div key={date} className="relative pl-8 md:pl-10">
                 {/* Date Marker */}
-                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-gray-900 border-2 border-pink-500 ring-4 ring-gray-900"></div>
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-gray-900 border-2 border-[#f6cd66] ring-4 ring-gray-900"></div>
                 
                 {/* Date Header */}
                 <div className="flex items-baseline gap-3 mb-6">

@@ -1,8 +1,9 @@
 import { useRef } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { Clapperboard, History, X } from 'lucide-react'
+import { History, X } from 'lucide-react'
 import { prefetchRouteModule } from '../lib/routeLoaders'
 import { navigation } from '../app/navigation'
+import PalMark from './brand/PalMark'
 
 const destinations = [
   navigation[2],
@@ -32,8 +33,7 @@ export default function MobileNav() {
         className="radial-launcher"
         title="Open navigation"
       >
-        <Clapperboard size={24} strokeWidth={1.8} />
-        <span className="radial-launcher-dot" />
+        <PalMark size={40} />
       </button>
       <dialog
         ref={dialog}

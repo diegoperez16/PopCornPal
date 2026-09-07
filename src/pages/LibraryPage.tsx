@@ -68,7 +68,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="app-page min-h-screen bg-[#101113] text-[#f4f0e8]">
+    <div className="app-page min-h-screen bg-[#17120d] text-[#f4f0e8]">
       <main className="mx-auto max-w-6xl px-5 pb-10 pt-7 sm:px-8 sm:pt-10">
         <header className="mb-7 flex items-start justify-between gap-4 sm:mb-9">
           <div>
@@ -79,7 +79,7 @@ export default function LibraryPage() {
             <h1 className="app-title text-4xl font-semibold leading-[1.06] tracking-[-0.045em] sm:text-5xl">
               Your collection<span className="text-[#ff655b]">.</span>
             </h1>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#aba7a1]">
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#b3a58c]">
               The worlds you’ve visited. The stories that stayed.
             </p>
           </div>
@@ -95,9 +95,9 @@ export default function LibraryPage() {
           </Link>
         </header>
 
-        <div className="mb-5 flex h-14 items-center rounded-2xl border border-[#34363a] bg-[#191b1e] px-4 transition-colors focus-within:border-[#ff655b]/70 focus-within:ring-1 focus-within:ring-[#ff655b]/30">
+        <div className="mb-5 flex h-14 items-center rounded-2xl border border-[#443925] bg-[#211a11] px-4 transition-colors focus-within:border-[#ff655b]/70 focus-within:ring-1 focus-within:ring-[#ff655b]/30">
           <Search
-            className="h-5 w-5 shrink-0 text-[#aba7a1]"
+            className="h-5 w-5 shrink-0 text-[#b3a58c]"
             aria-hidden="true"
           />
           <input
@@ -113,7 +113,7 @@ export default function LibraryPage() {
               type="button"
               aria-label="Clear library search"
               onClick={() => setSearchQuery('')}
-              className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#aba7a1] hover:bg-[#26282c]"
+              className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#b3a58c] hover:bg-[#26282c]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -129,11 +129,11 @@ export default function LibraryPage() {
             type="button"
             aria-pressed={filterType === null}
             onClick={() => setFilterType(null)}
-            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filterType === null ? 'border-[#f4f0e8] bg-[#f4f0e8] text-[#191b1e]' : 'border-[#34363a] bg-[#191b1e] text-[#aba7a1] hover:text-[#f4f0e8]'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filterType === null ? 'border-[#f4f0e8] bg-[#f4f0e8] text-[#211a11]' : 'border-[#443925] bg-[#211a11] text-[#b3a58c] hover:text-[#f4f0e8]'}`}
           >
             All
             <span
-              className={`text-xs tabular-nums ${filterType === null ? 'text-[#5e5c58]' : 'text-[#aba7a1]'}`}
+              className={`text-xs tabular-nums ${filterType === null ? 'text-[#5e5c58]' : 'text-[#b3a58c]'}`}
             >
               {collection.length}
             </span>
@@ -144,12 +144,12 @@ export default function LibraryPage() {
               type="button"
               aria-pressed={filterType === type}
               onClick={() => setFilterType(filterType === type ? null : type)}
-              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filterType === type ? 'border-[#f4f0e8] bg-[#f4f0e8] text-[#191b1e]' : 'border-[#34363a] bg-[#191b1e] text-[#aba7a1] hover:text-[#f4f0e8]'}`}
+              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filterType === type ? 'border-[#f4f0e8] bg-[#f4f0e8] text-[#211a11]' : 'border-[#443925] bg-[#211a11] text-[#b3a58c] hover:text-[#f4f0e8]'}`}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
               {label}
               <span
-                className={`text-xs tabular-nums ${filterType === type ? 'text-[#5e5c58]' : 'text-[#aba7a1]'}`}
+                className={`text-xs tabular-nums ${filterType === type ? 'text-[#5e5c58]' : 'text-[#b3a58c]'}`}
               >
                 {counts[type]}
               </span>
@@ -157,14 +157,14 @@ export default function LibraryPage() {
           ))}
         </div>
 
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-x-2 gap-y-3 border-t border-[#2b2d31] pt-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-x-2 gap-y-3 border-t border-[#3a2f1f] pt-5">
           <div aria-live="polite">
             <h2 className="text-lg font-semibold tracking-tight">
               {searchQuery.trim()
                 ? 'Search results'
                 : selectedTypeLabel || 'On your shelf'}
             </h2>
-            <p className="mt-0.5 text-xs text-[#aba7a1]">
+            <p className="mt-0.5 text-xs text-[#b3a58c]">
               {isPending
                 ? 'Finding your stories…'
                 : `${libraryEntries.length} ${libraryEntries.length === 1 ? 'title' : 'titles'}`}
@@ -188,7 +188,7 @@ export default function LibraryPage() {
               </select>
             </label>
             <div
-              className="flex rounded-xl border border-[#34363a] bg-[#191b1e] p-0.5"
+              className="flex rounded-xl border border-[#443925] bg-[#211a11] p-0.5"
               role="group"
               aria-label="Collection view"
             >
@@ -197,7 +197,7 @@ export default function LibraryPage() {
                 aria-label="Poster grid view"
                 aria-pressed={view === 'grid'}
                 onClick={() => setView('grid')}
-                className={`flex h-11 w-11 items-center justify-center rounded-lg ${view === 'grid' ? 'bg-[#34363a] text-[#f4f0e8]' : 'text-[#aba7a1]'}`}
+                className={`flex h-11 w-11 items-center justify-center rounded-lg ${view === 'grid' ? 'bg-[#443925] text-[#f4f0e8]' : 'text-[#b3a58c]'}`}
               >
                 <Grid2X2 className="h-4 w-4" />
               </button>
@@ -206,7 +206,7 @@ export default function LibraryPage() {
                 aria-label="List view"
                 aria-pressed={view === 'list'}
                 onClick={() => setView('list')}
-                className={`flex h-11 w-11 items-center justify-center rounded-lg ${view === 'list' ? 'bg-[#34363a] text-[#f4f0e8]' : 'text-[#aba7a1]'}`}
+                className={`flex h-11 w-11 items-center justify-center rounded-lg ${view === 'list' ? 'bg-[#443925] text-[#f4f0e8]' : 'text-[#b3a58c]'}`}
               >
                 <List className="h-4 w-4" />
               </button>
@@ -226,21 +226,21 @@ export default function LibraryPage() {
                 aria-hidden="true"
                 className="motion-safe:animate-pulse"
               >
-                <div className="aspect-[2/3] rounded-2xl bg-[#222428]" />
-                <div className="mt-3 h-4 w-4/5 rounded bg-[#222428]" />
-                <div className="mt-2 h-3 w-2/5 rounded bg-[#222428]" />
+                <div className="aspect-[2/3] rounded-2xl bg-[#2a2216]" />
+                <div className="mt-3 h-4 w-4/5 rounded bg-[#2a2216]" />
+                <div className="mt-2 h-3 w-2/5 rounded bg-[#2a2216]" />
               </div>
             ))}
           </div>
         ) : isError ? (
           <div
             role="alert"
-            className="rounded-3xl border border-[#34363a] bg-[#191b1e] px-6 py-12 text-center"
+            className="rounded-3xl border border-[#443925] bg-[#211a11] px-6 py-12 text-center"
           >
             <h3 className="text-xl font-semibold">
               Your shelf is taking a moment
             </h3>
-            <p className="mx-auto mb-6 mt-2 max-w-xs text-sm leading-relaxed text-[#aba7a1]">
+            <p className="mx-auto mb-6 mt-2 max-w-xs text-sm leading-relaxed text-[#b3a58c]">
               We couldn’t load your collection. Try again to pick up where you
               left off.
             </p>
@@ -270,7 +270,7 @@ export default function LibraryPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-3xl border border-[#2b2d31] bg-[#191b1e] px-6 py-14 text-center sm:py-20">
+          <div className="rounded-3xl border border-[#3a2f1f] bg-[#211a11] px-6 py-14 text-center sm:py-20">
             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#f2cc8f]/20 bg-[#f2cc8f]/5 text-[#f2cc8f]">
               {hasFilters ? (
                 <Search className="h-7 w-7" strokeWidth={1.5} />
@@ -283,7 +283,7 @@ export default function LibraryPage() {
                 ? 'No stories on this shelf. Yet.'
                 : 'Every collection starts somewhere.'}
             </h3>
-            <p className="mx-auto mb-7 mt-3 max-w-xs text-sm leading-relaxed text-[#aba7a1]">
+            <p className="mx-auto mb-7 mt-3 max-w-xs text-sm leading-relaxed text-[#b3a58c]">
               {hasFilters
                 ? 'Try another title or explore the rest of your collection.'
                 : 'A film you can’t stop thinking about. A book you stayed up for. Make this space yours.'}

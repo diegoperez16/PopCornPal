@@ -25,8 +25,8 @@ export default defineConfig({
         id: '/',
         lang: 'en',
         categories: ['entertainment', 'social'],
-        theme_color: '#101113',
-        background_color: '#101113',
+        theme_color: '#17120d',
+        background_color: '#17120d',
         display: 'standalone',
 
         scope: '/',

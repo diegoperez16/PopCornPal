@@ -1,4 +1,4 @@
-// Reproducible raster exports of our code-native Lucide popcorn brand mark.
+// Reproducible raster exports of the Popcorn Pal bucket-pal brand mark.
 import { chromium } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 const browser = await chromium.launch()
@@ -19,7 +19,7 @@ for (const [name, size, maskable] of [
       canvas.width = size
       canvas.height = size
       const context = canvas.getContext('2d')
-      context.fillStyle = '#ff7568'
+      context.fillStyle = '#17120d'
       context.fillRect(0, 0, size, size)
       const image = new Image()
       image.src = 'data:image/svg+xml;base64,' + btoa(svg)

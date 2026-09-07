@@ -36,7 +36,7 @@ export default function MentionDropdown({ users, loading, query, selectedIndex, 
               i === selectedIndex ? 'bg-gray-700' : 'hover:bg-gray-700/50'
             }`}
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center flex-shrink-0 overflow-hidden">
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
               ) : (

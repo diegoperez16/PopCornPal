@@ -170,7 +170,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       >
         <Bell className={dropUp ? 'w-6 h-6' : 'w-5 h-5'} strokeWidth={open && dropUp ? 2.5 : 2} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-full px-1">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white rounded-full px-1">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -222,7 +222,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                       !n.read ? 'bg-gray-800/40' : ''
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
                       <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
                       {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
                     </div>
@@ -280,7 +280,7 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
                     !n.read ? 'bg-gray-800/40' : ''
                   }`}
                 >
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
                     <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
                     {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
                   </div>
