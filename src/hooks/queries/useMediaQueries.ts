@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { mediaKeys } from '../../lib/queryClient'
 import { executeQueuedMutationOrRun } from '../../lib/offlineMutationQueue'
+import { randomId } from '../../lib/uuid'
 import {
   createMediaEntry,
   deleteMediaEntry,
@@ -106,7 +107,7 @@ export function useAddEntry(userId: string) {
       const optimisticEntries = [...(previousEntries ?? [])]
 
       optimisticEntries.unshift({
-        id: `offline-entry-${crypto.randomUUID()}`,
+        id: `offline-entry-${randomId()}`,
         user_id: userId,
         media_type: entry.media_type,
         title: entry.title,
@@ -128,7 +129,7 @@ export function useAddEntry(userId: string) {
           existing.title.toLowerCase() === entry.title.toLowerCase()
       )) {
         optimisticEntries.unshift({
-          id: `offline-entry-${crypto.randomUUID()}`,
+          id: `offline-entry-${randomId()}`,
           user_id: userId,
           media_type: entry.media_type,
           title: entry.title,

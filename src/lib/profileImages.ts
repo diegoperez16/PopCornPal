@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { randomId } from './uuid'
 
 const EXT_BY_MIME: Record<string, string> = {
   'image/gif': 'gif',
@@ -48,7 +49,7 @@ export async function persistProfileImage(
   const decoded = dataUriToBlob(value)
   if (!decoded) return value
   const ext = EXT_BY_MIME[decoded.mime] || 'png'
-  const path = `${userId}/${crypto.randomUUID()}.${ext}`
+  const path = `${userId}/${randomId()}.${ext}`
 
   const { error } = await supabase.storage
     .from(bucket)

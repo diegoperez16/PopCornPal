@@ -15,6 +15,7 @@ import {
 import type { Post } from '../../store/socialStore'
 import type { Comment } from '../../components/feed/feedTypes'
 import type { MediaEntry } from './useMediaQueries'
+import { randomId } from '../../lib/uuid'
 
 const PAGE_SIZE = 20
 
@@ -427,7 +428,7 @@ export function useCreatePost(userId: string) {
         : undefined
 
       const optimisticPost: Post = {
-        id: `offline-post-${crypto.randomUUID()}`,
+        id: `offline-post-${randomId()}`,
         user_id: userId,
         content: variables.content,
         media_entry_id: variables.media_entry_id,
@@ -566,7 +567,7 @@ export function useCreateComment(userId: string) {
       const previousFeed = queryClient.getQueryData(feedKeys.list(userId))
       const profile = useAuthStore.getState().profile
       const optimisticComment: Comment = {
-        id: `offline-comment-${crypto.randomUUID()}`,
+        id: `offline-comment-${randomId()}`,
         user_id: userId,
         content: variables.content,
         image_url: variables.image_url,

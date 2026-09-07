@@ -5,6 +5,7 @@ import { supabase } from './supabase'
 import { accountScope } from './accountScope'
 import { createOfflineQueue } from './offlineQueueCore'
 import { isAuthError, isNetworkError } from './requestErrors'
+import { randomId } from './uuid'
 import {
   createComment,
   createMediaEntry,
@@ -237,7 +238,7 @@ async function enqueueForOwner(mutation: OfflineMutationInput, userId: string) {
   const item = await queue.enqueue({
     ...mutation,
     userId,
-    id: crypto.randomUUID(),
+    id: randomId(),
     createdAt: new Date().toISOString(),
   } as OfflineMutation)
   if (accountScope.userId === userId) {
