@@ -63,6 +63,10 @@ export default function MobileNav() {
     detach: () => void
   } | null>(null)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  // Touch devices emit a compatibility click at the press origin once a drag
+  // ends. That lands on the launcher after a slide selection has already
+  // closed the wheel, so ignore an open that arrives right after one.
+  const slideEndedAt = useRef(0)
   const location = useLocation()
   const navigate = useNavigate()
   const close = () => dialog.current?.close()
@@ -111,6 +115,7 @@ export default function MobileNav() {
       const slid = active.moved
       endGesture()
       if (!slid) return // plain tap: leave the wheel open
+      slideEndedAt.current = Date.now()
       const slot = slotAt(upEvent.clientX, upEvent.clientY)
       if (slot !== null) navigate(destinations[slot].path)
       close()
@@ -146,7 +151,10 @@ export default function MobileNav() {
     <div className="mobile-nav md:hidden">
       <button
         ref={launcher}
-        onClick={open}
+        onClick={() => {
+          if (Date.now() - slideEndedAt.current < 700) return
+          open()
+        }}
         onPointerDown={(event) => {
           // Opening mid-press makes the launcher inert; without this the
           // browser's default mousedown focus falls to body and keyboard
