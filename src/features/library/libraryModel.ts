@@ -4,6 +4,8 @@ export type MediaType = MediaEntry['media_type']
 export type LibrarySort = 'recent' | 'title' | 'rating'
 export type EntryDraft = Pick<MediaEntry, 'status'> & {
   rating: number
+  /** Too bad to rate; mutually exclusive with a rating. */
+  dumpstered: boolean
   notes: string
 }
 
@@ -105,8 +107,10 @@ export function buildEntryUpdates(
 ): Partial<MediaEntry> {
   return {
     status: draft.status,
+    dumpstered: Boolean(draft.dumpstered),
+    // A dumpster is a refusal to rate, so it must never carry a number.
     rating:
-      draft.rating > 0
+      !draft.dumpstered && draft.rating > 0
         ? Math.min(10, Math.round(draft.rating * 10) / 10)
         : null,
     notes: draft.notes.trim() || null,

@@ -15,6 +15,8 @@ import {
 } from '../../hooks/queries/useMediaQueries'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
 import AutoGrowTextarea from '../../components/AutoGrowTextarea'
+import VerdictMark from '../verdict/VerdictMark'
+import VerdictBadge from '../verdict/VerdictBadge'
 import { buildEntryUpdates } from './libraryModel'
 import type { EntryDraft } from './libraryModel'
 
@@ -37,6 +39,7 @@ export default function EntryEditor({
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [draft, setDraft] = useState<EntryDraft>({
     rating: entry.rating ?? 0,
+    dumpstered: Boolean(entry.dumpstered),
     status: entry.status,
     notes: entry.notes ?? '',
   })
@@ -92,6 +95,7 @@ export default function EntryEditor({
   function changeRating(delta: number) {
     setDraft((current) => ({
       ...current,
+      dumpstered: false,
       rating: Math.max(
         0,
         Math.min(10, Math.round((current.rating + delta) * 10) / 10)
@@ -203,8 +207,7 @@ export default function EntryEditor({
           </fieldset>
 
           {isReviewed && (
-            <>
-              <fieldset disabled={isPending}>
+            <fieldset disabled={isPending}>
                 <legend className="mb-3 flex items-center gap-2 text-sm font-medium">
                   <Star className="h-4 w-4 text-butter-gold" aria-hidden="true" />
                   Your rating
@@ -260,36 +263,63 @@ export default function EntryEditor({
                       Clear
                     </button>
                   )}
+                  {!draft.dumpstered && (
+                    <VerdictBadge rating={draft.rating} size={30} />
+                  )}
                 </div>
-              </fieldset>
-              <div>
-                <label
-                  htmlFor="entry-review"
-                  className="mb-3 block text-sm font-medium"
-                >
-                  Notes{' '}
-                  <span className="ml-1 font-normal text-muted">
-                    (optional)
-                  </span>
-                </label>
-                <AutoGrowTextarea
-                  id="entry-review"
-                  value={draft.notes}
-                  disabled={isPending}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      notes: event.target.value,
-                    }))
-                  }
-                  minRows={4}
-                  maxRows={14}
-                  className="w-full rounded-xl border border-line-soft bg-gray-900 px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-accent"
-                  placeholder="The moment that stayed with you…"
-                />
-              </div>
-            </>
+              {draft.dumpstered && (
+                <p className="mt-3 flex items-center gap-2 rounded-xl border border-line-soft bg-gray-900 p-3 text-sm text-gray-300">
+                  <VerdictMark verdict="dumpster" size={28} />
+                  No rating — you sent this one to the dumpster.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    dumpstered: !current.dumpstered,
+                    rating: 0,
+                  }))
+                }
+                aria-pressed={draft.dumpstered}
+                className={`mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors ${
+                  draft.dumpstered
+                    ? 'border-accent bg-accent/10 text-accent-soft'
+                    : 'border-line-soft bg-gray-900 text-muted hover:text-gray-200'
+                }`}
+              >
+                <VerdictMark verdict="dumpster" size={20} />
+                {draft.dumpstered ? 'Dumpstered' : 'Too bad to rate'}
+              </button>
+            </fieldset>
           )}
+          <div>
+            <label
+              htmlFor="entry-review"
+              className="mb-3 block text-sm font-medium"
+            >
+              Notes{' '}
+              <span className="ml-1 font-normal text-muted">
+                (optional)
+              </span>
+            </label>
+            <AutoGrowTextarea
+              id="entry-review"
+              value={draft.notes}
+              disabled={isPending}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  notes: event.target.value,
+                }))
+              }
+              minRows={4}
+              maxRows={14}
+              className="w-full rounded-xl border border-line-soft bg-gray-900 px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-accent"
+              placeholder="The moment that stayed with you…"
+            />
+          </div>
           <p className="text-xs text-muted">
             Last updated{' '}
             {new Date(entry.updated_at).toLocaleDateString(undefined, {

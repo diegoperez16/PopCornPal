@@ -75,12 +75,18 @@ test('entry updates normalize ratings and notes, set completion date, and clear 
   assert.deepEqual(
     buildEntryUpdates(
       entry(),
-      { status: 'completed', rating: 8.46, notes: '  A favorite.  ' },
+      {
+        status: 'completed',
+        rating: 8.46,
+        dumpstered: false,
+        notes: '  A favorite.  ',
+      },
       '2026-09-07'
     ),
     {
       status: 'completed',
       rating: 8.5,
+      dumpstered: false,
       notes: 'A favorite.',
       completed_date: '2026-09-07',
     }
@@ -89,9 +95,16 @@ test('entry updates normalize ratings and notes, set completion date, and clear 
     buildEntryUpdates(entry({ completed_date: '2026-01-01' }), {
       status: 'planned',
       rating: 0,
+      dumpstered: false,
       notes: '  ',
     }),
-    { status: 'planned', rating: null, notes: null, completed_date: null }
+    {
+      status: 'planned',
+      rating: null,
+      dumpstered: false,
+      notes: null,
+      completed_date: null,
+    }
   )
   assert.equal(
     buildEntryUpdates(entry({ completed_date: '2026-01-01' }), {
@@ -129,4 +142,29 @@ test('unique media keeps different titles and types apart', () => {
     entry({ id: 'spaced', title: '  dune  ' }),
   ])
   assert.equal(unique.length, 2)
+})
+
+test('editing keeps a dumpster free of any rating', () => {
+  const target = entry({ rating: 8, status: 'logged' })
+  const updates = buildEntryUpdates(target, {
+    rating: 8,
+    dumpstered: true,
+    status: 'logged',
+    notes: 'unwatchable',
+  })
+  assert.equal(updates.dumpstered, true)
+  assert.equal(updates.rating, null, 'a dumpster must not carry a number')
+  assert.equal(updates.notes, 'unwatchable')
+})
+
+test('clearing a dumpster lets a rating stand again', () => {
+  const updates = buildEntryUpdates(entry(), {
+    rating: 7.25,
+    dumpstered: false,
+    status: 'completed',
+    notes: '',
+  })
+  assert.equal(updates.dumpstered, false)
+  assert.equal(updates.rating, 7.3)
+  assert.equal(updates.notes, null)
 })
