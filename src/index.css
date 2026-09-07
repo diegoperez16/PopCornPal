@@ -492,7 +492,13 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   overflow: hidden;
 }
 .note-composer::backdrop { background: rgb(var(--pp-bg-rgb)); }
+/* The page is drawn under the status bar (viewport-fit=cover), so a full-bleed
+   dialog must inset its own header — without this, Done and the back arrow sit
+   beneath the notch and there is no way out of the composer at all. */
+.note-composer > div { padding-top: env(safe-area-inset-top); }
 @media (min-width: 768px) {
+  /* A windowed dialog is not full-bleed, so it needs no inset. */
+  .note-composer > div { padding-top: 0; }
   .note-composer {
     width: min(680px, 92vw);
     height: min(80dvh, 760px);
