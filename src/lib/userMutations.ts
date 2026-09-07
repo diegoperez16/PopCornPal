@@ -88,9 +88,44 @@ export async function createMediaEntry(userId: string, entry: MediaEntryMutation
   if (error) throw error
 }
 
+/**
+ * A title accumulates one row per event — the durable `logged` record plus any
+ * completed/in-progress/planned activity — and the library reads the first
+ * while the profile reads the second. An opinion belongs to the title, not to
+ * one of its rows, so a changed verdict is copied across all of them;
+ * otherwise the same film shows 8.5 on your shelf and 6.0 on your profile.
+ *
+ * Status, dates and notes stay per row: those genuinely describe one event.
+ */
 export async function updateMediaEntry(id: string, updates: Partial<MediaEntryMutationInput>) {
-  const { error } = await supabase.from('media_entries').update(updates).eq('id', id)
+  const changesVerdict = 'rating' in updates || 'dumpstered' in updates
+  const { data, error } = await supabase
+    .from('media_entries')
+    .update(updates)
+    .eq('id', id)
+    .select('user_id, media_type, title')
+    .maybeSingle()
   if (error) throw error
+  // Without the row's identity there is nothing to match siblings on, and an
+  // unfiltered update would be far worse than a missed one.
+  if (!changesVerdict || !data?.user_id || !data.media_type || !data.title) {
+    return
+  }
+
+  const verdict: Partial<MediaEntryMutationInput> = {}
+  if ('rating' in updates) verdict.rating = updates.rating ?? null
+  if ('dumpstered' in updates) verdict.dumpstered = updates.dumpstered ?? false
+
+  const { error: siblingError } = await supabase
+    .from('media_entries')
+    .update(verdict)
+    .eq('user_id', data.user_id)
+    .eq('media_type', data.media_type)
+    .eq('title', data.title)
+    .neq('id', id)
+  // The row the person actually edited is already saved; a failure to mirror
+  // it is worth knowing about but must not present as a failed save.
+  if (siblingError) console.warn('Could not sync verdict across entries', siblingError)
 }
 
 export async function deleteMediaEntry(id: string) {
