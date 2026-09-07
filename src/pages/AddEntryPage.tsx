@@ -56,6 +56,10 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
       }}
     >
       <div className="flex flex-col max-h-[90dvh]">
+        <div
+          aria-hidden="true"
+          className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-[#45474b] md:hidden"
+        />
         <header className="flex shrink-0 items-start gap-4 border-b border-white/10 p-5">
           {item.image ? (
             <img

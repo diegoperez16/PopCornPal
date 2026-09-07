@@ -282,7 +282,7 @@ export default function EntryEditor({
                     }))
                   }
                   rows={4}
-                  className="w-full resize-y rounded-xl border border-[#2f3946] bg-[#14181c] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
+                  className="w-full resize-none rounded-xl border border-[#2f3946] bg-[#14181c] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b] sm:resize-y"
                   placeholder="The moment that stayed with you…"
                 />
               </div>

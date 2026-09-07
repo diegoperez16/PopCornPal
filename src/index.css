@@ -22,6 +22,14 @@
   --pp-display: 'Fraunces', Georgia, serif;
 }
 
+html {
+  /* Stop iOS inflating text when the phone is rotated, and keep the rubber-band
+     bounce off the document itself, not just the body. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -32,6 +40,44 @@ body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+
+/* Long-pressing a control in a native app never raises a copy/share callout or
+   starts a drag. Interface chrome opts out; real content stays selectable so
+   people can still copy a post, a review, or their own notes. */
+button,
+a,
+nav,
+header,
+label,
+summary,
+[role='button'],
+.app-kicker,
+.radial-launcher,
+.wheel-sector {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+img,
+svg {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable],
+p,
+h1,
+h2,
+h3,
+li,
+blockquote {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 ::selection {
