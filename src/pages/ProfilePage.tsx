@@ -210,7 +210,7 @@ export default function ProfilePage() {
             <div className="flex items-end justify-between">
               {/* Avatar with permanent camera badge */}
               <div className="relative">
-                <HouseRing house={profile.house}>
+                <HouseRing house={profile.house} beast>
                 <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-gray-900 overflow-hidden bg-gray-700 flex items-center justify-center text-3xl sm:text-4xl font-bold shadow-lg shadow-black/40">
                   {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
                     pendingAvatarGifCrop ? (

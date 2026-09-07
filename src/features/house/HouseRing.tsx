@@ -1,4 +1,5 @@
 import { useThemeStore } from '../../store/themeStore'
+import HouseBeast from './HouseBeast'
 import { HOUSES, isHouseId } from './houseModel'
 
 /**
@@ -11,9 +12,16 @@ import { HOUSES, isHouseId } from './houseModel'
  */
 export default function HouseRing({
   house,
+  beast = false,
   children,
 }: {
   house: string | null | undefined
+  /**
+   * Show the house beast on a medallion. Opt-in per usage rather than by
+   * breakpoint: a 32px comment avatar and an 80px profile avatar live on the
+   * same viewport, so only the caller knows whether there is room.
+   */
+  beast?: boolean
   children: React.ReactNode
 }) {
   const themeId = useThemeStore((state) => state.theme.id)
@@ -66,6 +74,19 @@ export default function HouseRing({
           strokeWidth="1.6"
         />
       </svg>
+      {beast && (
+      <span
+        className="pointer-events-none absolute -bottom-[14%] left-1/2 flex -translate-x-1/2 items-center justify-center rounded-full"
+        style={{
+          width: '38%',
+          aspectRatio: '1',
+          background: wool,
+          boxShadow: `0 0 0 2px rgb(var(--pp-gray-950-rgb)), inset 0 0 0 2px ${stripe}`,
+        }}
+      >
+        <HouseBeast house={house} size={0} color={stripe} className="h-[62%] w-[62%]" />
+      </span>
+      )}
     </span>
   )
 }

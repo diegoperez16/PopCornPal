@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useThemeStore } from '../../store/themeStore'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
-import HouseRing from './HouseRing'
 import { Loader2, Sparkles } from 'lucide-react'
 import {
   HOUSES,
@@ -12,18 +11,17 @@ import {
 } from './houseModel'
 import { useSorting } from './useSorting'
 
-function Crest({ house }: { house: HouseId }) {
-  const [wool, stripe] = HOUSES[house].colors
+function Crest({ house, size = 52 }: { house: HouseId; size?: number }) {
   return (
-    <span
-      className="flex h-11 w-11 items-center justify-center rounded-full"
-      style={{ background: wool, boxShadow: `inset 0 0 0 3px ${stripe}` }}
-    >
-      <span
-        className="h-4 w-4 rotate-45 rounded-[3px]"
-        style={{ background: stripe }}
-      />
-    </span>
+    <img
+      src={`/houses/crest-${house}.webp`}
+      alt=""
+      width={size}
+      height={Math.round(size * 1.13)}
+      loading="lazy"
+      decoding="async"
+      className="shrink-0 object-contain"
+    />
   )
 }
 
@@ -68,9 +66,7 @@ export default function HouseCard({
 
       {sorted && !picking && (
         <div className="flex items-center gap-3">
-          <HouseRing house={sorted.id}>
-            <span className="block h-12 w-12 rounded-full bg-gray-900" />
-          </HouseRing>
+          <Crest house={sorted.id} size={54} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-gray-100">{sorted.name}</p>
             <p className="mt-0.5 text-xs leading-snug text-gray-500">
