@@ -997,6 +997,7 @@ export function useProfilePage() {
     // Handlers
     followersCount: peopleCounts?.followersCount ?? 0,
     followingCount: peopleCounts?.followingCount ?? 0,
+    updateProfile,
     openPeopleTab,
     handleSignOut,
     handleSaveProfile,

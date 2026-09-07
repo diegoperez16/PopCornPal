@@ -90,6 +90,8 @@ export type Profile = {
   avatar_crop?: AvatarCrop | null
   /** Seasonal theme id; unknown values fall back to cinema. */
   theme?: string | null
+  /** Hogwarts house; null until sorted. */
+  house?: string | null
 }
 
 export type BackgroundCrop = {

@@ -13,6 +13,9 @@ import {
   User,
 } from 'lucide-react'
 import UserAvatar from '../UserAvatar'
+import VerdictMark from '../../features/verdict/VerdictMark'
+import HouseRing from '../../features/house/HouseRing'
+import { verdictFor } from '../../features/verdict/verdictModel'
 import ProfileLink from '../ProfileLink'
 import ProgressiveImg from '../ProgressiveImg'
 import type { Post } from '../../store/socialStore'
@@ -57,23 +60,31 @@ function FeedPostCardComponent({
   onSharePost,
   expandedContent,
 }: FeedPostCardProps) {
+  const postVerdict = post.media_entries
+    ? verdictFor(
+        post.media_entries.rating,
+        Boolean(post.media_entries.dumpstered)
+      )
+    : null
   return (
     <div
       className="app-panel rounded-2xl p-4 sm:p-5 fade-in"
       style={{ animationDelay: `${index * 0.05}s` }}
     >
       <div className="flex items-center gap-2.5 mb-2.5">
-        <div className="w-10 h-10 rounded-full bg-[#665450] flex items-center justify-center overflow-hidden flex-shrink-0">
-          {post.profiles.avatar_url ? (
-            <UserAvatar
-              avatarUrl={post.profiles.avatar_url}
-              avatarCrop={post.profiles.avatar_crop}
-              username={post.profiles.username}
-            />
-          ) : (
-            <User className="w-5 h-5" />
-          )}
-        </div>
+        <HouseRing house={post.profiles.house}>
+          <div className="w-10 h-10 rounded-full bg-[#665450] flex items-center justify-center overflow-hidden flex-shrink-0">
+            {post.profiles.avatar_url ? (
+              <UserAvatar
+                avatarUrl={post.profiles.avatar_url}
+                avatarCrop={post.profiles.avatar_crop}
+                username={post.profiles.username}
+              />
+            ) : (
+              <User className="w-5 h-5" />
+            )}
+          </div>
+        </HouseRing>
         <div className="flex-1">
           <ProfileLink
             username={post.profiles.username}
@@ -137,10 +148,16 @@ function FeedPostCardComponent({
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-600 flex-shrink-0" />
           </div>
-          {post.media_entries.rating != null && (
-            <div className="w-12 flex-shrink-0 bg-[#dfc59f] !text-[#201916] flex items-center justify-center">
-              <span className="text-[#201916] text-base font-bold tabular-nums">
-                {post.media_entries.rating}
+          {postVerdict && (
+            <div
+              className="w-14 flex-shrink-0 bg-[#dfc59f] flex flex-col items-center justify-center gap-0.5 py-1"
+              title={postVerdict.name}
+            >
+              <VerdictMark verdict={postVerdict.id} size={26} />
+              <span className="text-[#201916] text-xs font-bold tabular-nums leading-none">
+                {post.media_entries.dumpstered
+                  ? postVerdict.name
+                  : post.media_entries.rating}
               </span>
             </div>
           )}

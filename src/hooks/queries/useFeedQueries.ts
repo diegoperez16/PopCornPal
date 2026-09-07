@@ -156,8 +156,8 @@ export async function fetchSinglePost(postId: string, currentUserId: string): Pr
     .from('posts')
     .select(`
       *,
-      profiles:user_id (username, avatar_url, avatar_crop),
-      media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+      profiles:user_id (username, avatar_url, avatar_crop, house),
+      media_entries:media_entry_id (title, media_type, rating, dumpstered, cover_image_url),
       likes:post_likes(count),
       comments:post_comments(count)
     `)
@@ -200,9 +200,10 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
       image_url: p.image_url,
       created_at: p.created_at,
       updated_at: p.updated_at ?? null,
-      profiles: { username: p.username, avatar_url: p.avatar_url, avatar_crop: p.avatar_crop ?? null },
+      profiles: { username: p.username,
+        house: p.house, avatar_url: p.avatar_url, avatar_crop: p.avatar_crop ?? null },
       media_entries: p.media_title
-        ? { title: p.media_title, media_type: p.media_type, rating: p.media_rating, cover_image_url: p.media_cover_url }
+        ? { title: p.media_title, media_type: p.media_type, rating: p.media_rating, dumpstered: p.media_dumpstered, cover_image_url: p.media_cover_url }
         : undefined,
       likes_count: parseInt(p.likes_count) || 0,
       comments_count: parseInt(p.comments_count) || 0,
@@ -237,8 +238,8 @@ async function fetchFeedPage(userId: string, offset: number): Promise<{ posts: P
     .from('posts')
     .select(`
       *,
-      profiles:user_id (username, avatar_url, avatar_crop),
-      media_entries:media_entry_id (title, media_type, rating, cover_image_url),
+      profiles:user_id (username, avatar_url, avatar_crop, house),
+      media_entries:media_entry_id (title, media_type, rating, dumpstered, cover_image_url),
       likes:post_likes(count),
       comments:post_comments(count)
     `)
@@ -287,7 +288,7 @@ export async function fetchCommentsTree(
 ): Promise<CommentsTree> {
   const { data, error } = await supabase
     .from('post_comments')
-    .select(`*, profiles:user_id (username, avatar_url, avatar_crop)`)
+    .select(`*, profiles:user_id (username, avatar_url, avatar_crop, house)`)
     .eq('post_id', postId)
     .order('created_at', { ascending: true })
 

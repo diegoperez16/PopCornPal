@@ -60,15 +60,15 @@ export default function VerdictMark({
               <stop offset="100%" stopColor="#ffe9a8" stopOpacity="0" />
             </radialGradient>
           </defs>
-          <circle cx="256" cy="230" r="250" fill={`url(#g${uid})`} />
+          <circle cx="256" cy="230" r="250" fill={`url(#g${uid})`} className="verdict-glow" />
           <Puff light="#fff0c2" mid="#ffe08a" dark="#f6cd66" />
           <path d="M198 206 q21 -20 42 0" stroke={ink} strokeWidth="13" fill="none" strokeLinecap="round" />
           <path d="M272 206 q21 -20 42 0" stroke={ink} strokeWidth="13" fill="none" strokeLinecap="round" />
           <path d="M222 242 q34 32 68 0" stroke={ink} strokeWidth="14" fill="none" strokeLinecap="round" />
           <circle cx="178" cy="246" r="13" fill="#ff655b" opacity=".5" />
           <circle cx="334" cy="246" r="13" fill="#ff655b" opacity=".5" />
-          <path d="M96 150 l10 -26 l10 26 l26 10 l-26 10 l-10 26 l-10 -26 l-26 -10 Z" fill="#ffe08a" />
-          <path d="M404 196 l8 -20 l8 20 l20 8 l-20 8 l-8 20 l-8 -20 l-20 -8 Z" fill="#ffe08a" />
+          <path d="M96 150 l10 -26 l10 26 l26 10 l-26 10 l-10 26 l-10 -26 l-26 -10 Z" fill="#ffe08a" className="verdict-twinkle" />
+          <path d="M404 196 l8 -20 l8 20 l20 8 l-20 8 l-8 20 l-8 -20 l-20 -8 Z" fill="#ffe08a" className="verdict-twinkle verdict-twinkle-late" />
           <Bucket />
         </>
       )}
@@ -130,20 +130,37 @@ export default function VerdictMark({
       )}
 
       {verdict === 'dumpster' && (
-        <>
+        <g className="verdict-dumpster">
+          {/* Three coils, each narrower than the one below and offset a little,
+              so it reads as the classic swirl rather than a blob. */}
+          <ellipse cx="256" cy="404" rx="150" ry="62" fill="#6b4423" />
+          <ellipse cx="256" cy="388" rx="150" ry="58" fill="#8a5a2b" />
+          <path d="M106 388 a150 58 0 0 1 300 0 Z" fill="#9c6733" />
+
+          <ellipse cx="246" cy="308" rx="106" ry="50" fill="#7b5230" />
+          <path d="M140 308 a106 46 0 0 1 212 0 Z" fill="#a06c34" />
+
+          <ellipse cx="238" cy="240" rx="66" ry="36" fill="#8a5a2b" />
+          <path d="M172 240 a66 32 0 0 1 132 0 Z" fill="#a97438" />
+
+          {/* The tip: a small curl leaning off to one side. */}
           <path
-            d="M256 132 q54 0 54 40 q0 20 -16 30 q42 4 42 40 q0 24 -26 32 q52 6 52 46 q0 42 -60 42 l-92 0 q-60 0 -60 -42 q0 -40 52 -46 q-26 -8 -26 -32 q0 -36 42 -40 q-16 -10 -16 -30 q0 -40 54 -40 Z"
-            fill="#7b5230"
+            d="M238 208 q4 -46 34 -58 q-14 22 -8 44 q-12 6 -26 14 Z"
+            fill="#a97438"
           />
+
+          <circle cx="222" cy="382" r="17" fill="#241608" />
+          <circle cx="298" cy="382" r="17" fill="#241608" />
+          <circle cx="227" cy="376" r="5" fill="#f2e6d8" />
+          <circle cx="303" cy="376" r="5" fill="#f2e6d8" />
           <path
-            d="M256 132 q54 0 54 40 q0 20 -16 30 l-76 0 q-16 -10 -16 -30 q0 -40 54 -40 Z"
-            fill="#8f6039"
+            d="M228 430 q28 16 56 0"
+            stroke="#241608"
+            strokeWidth="15"
+            fill="none"
+            strokeLinecap="round"
           />
-          <path d="M198 242 q58 -12 116 0 q6 22 -12 32 l-92 0 q-18 -10 -12 -32 Z" fill="#8f6039" opacity=".55" />
-          <circle cx="219" cy="300" r="15" fill="#241608" />
-          <circle cx="293" cy="300" r="15" fill="#241608" />
-          <path d="M226 348 h60" stroke="#241608" strokeWidth="15" strokeLinecap="round" />
-        </>
+        </g>
       )}
     </svg>
   )

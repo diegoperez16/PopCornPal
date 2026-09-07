@@ -46,6 +46,7 @@ export type Post = {
   is_liked: boolean
   profiles: {
     username: string
+    house?: string | null
     avatar_url: string | null
     avatar_crop?: { x: number; y: number; scale: number } | null
     badges?: string[]
@@ -54,6 +55,7 @@ export type Post = {
     title: string
     media_type: 'movie' | 'show' | 'game' | 'book'
     rating: number | null
+    dumpstered?: boolean | null
     cover_image_url: string | null
   }
 }

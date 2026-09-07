@@ -1,6 +1,10 @@
 import { Film, Tv, Gamepad2, Book, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus } from 'lucide-react'
 import DecimalRating from '../components/DecimalRating'
 import PalMark from '../components/brand/PalMark'
+import VerdictMark from '../features/verdict/VerdictMark'
+import HouseRing from '../features/house/HouseRing'
+import HouseCard from '../features/house/HouseCard'
+import { verdictFor } from '../features/verdict/verdictModel'
 import ThemePicker from '../components/ThemePicker'
 import { collectUniqueMedia } from '../features/library/libraryModel'
 import GifPicker from '../components/GifPicker'
@@ -92,6 +96,7 @@ export default function ProfilePage() {
     colorEffects,
     followersCount,
     followingCount,
+    updateProfile,
     openPeopleTab,
     handleSignOut,
     handleSaveProfile,
@@ -205,6 +210,7 @@ export default function ProfilePage() {
             <div className="flex items-end justify-between">
               {/* Avatar with permanent camera badge */}
               <div className="relative">
+                <HouseRing house={profile.house}>
                 <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-gray-900 overflow-hidden bg-gray-700 flex items-center justify-center text-3xl sm:text-4xl font-bold shadow-lg shadow-black/40">
                   {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
                     pendingAvatarGifCrop ? (
@@ -233,6 +239,7 @@ export default function ProfilePage() {
                   )}
                 </div>
                 {/* Camera badge — always visible */}
+                </HouseRing>
                 <button
                   onClick={() => setIsEditing(true)}
                   className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1 p-1.5 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-full shadow-md transition-all"
@@ -521,6 +528,11 @@ export default function ProfilePage() {
         {/* --- FAVORITES SHELF --- */}
         <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
+        <HouseCard
+          house={profile.house}
+          entries={entries}
+          onChoose={(house) => void updateProfile({ house })}
+        />
         <div className="mb-7">
           <ThemePicker compact />
         </div>
@@ -799,10 +811,20 @@ export default function ProfilePage() {
                         {entry.year && <span>· {entry.year}</span>}
                         {entry.completed_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(entry.completed_date)}</span>}
                       </div>
-                      {entry.rating && (
-                        <div className="mt-1.5">
-                          <span className="text-xs font-bold text-yellow-400 tabular-nums">{entry.rating}</span>
-                          <span className="text-xs text-gray-600"> / 10</span>
+                      {(entry.rating || entry.dumpstered) && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <VerdictMark
+                            verdict={verdictFor(entry.rating, Boolean(entry.dumpstered))!.id}
+                            size={20}
+                          />
+                          {entry.dumpstered ? (
+                            <span className="text-xs font-bold text-gray-400">Dumpster</span>
+                          ) : (
+                            <>
+                              <span className="text-xs font-bold text-butter-gold tabular-nums">{entry.rating}</span>
+                              <span className="text-xs text-gray-600">/ 10</span>
+                            </>
+                          )}
                         </div>
                       )}
                       {entry.notes && <p className="text-gray-500 text-xs mt-1 line-clamp-1 italic">"{entry.notes}"</p>}

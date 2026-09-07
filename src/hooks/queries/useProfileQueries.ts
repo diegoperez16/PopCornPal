@@ -30,6 +30,7 @@ export type ProfilePost = {
     title: string
     media_type: 'movie' | 'show' | 'game' | 'book'
     rating: number | null
+    dumpstered?: boolean | null
     cover_image_url: string | null
   }
 }

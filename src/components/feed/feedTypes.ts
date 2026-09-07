@@ -8,6 +8,7 @@ export interface Comment {
   parent_comment_id: string | null
   profiles: {
     username: string
+    house?: string | null
     avatar_url: string | null
     avatar_crop?: { x: number; y: number; scale: number } | null
   }
