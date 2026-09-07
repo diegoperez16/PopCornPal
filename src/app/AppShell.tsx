@@ -8,6 +8,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { useThemeStore } from '../store/themeStore'
 import MobileHeader from '../components/MobileHeader'
 import MobileNav from '../components/MobileNav'
 import DesktopNav from '../components/DesktopNav'
@@ -105,6 +106,14 @@ function getMobileRouteWarmupTargets(pathname: string) {
 export default function AppShell() {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
+
+  // The account's saved theme wins over this device's cached guess, so a
+  // choice made on one phone shows up on the next.
+  const savedTheme = useAuthStore((state) => state.profile?.theme)
+  const setTheme = useThemeStore((state) => state.setTheme)
+  useEffect(() => {
+    if (savedTheme) setTheme(savedTheme)
+  }, [savedTheme, setTheme])
   const showNav =
     user &&
     !location.pathname.startsWith('/auth') &&

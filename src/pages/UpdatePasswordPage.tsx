@@ -64,7 +64,7 @@ export default function UpdatePasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#ff655b] text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50"
+            className="w-full bg-accent text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Update Password'}
           </button>

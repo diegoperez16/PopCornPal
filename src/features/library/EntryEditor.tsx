@@ -107,14 +107,14 @@ export default function EntryEditor({
         event.preventDefault()
         if (!isPending) onClose()
       }}
-      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto sheet-scroll rounded-t-[28px] border border-[#2f3946] bg-[#1b2127] p-0 text-[#f4f0e8] shadow-2xl backdrop:bg-black/75 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
+      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto sheet-scroll rounded-t-[28px] border border-line-soft bg-gray-800 p-0 text-parchment shadow-2xl backdrop:bg-black/75 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
     >
       <div
-        className="mx-auto mt-3 h-1 w-10 rounded-full bg-[#45474b] sm:hidden"
+        className="mx-auto mt-3 h-1 w-10 rounded-full bg-line-strong sm:hidden"
         aria-hidden="true"
       />
       <div className="flex items-center justify-between px-6 pb-3 pt-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#96a4b3]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">
           Your library · Edit entry
         </p>
         <button
@@ -122,14 +122,14 @@ export default function EntryEditor({
           aria-label="Close entry editor"
           onClick={onClose}
           disabled={isPending}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#232b33] text-[#d7d3cc] transition-colors hover:bg-[#303236] disabled:opacity-40"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-strong text-[#d7d3cc] transition-colors hover:bg-[#303236] disabled:opacity-40"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
       <form onSubmit={saveEntry}>
         <div className="space-y-6 px-6 pb-6">
-          <div className="flex items-center gap-4 border-b border-[#2f3946] pb-6">
+          <div className="flex items-center gap-4 border-b border-line-soft pb-6">
             {entry.cover_image_url ? (
               <img
                 src={entry.cover_image_url}
@@ -139,13 +139,13 @@ export default function EntryEditor({
             ) : (
               <div className="flex h-28 w-[75px] shrink-0 items-center justify-center rounded-xl bg-[#25272b]">
                 <BookOpen
-                  className="h-7 w-7 text-[#96a4b3]"
+                  className="h-7 w-7 text-muted"
                   strokeWidth={1.3}
                 />
               </div>
             )}
             <div className="min-w-0">
-              <p className="mb-2 text-xs capitalize text-[#ff827a]">
+              <p className="mb-2 text-xs capitalize text-accent-warm">
                 {entry.media_type}
                 {entry.year ? ` · ${entry.year}` : ''}
               </p>
@@ -156,7 +156,7 @@ export default function EntryEditor({
                 {entry.title}
               </h2>
               {entry.genre && (
-                <p className="mt-2 text-xs text-[#96a4b3]">{entry.genre}</p>
+                <p className="mt-2 text-xs text-muted">{entry.genre}</p>
               )}
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function EntryEditor({
               {statuses.map((status) => (
                 <label
                   key={status.value}
-                  className={`flex min-h-12 cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-sm transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#ff655b] ${draft.status === status.value ? 'border-[#ff655b]/60 bg-[#ff655b]/10 text-[#ff918a]' : 'border-[#2f3946] bg-[#232b33] text-[#96a4b3]'}`}
+                  className={`flex min-h-12 cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-sm transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent ${draft.status === status.value ? 'border-accent/60 bg-accent/10 text-accent-bright' : 'border-line-soft bg-surface-strong text-muted'}`}
                 >
                   <input
                     type="radio"
@@ -190,7 +190,7 @@ export default function EntryEditor({
               ))}
             </div>
             {draft.status !== 'logged' && (
-              <p className="mt-3 text-xs leading-relaxed text-[#96a4b3]">
+              <p className="mt-3 text-xs leading-relaxed text-muted">
                 This entry will move to your{' '}
                 {draft.status === 'planned'
                   ? 'planned'
@@ -206,7 +206,7 @@ export default function EntryEditor({
             <>
               <fieldset disabled={isPending}>
                 <legend className="mb-3 flex items-center gap-2 text-sm font-medium">
-                  <Star className="h-4 w-4 text-[#f2cc8f]" aria-hidden="true" />
+                  <Star className="h-4 w-4 text-butter-gold" aria-hidden="true" />
                   Your rating
                 </legend>
                 <div className="flex items-center gap-3">
@@ -215,7 +215,7 @@ export default function EntryEditor({
                     onClick={() => changeRating(-0.1)}
                     aria-label="Decrease rating"
                     disabled={draft.rating <= 0 || isPending}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2f3946] bg-[#232b33] disabled:opacity-40"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-line-soft bg-surface-strong disabled:opacity-40"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -237,25 +237,25 @@ export default function EntryEditor({
                         ),
                       }))
                     }
-                    className="h-12 w-20 rounded-xl border border-[#2f3946] bg-[#14181c] text-center text-2xl font-semibold tabular-nums text-[#f2cc8f] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
+                    className="h-12 w-20 rounded-xl border border-line-soft bg-gray-900 text-center text-2xl font-semibold tabular-nums text-butter-gold focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                   <button
                     type="button"
                     onClick={() => changeRating(0.1)}
                     aria-label="Increase rating"
                     disabled={draft.rating >= 10 || isPending}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2f3946] bg-[#232b33] disabled:opacity-40"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-line-soft bg-surface-strong disabled:opacity-40"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
-                  <span className="text-sm text-[#96a4b3]">/ 10</span>
+                  <span className="text-sm text-muted">/ 10</span>
                   {draft.rating > 0 && (
                     <button
                       type="button"
                       onClick={() =>
                         setDraft((current) => ({ ...current, rating: 0 }))
                       }
-                      className="ml-auto min-h-11 text-xs text-[#96a4b3] underline underline-offset-4"
+                      className="ml-auto min-h-11 text-xs text-muted underline underline-offset-4"
                     >
                       Clear
                     </button>
@@ -268,7 +268,7 @@ export default function EntryEditor({
                   className="mb-3 block text-sm font-medium"
                 >
                   Notes{' '}
-                  <span className="ml-1 font-normal text-[#96a4b3]">
+                  <span className="ml-1 font-normal text-muted">
                     (optional)
                   </span>
                 </label>
@@ -284,13 +284,13 @@ export default function EntryEditor({
                   }
                   minRows={4}
                   maxRows={14}
-                  className="w-full rounded-xl border border-[#2f3946] bg-[#14181c] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
+                  className="w-full rounded-xl border border-line-soft bg-gray-900 px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-accent"
                   placeholder="The moment that stayed with you…"
                 />
               </div>
             </>
           )}
-          <p className="text-xs text-[#96a4b3]">
+          <p className="text-xs text-muted">
             Last updated{' '}
             {new Date(entry.updated_at).toLocaleDateString(undefined, {
               month: 'short',
@@ -301,19 +301,19 @@ export default function EntryEditor({
           {error && (
             <p
               role="alert"
-              className="rounded-xl border border-[#ff655b]/30 bg-[#ff655b]/10 p-3 text-sm text-[#ffaaa4]"
+              className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-[#ffaaa4]"
             >
               {error}
             </p>
           )}
           {confirmDelete && (
             <div
-              className="rounded-2xl border border-[#ff655b]/30 bg-[#ff655b]/5 p-4"
+              className="rounded-2xl border border-accent/30 bg-accent/5 p-4"
               role="group"
               aria-label="Confirm entry removal"
             >
               <p className="text-sm font-semibold">Remove this entry?</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#96a4b3]">
+              <p className="mt-1 text-sm leading-relaxed text-muted">
                 Your rating and notes for this entry will also be removed.
               </p>
               <div className="mt-4 flex gap-2">
@@ -321,7 +321,7 @@ export default function EntryEditor({
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   disabled={isPending}
-                  className="min-h-11 flex-1 rounded-xl border border-[#2f3946] px-3 text-sm"
+                  className="min-h-11 flex-1 rounded-xl border border-line-soft px-3 text-sm"
                 >
                   Keep entry
                 </button>
@@ -329,7 +329,7 @@ export default function EntryEditor({
                   type="button"
                   onClick={removeEntry}
                   disabled={isPending}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#ff655b] px-3 text-sm font-semibold text-[#181311] disabled:opacity-50"
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-semibold text-accent-on disabled:opacity-50"
                 >
                   {deleteEntry.isPending && (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -341,7 +341,7 @@ export default function EntryEditor({
           )}
         </div>
         {!confirmDelete && (
-          <div className="sticky bottom-0 flex gap-3 border-t border-[#2f3946] bg-[#1b2127] px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+          <div className="sticky bottom-0 flex gap-3 border-t border-line-soft bg-gray-800 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
             <button
               type="button"
               onClick={() => {
@@ -350,14 +350,14 @@ export default function EntryEditor({
               }}
               disabled={isPending}
               aria-label="Remove this entry"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#2f3946] text-[#ff918a] disabled:opacity-40"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line-soft text-accent-bright disabled:opacity-40"
             >
               <Trash2 className="h-5 w-5" />
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#ff655b] px-4 font-semibold text-[#181311] transition-colors hover:bg-[#ff827a] disabled:opacity-50"
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 font-semibold text-accent-on transition-colors hover:bg-accent-warm disabled:opacity-50"
             >
               {updateEntry.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

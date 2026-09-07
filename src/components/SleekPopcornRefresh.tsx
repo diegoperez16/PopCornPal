@@ -126,10 +126,10 @@ export default function SleekPopcornRefresh({ onRefresh }: SleekPopcornRefreshPr
           active:scale-95 
           disabled:cursor-not-allowed 
           ${status === 'popping' 
-            ? 'bg-[#181d22] text-red-400 shadow-red-500/5 ring-1 ring-red-500/10' 
+            ? 'bg-surface-sunken text-red-400 shadow-red-500/5 ring-1 ring-red-500/10' 
             : status === 'success' 
-            ? 'bg-[#181d22] text-[#f6cd66] shadow-[#f6cd66]/5 ring-1 ring-[#f6cd66]/10' 
-            : 'bg-[#181d22] text-slate-300 hover:text-white hover:bg-[#1a1f2b] shadow-black/50 ring-1 ring-white/5' 
+            ? 'bg-surface-sunken text-butter-400 shadow-butter-400/5 ring-1 ring-butter-400/10' 
+            : 'bg-surface-sunken text-slate-300 hover:text-white hover:bg-[#1a1f2b] shadow-black/50 ring-1 ring-white/5' 
           } 
           ${status !== 'idle' ? 'opacity-100' : 'opacity-100'} 
         `} 
@@ -138,7 +138,7 @@ export default function SleekPopcornRefresh({ onRefresh }: SleekPopcornRefreshPr
           <RefreshCw 
             className={`absolute inset-0 w-4 h-4 transition-all duration-700 ease-in-out ${ 
               status === 'popping' ? 'animate-spin opacity-100 scale-100 text-red-500' : 
-              status === 'success' ? 'opacity-100 scale-100 text-[#f6cd66]' : 'opacity-100 scale-100 text-red-500 group-hover:rotate-180' 
+              status === 'success' ? 'opacity-100 scale-100 text-butter-400' : 'opacity-100 scale-100 text-red-500 group-hover:rotate-180' 
             }`} 
           /> 
         </div> 

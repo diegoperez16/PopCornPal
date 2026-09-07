@@ -59,7 +59,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
       <div className="flex flex-col max-h-[90dvh]">
         <div
           aria-hidden="true"
-          className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-[#45474b] md:hidden"
+          className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-line-strong md:hidden"
         />
         <header className="flex shrink-0 items-start gap-4 border-b border-white/10 p-5">
           {item.image ? (
@@ -69,7 +69,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
               className="h-24 w-16 rounded-lg object-cover bg-gray-800"
             />
           ) : (
-            <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-lg bg-[#232b33]">
+            <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-lg bg-surface-strong">
               <Clapperboard size={25} />
             </div>
           )}
@@ -96,16 +96,16 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
         </header>
         <div className="sheet-scroll overflow-y-auto px-5 py-4 space-y-5">
           {item.type === 'show' && (
-            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#171c21] p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-surface-sunken p-1">
               <button
-                className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-[#2c3440] text-white' : 'text-gray-400'}`}
+                className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-gray-700 text-white' : 'text-gray-400'}`}
                 aria-pressed={!w.episodeMode}
                 onClick={w.exitEpisodeMode}
               >
                 Whole show
               </button>
               <button
-                className={`min-h-11 rounded-lg text-sm ${w.episodeMode ? 'bg-[#2c3440] text-white' : 'text-gray-400'}`}
+                className={`min-h-11 rounded-lg text-sm ${w.episodeMode ? 'bg-gray-700 text-white' : 'text-gray-400'}`}
                 aria-pressed={w.episodeMode}
                 onClick={w.enterEpisodeMode}
               >
@@ -224,7 +224,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                       type="button"
                       onClick={() => w.setStatus(status.value)}
                       aria-pressed={w.status === status.value}
-                      className={`min-h-12 rounded-xl border px-3 text-sm font-semibold ${w.status === status.value ? 'border-[#ff8175] bg-[#ff655b]/10 text-[#ff9b8e]' : 'border-white/10 bg-[#171c21] text-gray-200'}`}
+                      className={`min-h-12 rounded-xl border px-3 text-sm font-semibold ${w.status === status.value ? 'border-accent-soft bg-accent/10 text-[#ff9b8e]' : 'border-white/10 bg-surface-sunken text-gray-200'}`}
                     >
                       {status.title}
                     </button>
@@ -298,7 +298,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
             </p>
           )}
         </div>
-        <footer className="shrink-0 border-t border-white/10 px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] bg-[#1b2127]">
+        <footer className="shrink-0 border-t border-white/10 px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] bg-gray-800">
           <button
             className="app-button-primary w-full"
             onClick={() => void w.handleSave()}
@@ -328,10 +328,10 @@ export default function AddEntryPage() {
     <main className="app-page">
       <div className="mx-auto max-w-4xl px-5 pt-8 md:pt-10">
         <h1 className="app-title">
-          What’s your latest<span className="text-[#ff8175]">?</span>
+          What’s your latest<span className="text-accent-soft">?</span>
         </h1>
         <div
-          className="grid grid-cols-4 gap-1 mt-6 mb-4 rounded-xl border border-white/10 bg-[#171c21] p-1"
+          className="grid grid-cols-4 gap-1 mt-6 mb-4 rounded-xl border border-white/10 bg-surface-sunken p-1"
           role="group"
           aria-label="Media type"
         >
@@ -340,7 +340,7 @@ export default function AddEntryPage() {
               key={type}
               aria-pressed={w.activeTab === type}
               onClick={() => w.setActiveTab(type)}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium ${w.activeTab === type ? 'bg-[#2c3440] text-[#e8eef3]' : 'text-gray-400'}`}
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium ${w.activeTab === type ? 'bg-gray-700 text-gray-50' : 'text-gray-400'}`}
             >
               <Icon size={16} />
               <span className="hidden sm:inline">{label}</span>
@@ -361,7 +361,7 @@ export default function AddEntryPage() {
           />
           {w.searching && (
             <Loader2
-              className="absolute top-4 right-4 animate-spin text-[#ff8175]"
+              className="absolute top-4 right-4 animate-spin text-accent-soft"
               size={20}
             />
           )}
@@ -451,7 +451,7 @@ export default function AddEntryPage() {
                   aria-label={`Log ${item.title}`}
                   onClick={() => w.selectItem(item)}
                 >
-                  <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-[#1b2127] border border-white/10">
+                  <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-gray-800 border border-white/10">
                     {item.image ? (
                       <img
                         src={item.image}

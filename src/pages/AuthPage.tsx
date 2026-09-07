@@ -179,7 +179,7 @@ export default function AuthPage() {
                   key={value}
                   aria-pressed={value === mode}
                   onClick={() => switchMode(value)}
-                  className={`min-h-11 rounded-lg text-sm font-semibold ${mode === value ? 'bg-[#2c3440] text-[#e8eef3]' : 'text-gray-400'}`}
+                  className={`min-h-11 rounded-lg text-sm font-semibold ${mode === value ? 'bg-gray-700 text-gray-50' : 'text-gray-400'}`}
                 >
                   {value === 'signin' ? 'Sign in' : 'Create account'}
                 </button>

@@ -110,7 +110,7 @@ export default function ActivityPage() {
   return (
     <div className="app-page text-white">
       <main className="relative z-10 max-w-3xl mx-auto px-5 pt-8 pb-8">
-        <header className="mb-6"><h1 className="app-title">The story so far<span className="text-[#ff8175]">.</span></h1></header>
+        <header className="mb-6"><h1 className="app-title">The story so far<span className="text-accent-soft">.</span></h1></header>
         {/* Quick Stats */}
         <div className="flex gap-3 mb-8">
           <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
@@ -133,7 +133,7 @@ export default function ActivityPage() {
             <p className="text-gray-400 mb-8 max-w-xs text-center">Start logging movies, games, or books to see your timeline build up.</p>
             <button
               onClick={() => navigate('/add')}
-              className="bg-[#ff655b] text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
+              className="bg-accent text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
             >
               <ArrowUpRight className="w-5 h-5" />
               Log Activity
@@ -144,7 +144,7 @@ export default function ActivityPage() {
             {sortedDates.map(date => (
               <div key={date} className="relative pl-8 md:pl-10">
                 {/* Date Marker */}
-                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-gray-900 border-2 border-[#f6cd66] ring-4 ring-gray-900"></div>
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-gray-900 border-2 border-butter-400 ring-4 ring-gray-900"></div>
                 
                 {/* Date Header */}
                 <div className="flex items-baseline gap-3 mb-6">

@@ -88,6 +88,8 @@ export type Profile = {
   bg_opacity: number | null
   bg_crop?: BackgroundCrop | null
   avatar_crop?: AvatarCrop | null
+  /** Seasonal theme id; unknown values fall back to cinema. */
+  theme?: string | null
 }
 
 export type BackgroundCrop = {

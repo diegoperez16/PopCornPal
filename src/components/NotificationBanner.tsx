@@ -142,7 +142,7 @@ export default function NotificationBanner() {
         >
           <div className="flex items-start gap-3">
             {/* Avatar */}
-            <div className="w-10 h-10 rounded-full bg-[#2c3440] flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
               {notif.from_profile.username.charAt(0).toUpperCase()}
             </div>
 
@@ -156,7 +156,7 @@ export default function NotificationBanner() {
               {!notif.is_following_back ? (
                 <button
                   onClick={() => handleFollowBack(notif.from_user_id, notif.id)}
-                  className="flex items-center gap-2 bg-[#ff655b] text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-all"
+                  className="flex items-center gap-2 bg-accent text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-all"
                 >
                   <UserPlus className="w-4 h-4" />
                   Follow Back

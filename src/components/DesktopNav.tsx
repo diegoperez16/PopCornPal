@@ -12,7 +12,7 @@ export default function DesktopNav() {
   const signOut = useAuthStore((s) => s.signOut)
   const navigate = useNavigate()
   return (
-    <header className="sticky top-0 z-40 hidden border-b border-white/[0.07] bg-[#14181c]/95 backdrop-blur-xl md:block">
+    <header className="sticky top-0 z-40 hidden border-b border-white/[0.07] bg-gray-900/95 backdrop-blur-xl md:block">
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-6 px-6">
         <Link to="/feed" aria-label="Popcorn Pal home">
           <Brand />
@@ -26,7 +26,7 @@ export default function DesktopNav() {
                 void prefetchRouteModule(path)
               }}
               className={({ isActive }) =>
-                `inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium ${isActive ? 'bg-white/[0.07] text-[#ff8175]' : 'text-gray-400 hover:text-white'}`
+                `inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium ${isActive ? 'bg-white/[0.07] text-accent-soft' : 'text-gray-400 hover:text-white'}`
               }
             >
               <Icon size={18} />
