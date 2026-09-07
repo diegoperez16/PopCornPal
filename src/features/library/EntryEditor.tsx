@@ -14,6 +14,7 @@ import {
   useUpdateEntry,
 } from '../../hooks/queries/useMediaQueries'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
+import AutoGrowTextarea from '../../components/AutoGrowTextarea'
 import { buildEntryUpdates } from './libraryModel'
 import type { EntryDraft } from './libraryModel'
 
@@ -106,7 +107,7 @@ export default function EntryEditor({
         event.preventDefault()
         if (!isPending) onClose()
       }}
-      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto rounded-t-[28px] border border-[#2f3946] bg-[#1b2127] p-0 text-[#f4f0e8] shadow-2xl backdrop:bg-black/75 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
+      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto sheet-scroll rounded-t-[28px] border border-[#2f3946] bg-[#1b2127] p-0 text-[#f4f0e8] shadow-2xl backdrop:bg-black/75 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
     >
       <div
         className="mx-auto mt-3 h-1 w-10 rounded-full bg-[#45474b] sm:hidden"
@@ -271,7 +272,7 @@ export default function EntryEditor({
                     (optional)
                   </span>
                 </label>
-                <textarea
+                <AutoGrowTextarea
                   id="entry-review"
                   value={draft.notes}
                   disabled={isPending}
@@ -281,8 +282,9 @@ export default function EntryEditor({
                       notes: event.target.value,
                     }))
                   }
-                  rows={4}
-                  className="w-full resize-none rounded-xl border border-[#2f3946] bg-[#14181c] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b] sm:resize-y"
+                  minRows={4}
+                  maxRows={14}
+                  className="w-full rounded-xl border border-[#2f3946] bg-[#14181c] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
                   placeholder="The moment that stayed with you…"
                 />
               </div>

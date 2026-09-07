@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMediaQueries'
+import { usePeopleCounts } from './queries/usePeopleQueries'
+import { useSocialStore } from '../store/socialStore'
 import type { MediaEntry } from './queries/useMediaQueries'
 import { supabase, type UserBadge } from '../lib/supabase'
 import { authedQuery } from '../lib/queryClient'
@@ -23,8 +25,11 @@ export function useProfilePage() {
     setProfileScrollPos: s.setProfileScrollPos,
   })))
 
+  const setPeopleActiveTab = useSocialStore((s) => s.setPeopleActiveTab)
+
   // TanStack Query for server data
   const { data: entries = [] } = useMediaEntries(user?.id ?? '')
+  const { data: peopleCounts } = usePeopleCounts(user?.id ?? '')
   const { mutate: updateEntryMutation } = useUpdateEntry(user?.id ?? '')
   const { mutate: deleteEntryMutation } = useDeleteEntry(user?.id ?? '')
 
@@ -499,6 +504,13 @@ export function useProfilePage() {
       setEditNotes(selectedEntry.notes || '')
     }
   }, [selectedEntry])
+
+  // Your own follower lists already live on the People page, so the profile
+  // counts open that page on the matching tab rather than duplicating it.
+  const openPeopleTab = (tab: 'followers' | 'following') => {
+    setPeopleActiveTab(tab)
+    navigate('/people')
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -983,6 +995,9 @@ export function useProfilePage() {
     cropperUserPreview,
     colorEffects,
     // Handlers
+    followersCount: peopleCounts?.followersCount ?? 0,
+    followingCount: peopleCounts?.followingCount ?? 0,
+    openPeopleTab,
     handleSignOut,
     handleSaveProfile,
     handleBgUpload,

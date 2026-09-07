@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import DecimalRating from '../components/DecimalRating'
+import AutoGrowTextarea from '../components/AutoGrowTextarea'
 import PalMark from '../components/brand/PalMark'
 import { useAddEntryPage, type WatchStatus } from '../hooks/useAddEntryPage'
 import { localDateString } from '../lib/addEntryDraft'
@@ -93,7 +94,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
             <X size={20} />
           </button>
         </header>
-        <div className="overflow-y-auto overscroll-contain p-5 space-y-6">
+        <div className="sheet-scroll overflow-y-auto px-5 py-4 space-y-5">
           {item.type === 'show' && (
             <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#171c21] p-1">
               <button
@@ -265,10 +266,11 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                     · optional
                   </span>
                 </label>
-                <textarea
+                <AutoGrowTextarea
                   id="entry-notes"
-                  rows={3}
-                  className="app-input resize-none"
+                  minRows={4}
+                  maxRows={14}
+                  className="app-input leading-relaxed"
                   placeholder="Any thoughts?"
                   value={w.notes}
                   onChange={(e) => w.setNotes(e.target.value)}

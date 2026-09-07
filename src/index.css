@@ -341,5 +341,9 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .log-empty { background: radial-gradient(ellipse at 100% 0, #f6cd660f, transparent 70%), #181d22; }
 .log-sheet { width: calc(100% - 24px); max-width: 510px; padding: 0; margin: auto; border: 1px solid #2f3946; border-radius: 24px; background: #1b2127; color: var(--pp-text); max-height: 90dvh; }
 .log-sheet::backdrop { background: #0d1013d9; backdrop-filter: blur(7px); }
+/* A sheet's body should feel like one panel, not a scrolling page inside a
+   box: no rubber-band, no scroll escaping to the page behind it. */
+.sheet-scroll { overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
+.sheet-scroll::-webkit-scrollbar { width: 0; }
 @media (max-width: 767px) { .log-sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 24px 24px 0 0; border-bottom: 0; } }
 .feed-ticket { background: radial-gradient(ellipse at 90% 0, #f6cd6614, transparent 80%), #1c222a; border: 1px solid #333e4b; }

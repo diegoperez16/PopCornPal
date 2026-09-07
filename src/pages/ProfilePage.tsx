@@ -89,6 +89,9 @@ export default function ProfilePage() {
     regularBadges,
     cropperUserPreview,
     colorEffects,
+    followersCount,
+    followingCount,
+    openPeopleTab,
     handleSignOut,
     handleSaveProfile,
     handleBgUpload,
@@ -269,6 +272,17 @@ export default function ProfilePage() {
                 <p className="text-gray-300 mt-2 text-sm leading-relaxed">
                   {profile.bio ? profile.bio : <span className="text-gray-500 italic">No bio yet.</span>}
                 </p>
+
+                <div className="mt-3 flex gap-5">
+                  <button onClick={() => openPeopleTab('followers')} className="text-left group">
+                    <span className="text-lg font-bold text-white group-hover:text-[#f6cd66] transition-colors">{followersCount}</span>
+                    <span className="text-gray-500 text-sm ml-1.5">Followers</span>
+                  </button>
+                  <button onClick={() => openPeopleTab('following')} className="text-left group">
+                    <span className="text-lg font-bold text-white group-hover:text-[#f6cd66] transition-colors">{followingCount}</span>
+                    <span className="text-gray-500 text-sm ml-1.5">Following</span>
+                  </button>
+                </div>
 
                 {/* Badges */}
                 {userBadges.length > 0 && (
