@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { useThemeStore } from '../../store/themeStore'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
 import HouseRing from './HouseRing'
+import { Loader2, Sparkles } from 'lucide-react'
 import {
   HOUSES,
   HOUSE_LIST,
   SORTING_MINIMUM,
   isHouseId,
-  sortByShelf,
   type HouseId,
 } from './houseModel'
+import { useSorting } from './useSorting'
 
 function Crest({ house }: { house: HouseId }) {
   const [wool, stripe] = HOUSES[house].colors
@@ -44,10 +45,13 @@ export default function HouseCard({
 }) {
   const themeId = useThemeStore((state) => state.theme.id)
   const [picking, setPicking] = useState(false)
+  const [readNotes, setReadNotes] = useState(false)
+  const { sorting, thinking, usedFallback, sort } = useSorting(entries)
   if (themeId !== 'wizarding') return null
 
   const sorted = isHouseId(house) ? HOUSES[house] : null
-  const proposal = sorted ? null : sortByShelf(entries)
+  const proposal = sorted ? null : sorting
+  const enoughShelf = entries.length >= SORTING_MINIMUM
   const shelfSize = entries.length
 
   return (
@@ -94,6 +98,11 @@ export default function HouseCard({
               <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
                 {proposal.because}
               </p>
+              {usedFallback && (
+                <p className="mt-1 text-[11px] text-gray-600">
+                  Sorted on this device — the Sorting could not be reached.
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-3 flex gap-2">
@@ -118,17 +127,53 @@ export default function HouseCard({
       {!sorted && !picking && !proposal && (
         <div>
           <p className="text-xs leading-relaxed text-gray-400">
-            The Sorting reads your shelf, and yours is still short. Log{' '}
-            {Math.max(1, SORTING_MINIMUM - shelfSize)} more and it will have
-            something to go on — or pick for yourself.
+            {enoughShelf
+              ? 'The Sorting reads what you have watched, played and read, and how you rate it.'
+              : `The Sorting reads your shelf, and yours is still short. Log ${Math.max(1, SORTING_MINIMUM - shelfSize)} more and it will have something to go on — or pick for yourself.`}
           </p>
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="mt-3 min-h-11 w-full rounded-xl border border-gray-700 text-sm font-semibold text-gray-300"
-          >
-            Choose my own
-          </button>
+          {enoughShelf && (
+            <label className="mt-3 flex items-start gap-2 text-xs leading-snug text-gray-500">
+              <input
+                type="checkbox"
+                checked={readNotes}
+                onChange={(event) => setReadNotes(event.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+              />
+              <span>
+                Also read my notes. They make the reason sharper, but your
+                writing leaves your library to be read.
+              </span>
+            </label>
+          )}
+          <div className="mt-3 flex gap-2">
+            {enoughShelf && (
+              <button
+                type="button"
+                disabled={thinking}
+                onClick={() => void sort({ includeNotes: readNotes })}
+                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-accent-on disabled:opacity-60"
+              >
+                {thinking ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Reading your shelf…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Sort me
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="min-h-11 flex-1 rounded-xl border border-gray-700 text-sm font-semibold text-gray-300"
+            >
+              Choose my own
+            </button>
+          </div>
         </div>
       )}
 
