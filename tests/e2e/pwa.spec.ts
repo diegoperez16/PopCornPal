@@ -57,7 +57,7 @@ test('production manifest, install icons, service worker and offline navigation 
   ).toBeVisible()
 })
 
-test('small phones retain zoom and the auth form has no horizontal overflow', async ({
+test('small phones hold a fixed scale and the auth form has no horizontal overflow', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 640 })
@@ -65,8 +65,11 @@ test('small phones retain zoom and the auth form has no horizontal overflow', as
   const viewport = await page
     .locator('meta[name="viewport"]')
     .getAttribute('content')
-  expect(viewport).not.toContain('user-scalable=no')
+  // Scale is locked on purpose so the layout keeps an app's proportions; the
+  // layout must therefore fit a small phone without any zooming out.
+  expect(viewport).toContain('user-scalable=no')
   expect(viewport).toContain('viewport-fit=cover')
+  expect(viewport).toContain('interactive-widget=resizes-content')
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth)
   ).toBeLessThanOrEqual(320)

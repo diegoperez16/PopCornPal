@@ -1,16 +1,12 @@
-// Zoom stays available in a browser tab, where pinch-zoom is the user's only
-// way to enlarge text and removing it would fail WCAG 1.4.4. Once the app is
-// installed to the home screen the browser's own zoom and text controls are
-// gone and accidental pinch/double-tap scaling just breaks the layout, so the
-// installed app locks scale the way a native one does.
-const STANDALONE_VIEWPORT = [
-  'width=device-width',
-  'initial-scale=1.0',
-  'viewport-fit=cover',
-  'interactive-widget=resizes-content',
-  'user-scalable=no',
-  'maximum-scale=1',
-].join(', ')
+// The layout holds a fixed scale so it keeps an app's proportions instead of
+// a page's. The viewport meta covers Android and the installed app; iOS Safari
+// deliberately ignores user-scalable=no in a browser tab, so pinch has to be
+// cancelled at the gesture level there as well.
+//
+// Trade-off, deliberate: pinch is normally a reader's only way to enlarge text
+// in a tab. Body copy is therefore kept at 16px or larger, and the iOS
+// system-wide Accessibility zoom still magnifies the whole screen.
+const PINCH_GESTURES = ['gesturestart', 'gesturechange', 'gestureend']
 
 export function isStandalone(): boolean {
   return (
@@ -22,10 +18,22 @@ export function isStandalone(): boolean {
   )
 }
 
-export function applyStandaloneChrome() {
-  if (!isStandalone()) return
-  document.documentElement.classList.add('is-standalone')
-  document
-    .querySelector('meta[name="viewport"]')
-    ?.setAttribute('content', STANDALONE_VIEWPORT)
+/** Cancels WebKit pinch-to-zoom, which the viewport meta cannot disable in a tab. */
+export function lockPinchZoom() {
+  const cancel = (event: Event) => event.preventDefault()
+  for (const type of PINCH_GESTURES) {
+    document.addEventListener(type, cancel, { passive: false })
+  }
+  return () => {
+    for (const type of PINCH_GESTURES) {
+      document.removeEventListener(type, cancel)
+    }
+  }
+}
+
+export function applyAppChrome() {
+  lockPinchZoom()
+  if (isStandalone()) {
+    document.documentElement.classList.add('is-standalone')
+  }
 }

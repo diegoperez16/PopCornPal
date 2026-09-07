@@ -1,12 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { applyStandaloneChrome, isStandalone } from '../src/lib/appDisplay.ts'
+import {
+  applyAppChrome,
+  isStandalone,
+  lockPinchZoom,
+} from '../src/lib/appDisplay.ts'
 
 type Stub = { displayMode?: string; iosStandalone?: boolean }
 
-function stubEnvironment({ displayMode, iosStandalone }: Stub) {
+function stubEnvironment({ displayMode, iosStandalone }: Stub = {}) {
   const classes = new Set<string>()
-  let viewport = 'width=device-width, initial-scale=1.0, viewport-fit=cover'
+  const listeners = new Map<string, EventListener>()
 
   globalThis.window = {
     matchMedia: (query: string) => ({
@@ -21,34 +25,49 @@ function stubEnvironment({ displayMode, iosStandalone }: Stub) {
   })
   globalThis.document = {
     documentElement: { classList: { add: (c: string) => classes.add(c) } },
-    querySelector: () => ({
-      setAttribute: (_: string, value: string) => {
-        viewport = value
-      },
-    }),
+    addEventListener: (type: string, fn: EventListener) =>
+      listeners.set(type, fn),
+    removeEventListener: (type: string) => listeners.delete(type),
   } as unknown as Document
 
-  return { classes, viewport: () => viewport }
+  return { classes, listeners }
 }
 
-test('a browser tab keeps pinch zoom available', () => {
-  const env = stubEnvironment({})
-  assert.equal(isStandalone(), false)
-  applyStandaloneChrome()
-  assert.ok(!env.viewport().includes('user-scalable=no'))
-  assert.equal(env.classes.has('is-standalone'), false)
+test('pinch gestures are cancelled so the layout keeps its scale', () => {
+  const env = stubEnvironment()
+  applyAppChrome()
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+    assert.ok(env.listeners.has(type), `${type} is not intercepted`)
+  }
+  let prevented = false
+  env.listeners.get('gesturestart')?.({
+    preventDefault: () => {
+      prevented = true
+    },
+  } as unknown as Event)
+  assert.equal(prevented, true)
 })
 
-test('an installed app locks scale so pinching cannot break the layout', () => {
+test('the zoom lock releases every listener it added', () => {
+  const env = stubEnvironment()
+  const release = lockPinchZoom()
+  assert.equal(env.listeners.size, 3)
+  release()
+  assert.equal(env.listeners.size, 0)
+})
+
+test('an installed app is flagged for standalone-only styling', () => {
   const env = stubEnvironment({ displayMode: 'standalone' })
   assert.equal(isStandalone(), true)
-  applyStandaloneChrome()
-  assert.ok(env.viewport().includes('user-scalable=no'))
-  assert.ok(env.viewport().includes('maximum-scale=1'))
-  // The keyboard still has to be able to resize the sheet.
-  assert.ok(env.viewport().includes('interactive-widget=resizes-content'))
-  assert.ok(env.viewport().includes('viewport-fit=cover'))
+  applyAppChrome()
   assert.ok(env.classes.has('is-standalone'))
+})
+
+test('a browser tab is not flagged as standalone', () => {
+  const env = stubEnvironment()
+  assert.equal(isStandalone(), false)
+  applyAppChrome()
+  assert.equal(env.classes.has('is-standalone'), false)
 })
 
 test('iOS home-screen apps are detected without display-mode', () => {
