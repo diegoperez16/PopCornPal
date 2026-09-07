@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { History } from 'lucide-react'
 import { prefetchRouteModule } from '../lib/routeLoaders'
@@ -60,6 +60,7 @@ export default function MobileNav() {
     startX: number
     startY: number
     moved: boolean
+    detach: () => void
   } | null>(null)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const location = useLocation()
@@ -75,15 +76,68 @@ export default function MobileNav() {
     close()
   }
 
-  const finishGesture = (clientX: number, clientY: number) => {
-    const active = gesture.current
+  const endGesture = () => {
+    gesture.current?.detach()
     gesture.current = null
     setHoverIndex(null)
-    if (!active?.moved) return // plain tap: leave the wheel open
-    const slot = slotAt(clientX, clientY)
-    if (slot !== null) navigate(destinations[slot].path)
-    close()
   }
+
+  // The drag is tracked on window rather than on the launcher or the dialog:
+  // opening the wheel mid-press makes the launcher inert and hands hit-testing
+  // to the modal, so element-scoped listeners drop the rest of the gesture on
+  // real touch devices.
+  const beginGesture = (event: React.PointerEvent) => {
+    gesture.current?.detach()
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const active = gesture.current
+      if (!active || active.pointerId !== moveEvent.pointerId) return
+      if (
+        Math.hypot(
+          moveEvent.clientX - active.startX,
+          moveEvent.clientY - active.startY
+        ) > SLIDE_THRESHOLD
+      ) {
+        active.moved = true
+      }
+      setHoverIndex(
+        active.moved ? slotAt(moveEvent.clientX, moveEvent.clientY) : null
+      )
+    }
+
+    const onUp = (upEvent: PointerEvent) => {
+      const active = gesture.current
+      if (!active || active.pointerId !== upEvent.pointerId) return
+      const slid = active.moved
+      endGesture()
+      if (!slid) return // plain tap: leave the wheel open
+      const slot = slotAt(upEvent.clientX, upEvent.clientY)
+      if (slot !== null) navigate(destinations[slot].path)
+      close()
+    }
+
+    const onCancel = (cancelEvent: PointerEvent) => {
+      if (gesture.current?.pointerId === cancelEvent.pointerId) endGesture()
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+
+    gesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      detach: () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        window.removeEventListener('pointercancel', onCancel)
+      },
+    }
+  }
+
+  useEffect(() => () => gesture.current?.detach(), [])
 
   const aimedLabel =
     hoverIndex !== null ? destinations[hoverIndex].label : null
@@ -99,19 +153,7 @@ export default function MobileNav() {
           // navigation inside the dialog breaks.
           event.preventDefault()
           open()
-          // Drop the implicit touch capture so slide moves hit-test against
-          // the full-viewport dialog instead of the (now inert) launcher.
-          try {
-            launcher.current?.releasePointerCapture(event.pointerId)
-          } catch {
-            /* not captured */
-          }
-          gesture.current = {
-            pointerId: event.pointerId,
-            startX: event.clientX,
-            startY: event.clientY,
-            moved: false,
-          }
+          beginGesture(event)
         }}
         aria-haspopup="dialog"
         aria-label="Open navigation"
@@ -125,32 +167,8 @@ export default function MobileNav() {
         className="radial-dialog"
         aria-label="Popcorn Pal navigation"
         onClose={() => {
-          gesture.current = null
-          setHoverIndex(null)
+          endGesture()
           launcher.current?.focus()
-        }}
-        onPointerMove={(event) => {
-          const active = gesture.current
-          if (!active || active.pointerId !== event.pointerId) return
-          if (
-            Math.hypot(
-              event.clientX - active.startX,
-              event.clientY - active.startY
-            ) > SLIDE_THRESHOLD
-          ) {
-            active.moved = true
-          }
-          setHoverIndex(
-            active.moved ? slotAt(event.clientX, event.clientY) : null
-          )
-        }}
-        onPointerUp={(event) => {
-          if (gesture.current?.pointerId !== event.pointerId) return
-          finishGesture(event.clientX, event.clientY)
-        }}
-        onPointerCancel={() => {
-          gesture.current = null
-          setHoverIndex(null)
         }}
         onClick={(event) => {
           if (event.target === event.currentTarget) close()
