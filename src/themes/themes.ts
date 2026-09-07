@@ -171,7 +171,7 @@ export const SPIDER = season(
   {
     // The suit is red body, blue panels. The page is the body; every card,
     // post and sheet is a panel — so red never floods and blue always shows.
-    'gray-900': '26 9 12',
+    'gray-900': '24 6 7',
     'gray-800': '23 38 92',
     'gray-700': '38 60 132',
     'gray-600': '54 82 166',
@@ -179,7 +179,7 @@ export const SPIDER = season(
     'gray-400': '146 174 226',
     'gray-300': '196 214 240',
 
-    bg: '26 9 12',
+    bg: '24 6 7',
     surface: '23 38 92',
     'surface-strong': '32 52 116',
     'surface-sunken': '18 30 74',
@@ -192,10 +192,10 @@ export const SPIDER = season(
     parchment: '232 238 252',
     muted: '146 174 226',
 
-    accent: '230 36 41',
-    'accent-soft': '252 62 66',
-    'accent-warm': '242 48 52',
-    'accent-bright': '255 104 106',
+    accent: '237 28 36',
+    'accent-soft': '255 49 56',
+    'accent-warm': '248 38 44',
+    'accent-bright': '255 92 96',
     'accent-deep': '255 240 240',
     'on-accent': '255 240 240',
 

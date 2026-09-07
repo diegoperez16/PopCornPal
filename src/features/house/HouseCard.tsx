@@ -44,7 +44,18 @@ export default function HouseCard({
   const themeId = useThemeStore((state) => state.theme.id)
   const [picking, setPicking] = useState(false)
   const [readNotes, setReadNotes] = useState(false)
-  const { sorting, thinking, usedFallback, sort } = useSorting(entries)
+  const { sorting, thinking, usedFallback, sort, clear } = useSorting(entries)
+
+  /**
+   * Choosing settles it. The proposal has to be dropped as well as saved —
+   * leaving it up meant the card kept re-rendering the Sorting's house, so a
+   * manual pick appeared to do nothing and the house looked stuck.
+   */
+  const choose = (id: HouseId) => {
+    onChoose(id)
+    clear()
+    setPicking(false)
+  }
   if (themeId !== 'wizarding') return null
 
   // A fresh proposal outranks the saved house until it is accepted or dismissed.
@@ -105,7 +116,7 @@ export default function HouseCard({
           <div className="mt-3 flex gap-2">
             <button
               type="button"
-              onClick={() => onChoose(proposal.house.id)}
+              onClick={() => choose(proposal.house.id)}
               className="min-h-11 flex-1 rounded-xl bg-accent text-sm font-semibold text-accent-on"
             >
               That&rsquo;s me
@@ -199,10 +210,7 @@ export default function HouseCard({
             <button
               key={option.id}
               type="button"
-              onClick={() => {
-                onChoose(option.id)
-                setPicking(false)
-              }}
+              onClick={() => choose(option.id)}
               className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors ${
                 option.id === house
                   ? 'border-accent bg-accent/10'
