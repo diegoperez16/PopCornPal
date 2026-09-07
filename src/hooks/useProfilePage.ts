@@ -7,6 +7,17 @@ import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMe
 import { usePeopleCounts } from './queries/usePeopleQueries'
 import { useSocialStore } from '../store/socialStore'
 import type { MediaEntry } from './queries/useMediaQueries'
+
+/** A row of profile_favorites, joined to the entry it points at. */
+type FavoriteRow = {
+  id: string
+  media_entry_id: string
+  created_at?: string
+  /** all | movie | show | game | book. Absent on rows created before lists. */
+  list?: string | null
+  media_entry?: MediaEntry | null
+}
+type FavoriteList = 'all' | 'movie' | 'show' | 'game' | 'book'
 import { supabase, type UserBadge } from '../lib/supabase'
 import { authedQuery } from '../lib/queryClient'
 import { persistProfileImage } from '../lib/profileImages'
@@ -34,7 +45,9 @@ export function useProfilePage() {
   const { mutate: deleteEntryMutation } = useDeleteEntry(user?.id ?? '')
 
   // Local state for profile-specific data not in TQ
-  const [favorites, setFavorites] = useState<any[]>([])
+  const [allFavorites, setAllFavorites] = useState<FavoriteRow[]>([])
+  // Which top ten is on screen. 'all' is the overall list people already have.
+  const [favoriteList, setFavoriteList] = useState<FavoriteList>('all')
   const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   const [availableBadges, setAvailableBadges] = useState<any[]>([])
   const [profileLoaded, setProfileLoaded] = useState(false)
@@ -44,6 +57,21 @@ export function useProfilePage() {
     updateEntryMutation({ id, updates })
   const deleteEntry = (id: string) =>
     deleteEntryMutation(id)
+
+  // The visible top ten. Reordering and adding only ever touch this one.
+  const favorites = allFavorites.filter((fav) => (fav.list ?? 'all') === favoriteList)
+  const favoriteCounts = allFavorites.reduce<Record<string, number>>((counts, fav) => {
+    const list = fav.list ?? 'all'
+    counts[list] = (counts[list] ?? 0) + 1
+    return counts
+  }, {})
+
+  /** Replaces the visible list in place, leaving the other lists alone. */
+  const setFavorites = (next: FavoriteRow[]) =>
+    setAllFavorites((current) => [
+      ...current.filter((fav) => (fav.list ?? 'all') !== favoriteList),
+      ...next,
+    ])
 
   const navigate = useNavigate()
 
@@ -235,17 +263,18 @@ export function useProfilePage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: true })
     )
-    if (data) setFavorites(data)
+    // Rows created before lists existed have no value; they belong to 'all'.
+    if (data) setAllFavorites((data as FavoriteRow[]).map((row) => ({ ...row, list: row.list ?? 'all' })))
   }
 
   const handleAddFavorite = async (entryId: string) => {
     if (!user) return
     if (favorites.length >= 10) {
-      alert('You can only have 10 favorites!')
+      alert('That top ten is full — remove one first.')
       return
     }
     if (favorites.some(fav => fav.media_entry_id === entryId)) {
-      alert('Already in favorites')
+      alert('Already in this top ten')
       return
     }
     try {
@@ -253,15 +282,17 @@ export function useProfilePage() {
         .from('profile_favorites')
         .select('id')
         .eq('user_id', user.id)
+        .eq('list', favoriteList)
         .eq('media_entry_id', entryId)
         .maybeSingle()
       if (existing) {
-        alert('Already in favorites')
+        alert('Already in this top ten')
         return
       }
       await supabase.from('profile_favorites').insert({
         user_id: user.id,
-        media_entry_id: entryId
+        media_entry_id: entryId,
+        list: favoriteList
       })
       await fetchFavorites()
       setShowMediaSelector(false)
@@ -275,7 +306,7 @@ export function useProfilePage() {
     if (!window.confirm('Remove from favorites?')) return
     try {
       await supabase.from('profile_favorites').delete().eq('id', favId)
-      setFavorites(favorites.filter(f => f.id !== favId))
+      setAllFavorites(current => current.filter(f => f.id !== favId))
     } catch (error) {
       console.error('Error removing favorite:', error)
     }
@@ -915,6 +946,9 @@ export function useProfilePage() {
     profile,
     entries,
     favorites,
+    favoriteList,
+    setFavoriteList,
+    favoriteCounts,
     userBadges,
     availableBadges,
     // State

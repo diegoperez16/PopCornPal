@@ -6,6 +6,14 @@ import HouseRing from '../features/house/HouseRing'
 import HouseCard from '../features/house/HouseCard'
 import { verdictFor } from '../features/verdict/verdictModel'
 import ThemePicker from '../components/ThemePicker'
+
+const favoriteLists = [
+  { id: 'all', label: 'All time' },
+  { id: 'movie', label: 'Movies' },
+  { id: 'show', label: 'Shows' },
+  { id: 'game', label: 'Games' },
+  { id: 'book', label: 'Books' },
+] as const
 import { collectUniqueMedia } from '../features/library/libraryModel'
 import GifPicker from '../components/GifPicker'
 import ProfileSkeleton from '../components/ProfileSkeleton'
@@ -19,6 +27,9 @@ export default function ProfilePage() {
     profile,
     entries,
     favorites,
+    favoriteList,
+    setFavoriteList,
+    favoriteCounts,
     userBadges,
     availableBadges,
     initialLoading,
@@ -537,7 +548,7 @@ export default function ProfilePage() {
           <ThemePicker />
         </div>
 
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Top Picks</p>
 
             <div className="flex items-center gap-2">
@@ -572,6 +583,37 @@ export default function ProfilePage() {
                 )}
               </button>
             </div>
+          </div>
+
+          <div
+            className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1"
+            role="tablist"
+            aria-label="Which top ten"
+          >
+            {favoriteLists.map(({ id, label }) => {
+              const count = favoriteCounts[id] ?? 0
+              const current = favoriteList === id
+              return (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={current}
+                  onClick={() => setFavoriteList(id)}
+                  className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
+                    current
+                      ? 'border-accent bg-accent/10 text-accent-soft'
+                      : 'border-gray-700 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {label}
+                  {count > 0 && (
+                    <span className={current ? 'text-accent-soft/70' : 'text-gray-600'}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
           {/* Favorites Grid / Carousel Container */}
@@ -917,6 +959,8 @@ export default function ProfilePage() {
                 <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
               ) : (() => {
                 const filteredEntries = collectUniqueMedia(entries).filter(entry => {
+                  // A type-specific top ten can only hold that type.
+                  if (favoriteList !== 'all' && entry.media_type !== favoriteList) return false
                   const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
                   const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
                   const notInFavorites = !favorites.some(f => f.media_entry_id === entry.id)
