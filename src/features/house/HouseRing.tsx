@@ -22,26 +22,9 @@ export default function HouseRing({
   const { name, colors } = HOUSES[house]
   const [wool, stripe] = colors
 
-  // Stitches read as knitting rather than a printed band; a few too many and
-  // they turn to mush at small sizes, a few too few and it looks machined.
-  const stitches = Array.from({ length: 34 }, (_, i) => {
-    const angle = ((i * (360 / 34) - 90) * Math.PI) / 180
-    const x = 50 + Math.cos(angle) * 44
-    const y = 50 + Math.sin(angle) * 44
-    const rotation = (angle * 180) / Math.PI + 90
-    return (
-      <path
-        key={i}
-        d={`M${x - 2.1} ${y + 1.5} l2.1 -2.6 l2.1 2.6`}
-        fill="none"
-        stroke={stripe}
-        strokeWidth="1.05"
-        strokeLinecap="round"
-        opacity=".75"
-        transform={`rotate(${rotation} ${x} ${y})`}
-      />
-    )
-  })
+  // Eight wide bands, not sixteen narrow ones: a real scarf has few, broad
+  // stripes, and anything finer turns to mush by the time the avatar is 40px.
+  const circumference = 2 * Math.PI * 44
 
   return (
     <span className="relative inline-flex shrink-0">
@@ -59,23 +42,25 @@ export default function HouseRing({
           <path d="M56 90 l2.5 13.5" stroke={wool} strokeWidth="2.6" />
           <path d="M61 88 l4 13" stroke={stripe} strokeWidth="2.6" />
         </g>
-        <circle cx="50" cy="50" r="44" fill="none" stroke={wool} strokeWidth="9" />
+        <circle cx="50" cy="50" r="44" fill="none" stroke={wool} strokeWidth="9.5" />
         <circle
           cx="50"
           cy="50"
           r="44"
           fill="none"
           stroke={stripe}
-          strokeWidth="9"
-          strokeDasharray="8.6 8.6"
-          strokeDashoffset="4.3"
+          strokeWidth="9.5"
+          strokeDasharray={`${circumference / 16} ${circumference / 16}`}
+          strokeDashoffset={circumference / 32}
         />
-        {stitches}
-        {/* A dark lip where the wool meets the photo, so they never blend. */}
+        {/* Dark lips top and bottom give the wool a thickness of its own
+            rather than letting it float on the background. */}
+        <circle cx="50" cy="50" r="48.8" fill="none" stroke="rgb(var(--pp-gray-950-rgb))" strokeWidth="1.8" opacity=".55" />
+        <circle cx="50" cy="50" r="39.4" fill="none" stroke="rgb(var(--pp-gray-950-rgb))" strokeWidth="1.8" opacity=".55" />
         <circle
           cx="50"
           cy="50"
-          r="39.6"
+          r="37.6"
           fill="none"
           stroke="rgb(var(--pp-gray-950-rgb))"
           strokeWidth="1.6"
