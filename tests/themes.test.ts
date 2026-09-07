@@ -2,16 +2,22 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   CINEMA,
+  DEFAULT_THEME_ID,
   THEMES,
   applyTheme,
   getTheme,
 } from '../src/themes/themes.ts'
 
-test('an unknown or missing theme falls back to the house style', () => {
+test('an unknown or missing theme falls back to the current season', () => {
   for (const value of [null, undefined, '', 'batman', 'CINEMA']) {
-    assert.equal(getTheme(value).id, 'cinema')
+    assert.equal(getTheme(value).id, DEFAULT_THEME_ID)
   }
-  assert.equal(getTheme('lantern').id, 'lantern')
+  assert.equal(getTheme('cinema').id, 'cinema')
+  assert.equal(getTheme('wizarding').id, 'wizarding')
+})
+
+test('the default season is a real theme, so nobody lands on a missing one', () => {
+  assert.ok(THEMES.some((theme) => theme.id === DEFAULT_THEME_ID))
 })
 
 test('cinema keeps the exact colours the app shipped with', () => {

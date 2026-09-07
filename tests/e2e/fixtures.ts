@@ -1,4 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test'
+// Imported rather than hardcoded so bumping the tour cannot silently make the
+// welcome modal appear over every test.
+import { WELCOME_VERSION } from '../../src/lib/welcomeVersion.ts'
 export const USER_ID = '10000000-0000-4000-8000-000000000001'
 const FRIEND_ID = '10000000-0000-4000-8000-000000000002'
 export const profile = {
@@ -111,18 +114,18 @@ export async function mockBackend(
     },
   ]
   await context.addInitScript(
-    ({ authSession, signedIn }) => {
+    ({ authSession, signedIn, welcomeVersion }) => {
       if (!sessionStorage.getItem('fixture-initialized')) {
         if (signedIn)
           localStorage.setItem(
             'sb-preview-auth-token',
             JSON.stringify(authSession)
           )
-        localStorage.setItem('popcorn_welcome_v', '3')
+        localStorage.setItem('popcorn_welcome_v', welcomeVersion)
         sessionStorage.setItem('fixture-initialized', 'true')
       }
     },
-    { authSession, signedIn }
+    { authSession, signedIn, welcomeVersion: WELCOME_VERSION }
   )
   await context.route('https://image.tmdb.org/**', async (route) => {
     const index = Number(

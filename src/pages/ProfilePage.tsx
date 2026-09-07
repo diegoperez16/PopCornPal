@@ -520,6 +520,11 @@ export default function ProfilePage() {
 
         {/* --- FAVORITES SHELF --- */}
         <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+        <div className="mb-7">
+          <ThemePicker compact />
+        </div>
+
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Top Picks</p>
 
@@ -818,7 +823,6 @@ export default function ProfilePage() {
 
         {/* Logout */}
         <div className="mt-8 pb-24 md:hidden">
-          <ThemePicker />
           <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 text-gray-400 rounded-full transition-all"><LogOut className="w-5 h-5" /> <span className="font-medium">Sign Out</span></button>
         </div>
       </main>

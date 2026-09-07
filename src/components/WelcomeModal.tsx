@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
   X, Download, Bell, BellOff, Wifi, Zap, Share2, Plus, Check,
-  ChevronRight, ChevronLeft, Smartphone, Film, Heart, MessageCircle,
-  Users, CornerDownLeft, ExternalLink,
+  ChevronRight, ChevronLeft, Smartphone, Heart, MessageCircle,
+  Users, CornerDownLeft, ExternalLink, Compass, NotebookPen, Sparkles,
 } from 'lucide-react'
 import { useInstallPrompt } from '../hooks/useInstallPrompt'
+import { WELCOME_VERSION } from '../lib/welcomeVersion'
+import PalMark from './brand/PalMark'
+import ThemePicker from './ThemePicker'
 import {
   canUsePushNotifications,
   getNotificationPermission,
@@ -13,7 +16,7 @@ import {
   isSubscribedToPush,
 } from '../lib/push'
 
-const WELCOME_VERSION = '3'
+
 
 export function shouldShowWelcome(): boolean {
   try { return localStorage.getItem('popcorn_welcome_v') !== WELCOME_VERSION } catch { return false }
@@ -28,8 +31,8 @@ interface WelcomeModalProps {
   onClose: () => void
 }
 
-type Step = 'welcome' | 'install' | 'notifications'
-const STEPS: Step[] = ['welcome', 'install', 'notifications']
+type Step = 'welcome' | 'season' | 'install' | 'notifications'
+const STEPS: Step[] = ['welcome', 'season', 'install', 'notifications']
 
 export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
   const [step, setStep] = useState<Step>('welcome')
@@ -105,7 +108,7 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
                   <div
                     key={s}
                     className={`rounded-full transition-all duration-300 ${
-                      i === stepIndex ? 'w-5 h-2 bg-red-500' : 'w-2 h-2 bg-gray-700'
+                      i === stepIndex ? 'w-5 h-2 bg-accent' : 'w-2 h-2 bg-gray-700'
                     }`}
                   />
                 ))}
@@ -119,6 +122,7 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
           {/* Step content */}
           <div className="flex-1 overflow-y-auto px-6 pb-4">
             {step === 'welcome' && <WelcomeStep />}
+            {step === 'season' && <SeasonStep />}
             {step === 'install' && (
               <InstallStep
                 isIOS={isIOS}
@@ -143,7 +147,7 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
           <div className="flex-shrink-0 px-6 pb-6 pt-2">
             <button
               onClick={goNext}
-              className="w-full py-3.5 rounded-2xl bg-accent hover:bg-accent-soft text-white font-bold text-sm transition-all active:scale-95 shadow-lg shadow-red-900/30 flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-2xl bg-accent hover:bg-accent-soft text-accent-on font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               {isLast ? (
                 <><Check className="w-4 h-4" /> Got it!</>
@@ -164,43 +168,39 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
 function WelcomeStep() {
   const features = [
     {
-      icon: <Wifi className="w-5 h-5 text-blue-400" />,
-      bg: 'bg-blue-500/10 border-blue-500/20',
-      title: 'Offline-ready',
-      desc: 'Browse your feed and library even without a connection.',
+      icon: <Sparkles className="w-5 h-5 text-butter-400" />,
+      title: 'A whole new look',
+      desc: 'Meet Poppy, our popcorn pal, and a design that finally feels like ours.',
     },
     {
-      icon: <Zap className="w-5 h-5 text-yellow-400" />,
-      bg: 'bg-yellow-500/10 border-yellow-500/20',
-      title: 'Instant loading',
-      desc: 'Smart caching keeps the app snappy every time you open it.',
+      icon: <Compass className="w-5 h-5 text-accent" />,
+      title: 'Hold the pal to navigate',
+      desc: 'Press Poppy at the bottom, slide to where you want, let go. Tapping still works.',
     },
     {
-      icon: <Bell className="w-5 h-5 text-red-400" />,
-      bg: 'bg-red-500/10 border-red-500/20',
-      title: 'Push notifications',
-      desc: 'Get notified when someone likes, comments, or follows you.',
+      icon: <NotebookPen className="w-5 h-5 text-butter-400" />,
+      title: 'Room to write',
+      desc: 'Notes grow as you type, and the keyboard no longer covers the save button.',
     },
     {
-      icon: <Smartphone className="w-5 h-5 text-green-400" />,
-      bg: 'bg-green-500/10 border-green-500/20',
-      title: 'Install as an app',
-      desc: 'Add PopcornPal to your home screen for the full native experience.',
+      icon: <Wifi className="w-5 h-5 text-accent" />,
+      title: 'Works offline',
+      desc: 'Browse your feed and library, and log things, with no connection.',
     },
   ]
 
   return (
     <div className="py-4">
-      <div className="w-14 h-14 rounded-2xl bg-gray-700 flex items-center justify-center mb-4 shadow-lg shadow-red-900/30">
-        <Film className="w-7 h-7 text-white" />
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-800 border border-gray-700">
+        <PalMark size={46} />
       </div>
-      <h2 className="text-2xl font-black text-white mb-2">Welcome to PopcornPal</h2>
+      <h2 className="text-2xl font-black text-white mb-2">Popcorn Pal got a redesign</h2>
       <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-        PopcornPal is now a full PWA. Here's what's new and how to get the most out of it.
+        New look, a mascot, and a few things that were quietly annoying are fixed.
       </p>
       <div className="grid grid-cols-1 gap-3">
         {features.map((f) => (
-          <div key={f.title} className={`flex items-start gap-3 p-4 rounded-2xl border ${f.bg}`}>
+          <div key={f.title} className="flex items-start gap-3 p-4 rounded-2xl border border-gray-700 bg-gray-800/50">
             <div className="flex-shrink-0 mt-0.5">{f.icon}</div>
             <div>
               <p className="font-semibold text-white text-sm">{f.title}</p>
@@ -213,7 +213,29 @@ function WelcomeStep() {
   )
 }
 
-// ─── STEP 2: INSTALL ──────────────────────────────────────────────────────
+// ─── STEP 2: SEASON ───────────────────────────────────────────────────────
+
+function SeasonStep() {
+  return (
+    <div className="py-4">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-800 border border-gray-700">
+        <PalMark size={46} />
+      </div>
+      <h2 className="text-2xl font-black text-white mb-2">Pick your season</h2>
+      <p className="text-gray-400 text-sm mb-5 leading-relaxed">
+        The app repaints itself and Poppy dresses up. It is yours alone, so
+        your friends keep whichever season they picked. Change it any time from
+        your profile.
+      </p>
+      <ThemePicker heading={null} />
+      <p className="mt-4 text-xs text-gray-500 leading-relaxed">
+        Cinema is the original look, kept exactly as it was.
+      </p>
+    </div>
+  )
+}
+
+// ─── STEP 3: INSTALL ──────────────────────────────────────────────────────
 
 interface InstallStepProps {
   isIOS: boolean
@@ -343,7 +365,7 @@ function InstallStep({ isIOS, alreadyInstalled, canPromptInstall, onInstall }: I
   )
 }
 
-// ─── STEP 3: NOTIFICATIONS ────────────────────────────────────────────────
+// ─── STEP 4: NOTIFICATIONS ────────────────────────────────────────────────
 
 interface NotificationsStepProps {
   permission: NotificationPermission

@@ -165,8 +165,20 @@ export const WIZARDING = season(
 
 export const THEMES: Theme[] = [CINEMA, LANTERN, WIZARDING]
 
+/**
+ * The season everyone starts on. Separate from CINEMA on purpose: CINEMA is
+ * the app's permanent house style and is never removed, while this points at
+ * whichever season is current. Changing it re-dresses new accounts and anyone
+ * who has not chosen, and leaves existing choices alone.
+ */
+export const DEFAULT_THEME_ID = 'lantern'
+
 export function getTheme(id: string | null | undefined): Theme {
-  return THEMES.find((theme) => theme.id === id) ?? CINEMA
+  return (
+    THEMES.find((theme) => theme.id === id) ??
+    THEMES.find((theme) => theme.id === DEFAULT_THEME_ID) ??
+    CINEMA
+  )
 }
 
 /** Writes a theme's channels onto the document so every token repaints. */

@@ -9,6 +9,11 @@ const screens = ['/feed', '/library', '/add', '/people', '/activity', '/profile'
 for (const path of screens) {
   test(`cinema theme is unchanged on ${path}`, async ({ page, context }) => {
     await mockBackend(context)
+    // Pin cinema explicitly: the default season is whatever is current, but
+    // the house style must keep rendering exactly as it always has.
+    await context.addInitScript(() =>
+      localStorage.setItem('popcorn_theme', 'cinema')
+    )
     await page.goto(path)
     await page.waitForTimeout(1200)
     await expect(page).toHaveScreenshot(`cinema${path.replace('/', '-')}.png`, {
