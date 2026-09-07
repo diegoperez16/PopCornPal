@@ -143,7 +143,7 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
           <div className="flex-shrink-0 px-6 pb-6 pt-2">
             <button
               onClick={goNext}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#ff655b] to-[#eab84f] hover:from-[#ff8175] hover:to-[#f6cd66] text-white font-bold text-sm transition-all active:scale-95 shadow-lg shadow-red-900/30 flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-2xl bg-[#ff655b] hover:bg-[#ff8175] text-white font-bold text-sm transition-all active:scale-95 shadow-lg shadow-red-900/30 flex items-center justify-center gap-2"
             >
               {isLast ? (
                 <><Check className="w-4 h-4" /> Got it!</>
@@ -191,7 +191,7 @@ function WelcomeStep() {
 
   return (
     <div className="py-4">
-      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center mb-4 shadow-lg shadow-red-900/30">
+      <div className="w-14 h-14 rounded-2xl bg-[#2c3440] flex items-center justify-center mb-4 shadow-lg shadow-red-900/30">
         <Film className="w-7 h-7 text-white" />
       </div>
       <h2 className="text-2xl font-black text-white mb-2">Welcome to PopcornPal</h2>

@@ -125,7 +125,7 @@ export default function UserProfilePage() {
 
   const renderUserListItem = (user: any, listType: 'followers' | 'following') => (
     <li key={user.id} className="flex items-center gap-3 py-3">
-      <button className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity" onClick={() => navigateToProfile(user.username)}>
+      <button className="w-10 h-10 rounded-full overflow-hidden bg-[#2c3440] flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity" onClick={() => navigateToProfile(user.username)}>
         <UserAvatar avatarUrl={user.avatar_url} avatarCrop={user.avatar_crop} username={user.username} />
         {!user.avatar_url && <span className="text-sm font-bold text-white">{user.username.charAt(0).toUpperCase()}</span>}
       </button>
@@ -136,7 +136,7 @@ export default function UserProfilePage() {
       {currentUser && currentUser.id !== user.id && (
         <button onClick={(e) => { e.stopPropagation(); handleFollowUser(user.id, user.isFollowing, listType) }}
           className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${
-            user.isFollowing ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-red-500/50 hover:text-red-400' : 'bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-[#2b1310] hover:from-[#ff8175] hover:to-[#f6cd66]'
+            user.isFollowing ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-red-500/50 hover:text-red-400' : 'bg-[#ff655b] text-[#2b1310]'
           }`}>
           {user.isFollowing ? 'Following' : 'Follow'}
         </button>
@@ -152,7 +152,7 @@ export default function UserProfilePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      {loading && <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#ff655b] to-[#eab84f] z-50 animate-pulse"/>}
+      {loading && <div className="fixed top-0 left-0 right-0 h-0.5 bg-[#ff655b] z-50 animate-pulse"/>}
 
       <div className="max-w-2xl mx-auto">
         {/* Back button */}
@@ -190,7 +190,7 @@ export default function UserProfilePage() {
           {/* Avatar + actions row — z-10 so avatar always sits above banner */}
           <div className={`px-4 sm:px-6 relative z-10 ${profile.bg_url ? '' : 'pt-4'}`}>
             <div className={`flex items-end justify-between ${profile.bg_url ? '-mt-10 sm:-mt-14' : ''} mb-3`}>
-              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-3xl sm:text-4xl font-bold border-4 border-gray-900 shadow-xl flex-shrink-0">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-[#2c3440] flex items-center justify-center text-3xl sm:text-4xl font-bold border-4 border-gray-900 shadow-xl flex-shrink-0">
                 <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
                 {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
               </div>
@@ -199,7 +199,7 @@ export default function UserProfilePage() {
                   className={`h-9 px-5 rounded-full font-bold text-sm transition-all active:scale-95 flex items-center gap-2 ${
                     isFollowing
                       ? 'bg-gray-800 text-white border border-gray-600 hover:border-red-500/50 hover:text-red-400'
-                      : 'bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-[#2b1310] hover:from-[#ff8175] hover:to-[#f6cd66] shadow-lg shadow-red-900/30'
+                      : 'bg-[#ff655b] text-[#2b1310] shadow-lg shadow-red-900/30'
                   }`}>
                   {followLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : isFollowing ? <><UserCheck className="w-4 h-4"/> Following</> : <><UserPlus className="w-4 h-4"/> Follow</>}
                 </button>
@@ -315,7 +315,7 @@ export default function UserProfilePage() {
                 {posts.map((post) => (
                   <div key={post.id} className="bg-gray-800/30 border border-gray-700/40 rounded-2xl p-4">
                     <div className="flex items-center gap-2.5 mb-3">
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-[#2c3440] flex items-center justify-center text-xs font-bold flex-shrink-0">
                         <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
                         {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
                       </div>

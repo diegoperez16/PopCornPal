@@ -7,9 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Warm espresso ramp: the whole app inherits the buttered-cinema
-        // palette through these instead of cool blue-grays.
-        gray: { 50: '#faf5ea', 100: '#f0e7d6', 200: '#ded2ba', 300: '#c2b298', 400: '#a4947a', 500: '#8b7c66', 600: '#6d604c', 700: '#413526', 800: '#251e14', 900: '#17120d', 950: '#100c08' },
+        // Cool slate ramp: modern film-app darks; the pal's butter and coral
+        // stay as the only warm accents so the mascot pops.
+        gray: { 50: '#f4f7f9', 100: '#e6ebef', 200: '#cfd8df', 300: '#aab8c2', 400: '#8595a4', 500: '#6b7c8c', 600: '#51606e', 700: '#2c3440', 800: '#1b2127', 900: '#14181c', 950: '#0e1114' },
         butter: { 300: '#ffd97e', 400: '#f6cd66', 500: '#eab84f', 600: '#c99a3a' },
         primary: {
           50: '#fef2f2',

@@ -106,14 +106,14 @@ export default function EntryEditor({
         event.preventDefault()
         if (!isPending) onClose()
       }}
-      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto rounded-t-[28px] border border-[#443925] bg-[#211a11] p-0 text-[#f4f0e8] shadow-2xl backdrop:bg-black/75 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
+      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto rounded-t-[28px] border border-[#2f3946] bg-[#1b2127] p-0 text-[#f4f0e8] shadow-2xl backdrop:bg-black/75 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
     >
       <div
         className="mx-auto mt-3 h-1 w-10 rounded-full bg-[#45474b] sm:hidden"
         aria-hidden="true"
       />
       <div className="flex items-center justify-between px-6 pb-3 pt-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b3a58c]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#96a4b3]">
           Your library · Edit entry
         </p>
         <button
@@ -121,14 +121,14 @@ export default function EntryEditor({
           aria-label="Close entry editor"
           onClick={onClose}
           disabled={isPending}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2a2216] text-[#d7d3cc] transition-colors hover:bg-[#303236] disabled:opacity-40"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#232b33] text-[#d7d3cc] transition-colors hover:bg-[#303236] disabled:opacity-40"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
       <form onSubmit={saveEntry}>
         <div className="space-y-6 px-6 pb-6">
-          <div className="flex items-center gap-4 border-b border-[#443925] pb-6">
+          <div className="flex items-center gap-4 border-b border-[#2f3946] pb-6">
             {entry.cover_image_url ? (
               <img
                 src={entry.cover_image_url}
@@ -138,7 +138,7 @@ export default function EntryEditor({
             ) : (
               <div className="flex h-28 w-[75px] shrink-0 items-center justify-center rounded-xl bg-[#25272b]">
                 <BookOpen
-                  className="h-7 w-7 text-[#b3a58c]"
+                  className="h-7 w-7 text-[#96a4b3]"
                   strokeWidth={1.3}
                 />
               </div>
@@ -155,7 +155,7 @@ export default function EntryEditor({
                 {entry.title}
               </h2>
               {entry.genre && (
-                <p className="mt-2 text-xs text-[#b3a58c]">{entry.genre}</p>
+                <p className="mt-2 text-xs text-[#96a4b3]">{entry.genre}</p>
               )}
             </div>
           </div>
@@ -166,7 +166,7 @@ export default function EntryEditor({
               {statuses.map((status) => (
                 <label
                   key={status.value}
-                  className={`flex min-h-12 cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-sm transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#ff655b] ${draft.status === status.value ? 'border-[#ff655b]/60 bg-[#ff655b]/10 text-[#ff918a]' : 'border-[#443925] bg-[#2a2216] text-[#b3a58c]'}`}
+                  className={`flex min-h-12 cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 text-sm transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#ff655b] ${draft.status === status.value ? 'border-[#ff655b]/60 bg-[#ff655b]/10 text-[#ff918a]' : 'border-[#2f3946] bg-[#232b33] text-[#96a4b3]'}`}
                 >
                   <input
                     type="radio"
@@ -189,7 +189,7 @@ export default function EntryEditor({
               ))}
             </div>
             {draft.status !== 'logged' && (
-              <p className="mt-3 text-xs leading-relaxed text-[#b3a58c]">
+              <p className="mt-3 text-xs leading-relaxed text-[#96a4b3]">
                 This entry will move to your{' '}
                 {draft.status === 'planned'
                   ? 'planned'
@@ -214,7 +214,7 @@ export default function EntryEditor({
                     onClick={() => changeRating(-0.1)}
                     aria-label="Decrease rating"
                     disabled={draft.rating <= 0 || isPending}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#443925] bg-[#2a2216] disabled:opacity-40"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2f3946] bg-[#232b33] disabled:opacity-40"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -236,25 +236,25 @@ export default function EntryEditor({
                         ),
                       }))
                     }
-                    className="h-12 w-20 rounded-xl border border-[#443925] bg-[#17120d] text-center text-2xl font-semibold tabular-nums text-[#f2cc8f] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
+                    className="h-12 w-20 rounded-xl border border-[#2f3946] bg-[#14181c] text-center text-2xl font-semibold tabular-nums text-[#f2cc8f] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
                   />
                   <button
                     type="button"
                     onClick={() => changeRating(0.1)}
                     aria-label="Increase rating"
                     disabled={draft.rating >= 10 || isPending}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#443925] bg-[#2a2216] disabled:opacity-40"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2f3946] bg-[#232b33] disabled:opacity-40"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
-                  <span className="text-sm text-[#b3a58c]">/ 10</span>
+                  <span className="text-sm text-[#96a4b3]">/ 10</span>
                   {draft.rating > 0 && (
                     <button
                       type="button"
                       onClick={() =>
                         setDraft((current) => ({ ...current, rating: 0 }))
                       }
-                      className="ml-auto min-h-11 text-xs text-[#b3a58c] underline underline-offset-4"
+                      className="ml-auto min-h-11 text-xs text-[#96a4b3] underline underline-offset-4"
                     >
                       Clear
                     </button>
@@ -266,8 +266,8 @@ export default function EntryEditor({
                   htmlFor="entry-review"
                   className="mb-3 block text-sm font-medium"
                 >
-                  A few thoughts{' '}
-                  <span className="ml-1 font-normal text-[#b3a58c]">
+                  Notes{' '}
+                  <span className="ml-1 font-normal text-[#96a4b3]">
                     (optional)
                   </span>
                 </label>
@@ -282,13 +282,13 @@ export default function EntryEditor({
                     }))
                   }
                   rows={4}
-                  className="w-full resize-y rounded-xl border border-[#443925] bg-[#17120d] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
+                  className="w-full resize-y rounded-xl border border-[#2f3946] bg-[#14181c] px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
                   placeholder="The moment that stayed with you…"
                 />
               </div>
             </>
           )}
-          <p className="text-xs text-[#b3a58c]">
+          <p className="text-xs text-[#96a4b3]">
             Last updated{' '}
             {new Date(entry.updated_at).toLocaleDateString(undefined, {
               month: 'short',
@@ -311,7 +311,7 @@ export default function EntryEditor({
               aria-label="Confirm entry removal"
             >
               <p className="text-sm font-semibold">Remove this entry?</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#b3a58c]">
+              <p className="mt-1 text-sm leading-relaxed text-[#96a4b3]">
                 Your rating and notes for this entry will also be removed.
               </p>
               <div className="mt-4 flex gap-2">
@@ -319,7 +319,7 @@ export default function EntryEditor({
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   disabled={isPending}
-                  className="min-h-11 flex-1 rounded-xl border border-[#443925] px-3 text-sm"
+                  className="min-h-11 flex-1 rounded-xl border border-[#2f3946] px-3 text-sm"
                 >
                   Keep entry
                 </button>
@@ -339,7 +339,7 @@ export default function EntryEditor({
           )}
         </div>
         {!confirmDelete && (
-          <div className="sticky bottom-0 flex gap-3 border-t border-[#443925] bg-[#211a11] px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+          <div className="sticky bottom-0 flex gap-3 border-t border-[#2f3946] bg-[#1b2127] px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
             <button
               type="button"
               onClick={() => {
@@ -348,7 +348,7 @@ export default function EntryEditor({
               }}
               disabled={isPending}
               aria-label="Remove this entry"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#443925] text-[#ff918a] disabled:opacity-40"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#2f3946] text-[#ff918a] disabled:opacity-40"
             >
               <Trash2 className="h-5 w-5" />
             </button>

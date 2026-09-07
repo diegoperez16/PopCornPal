@@ -5,7 +5,7 @@ import Brand from './brand/Brand'
 
 export default function MobileHeader() {
   return (
-    <header className="md:hidden sticky top-0 z-40 border-b border-white/[0.06] bg-[#17120d]/95 backdrop-blur-xl safe-area-top">
+    <header className="md:hidden sticky top-0 z-40 border-b border-white/[0.06] bg-[#14181c]/95 backdrop-blur-xl safe-area-top">
       <div className="flex h-[68px] items-center justify-between px-5">
         <Link to="/feed" aria-label="Popcorn Pal home">
           <Brand />

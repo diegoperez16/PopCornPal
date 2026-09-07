@@ -178,7 +178,7 @@ export default function ProfilePage() {
             ) : (
               <div
                 className="absolute inset-0 z-0"
-                style={{ background: 'linear-gradient(to bottom right, #3a2c14, #17120d)' }}
+                style={{ background: 'linear-gradient(to bottom right, #2c3440, #14181c)' }}
               />
             )}
             {/* Bottom fade */}
@@ -200,7 +200,7 @@ export default function ProfilePage() {
             <div className="flex items-end justify-between">
               {/* Avatar with permanent camera badge */}
               <div className="relative">
-                <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-gray-900 overflow-hidden bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-3xl sm:text-4xl font-bold shadow-lg shadow-black/40">
+                <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-gray-900 overflow-hidden bg-[#2c3440] flex items-center justify-center text-3xl sm:text-4xl font-bold shadow-lg shadow-black/40">
                   {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
                     pendingAvatarGifCrop ? (
                       <div
@@ -356,7 +356,7 @@ export default function ProfilePage() {
                     <input type="range" min={10} max={100} value={profileBgOpacity} onChange={e => setProfileBgOpacity(Number(e.target.value))} className="w-full" />
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setShowBgGifPicker(false); handleSaveProfile() }} disabled={savingProfile} className="flex-1 bg-gradient-to-r from-[#eab84f] to-[#ff655b] text-white font-semibold px-4 py-2 rounded-full text-sm hover:from-[#f6cd66] hover:to-[#ff8175] transition-all disabled:opacity-50">
+                    <button onClick={() => { setShowBgGifPicker(false); handleSaveProfile() }} disabled={savingProfile} className="flex-1 bg-[#ff655b] text-white font-semibold px-4 py-2 rounded-full text-sm transition-all disabled:opacity-50">
                       {savingProfile ? 'Saving...' : 'Save'}
                     </button>
                     <button onClick={() => { setShowBgGifPicker(false); setProfileBgOpacity(profile?.bg_opacity ?? 80); if (bgFileInputRef.current) bgFileInputRef.current.value = '' }} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-full text-sm transition-colors">
@@ -392,7 +392,7 @@ export default function ProfilePage() {
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Profile Picture</p>
                     <input ref={avatarFileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-xl font-bold flex-shrink-0">
+                      <div className="w-14 h-14 rounded-full overflow-hidden bg-[#2c3440] flex items-center justify-center text-xl font-bold flex-shrink-0">
                         {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
                           pendingAvatarGifCrop ? (
                             <div
@@ -493,7 +493,7 @@ export default function ProfilePage() {
                   <button onClick={() => { setIsEditing(false); setUploadedAvatar(null); if (avatarFileInputRef.current) avatarFileInputRef.current.value = '' }} className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-full text-sm text-gray-300 transition-colors">
                     Cancel
                   </button>
-                  <button onClick={handleSaveProfile} disabled={savingProfile} className="flex-1 bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white font-semibold py-2.5 rounded-full text-sm hover:from-[#ff8175] hover:to-[#f6cd66] transition-all disabled:opacity-50">
+                  <button onClick={handleSaveProfile} disabled={savingProfile} className="flex-1 bg-[#ff655b] text-white font-semibold py-2.5 rounded-full text-sm transition-all disabled:opacity-50">
                     {savingProfile ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
@@ -511,7 +511,7 @@ export default function ProfilePage() {
               {isManagingFavorites && favorites.length < 10 && (
                 <button
                   onClick={() => setShowMediaSelector(true)}
-                  className="text-xs bg-gradient-to-r from-[#eab84f] to-[#ff655b] hover:from-[#f6cd66] hover:to-[#ff8175] text-white border border-[#f6cd66]/50 px-3 py-1.5 rounded-full flex items-center gap-2 transition-colors animate-in fade-in shadow"
+                  className="text-xs bg-[#ff655b] hover:bg-[#ff8175] text-white border border-[#f6cd66]/50 px-3 py-1.5 rounded-full flex items-center gap-2 transition-colors animate-in fade-in shadow"
                 >
                   <Plus className="w-3 h-3" /> Add
                 </button>
@@ -524,7 +524,7 @@ export default function ProfilePage() {
                 className={`
                   text-xs px-3 py-1.5 rounded-full flex items-center gap-2 transition-all border
                   ${isManagingFavorites
-                    ? 'bg-gradient-to-r from-[#eab84f] to-[#c99a3a] hover:from-[#f6cd66] hover:to-[#eab84f] text-[#2b1c0e] border-[#f6cd66]/50 shadow'
+                    ? 'bg-[#f6cd66] hover:bg-[#ffd97e] text-[#2b1c0e] border-[#f6cd66]/50 shadow'
                     : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}
                 `}
               >
@@ -709,7 +709,7 @@ export default function ProfilePage() {
                 {/* Active Indicator (Direct DOM controlled) */}
                 <div
                   ref={progressBarRef}
-                  className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-gradient-to-r from-[#f6cd66] via-[#ff655b] to-[#eab84f] shadow-sm shadow-[#f6cd66]/20"
+                  className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[#ff655b] shadow-sm shadow-[#f6cd66]/20"
                   style={{ width: '0%', left: '0%' }}
                 />
               </div>
@@ -745,7 +745,7 @@ export default function ProfilePage() {
 
           {/* Status filter */}
           <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-            <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'all' ? 'bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>All</button>
+            <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'all' ? 'bg-[#ff655b] text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>All</button>
             <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Completed</button>
             <button onClick={() => setStatusFilter('in-progress')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'in-progress' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>In Progress</button>
             <button onClick={() => setStatusFilter('planned')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'planned' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Planned</button>
@@ -795,7 +795,7 @@ export default function ProfilePage() {
               <div className="w-14 h-14 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600"><Film className="w-7 h-7" /></div>
               <h3 className="text-base font-semibold text-white mb-1">No entries yet</h3>
               <p className="text-gray-500 text-sm mb-5">Start building your collection.</p>
-              <button onClick={() => navigate('/add')} className="bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white font-semibold px-6 py-2.5 rounded-full hover:from-[#ff8175] hover:to-[#f6cd66] transition-all shadow-lg shadow-red-500/20">Add Your First Entry</button>
+              <button onClick={() => navigate('/add')} className="bg-[#ff655b] text-white font-semibold px-6 py-2.5 rounded-full transition-all shadow-lg shadow-red-500/20">Add Your First Entry</button>
             </div>
           )}
         </div>
@@ -809,7 +809,7 @@ export default function ProfilePage() {
       {/* Floating Action Button (Add Entry) */}
       <button
         onClick={() => navigate('/add')}
-        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 md:bottom-8 md:right-8 z-[60] bg-gradient-to-r from-[#ff655b] to-[#eab84f] hover:from-[#ff8175] hover:to-[#f6cd66] text-white p-3 rounded-full shadow-lg shadow-red-900/40 hover:shadow-red-900/60 hover:scale-110 active:scale-95 transition-all duration-300 group ${
+        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 md:bottom-8 md:right-8 z-[60] bg-[#ff655b] hover:bg-[#ff8175] text-white p-3 rounded-full shadow-lg shadow-red-900/40 hover:shadow-red-900/60 hover:scale-110 active:scale-95 transition-all duration-300 group ${
           showAddButton
             ? 'translate-y-0 opacity-100'
             : 'translate-y-20 opacity-0 pointer-events-none'
@@ -847,7 +847,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={handleDeleteEntry} className="px-3 py-2.5 rounded-xl border border-gray-700 text-gray-400 hover:bg-red-500/10 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                  <button onClick={handleUpdateEntry} className="flex-1 bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white font-semibold py-2.5 rounded-xl text-sm">Save Changes</button>
+                  <button onClick={handleUpdateEntry} className="flex-1 bg-[#ff655b] text-white font-semibold py-2.5 rounded-xl text-sm">Save Changes</button>
                 </div>
              </div>
            </div>

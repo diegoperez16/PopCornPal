@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { type Post, useSocialStore } from '../store/socialStore'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowUp, RefreshCw, WifiOff, Clapperboard, Plus, Users, ArrowRight } from 'lucide-react'
+import { ArrowUp, RefreshCw, WifiOff, Users, ArrowRight } from 'lucide-react'
 
 import { supabase } from '../lib/supabase'
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query'
@@ -639,7 +639,7 @@ export default function FeedPage() {
 
   if (feedIsError && posts.length === 0) {
     return (
-      <div className="min-h-screen bg-[#17120d] text-white flex flex-col items-center justify-center gap-4 pb-20">
+      <div className="min-h-screen bg-[#14181c] text-white flex flex-col items-center justify-center gap-4 pb-20">
         <RefreshCw className="w-8 h-8 text-gray-500" />
         <p className="text-gray-400 text-sm">Something went wrong.</p>
         <button
@@ -653,11 +653,11 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="app-page bg-[#17120d] text-white">
+    <div className="app-page bg-[#14181c] text-white">
       {/* Loading Bar */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
-          <div className="h-full bg-gradient-to-r from-[#ff655b] to-[#eab84f] animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+          <div className="h-full bg-[#ff655b] animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
         </div>
       )}
 
@@ -671,20 +671,13 @@ export default function FeedPage() {
 
 
 <div className="max-w-3xl mx-auto px-5 py-7 sm:py-10">
-        <header className="mb-7">
-          <p className="app-kicker mb-3">The good stuff is better together</p>
+        <header className="mb-6">
           <div className="flex items-end justify-between gap-4"><h1 className="app-title">Your front row<span className="text-[#ff8175]">.</span></h1><Link to="/people" className="app-icon-button" aria-label="Find your people"><Users size={20} /></Link></div>
-          <p className="app-muted mt-3 text-sm leading-relaxed">A little less endless scrolling.<br className="sm:hidden" /> A few more stories worth sharing.</p>
         </header>
-        <section className="feed-ticket mb-7 flex items-center gap-4 rounded-2xl p-5">
-          <div className="hidden sm:flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#c4a980]/25 text-[#dcc59e]"><Clapperboard size={27} strokeWidth={1.3} /></div>
-          <div className="flex-1"><p className="app-kicker text-[#cbb895]">Fresh out of the credits?</p><h2 className="font-serif text-xl text-[#ede0c9] mt-1.5">Make the movie night last.</h2><p className="text-xs text-[#b7afa3] mt-2">Log it. Rate it. Start a conversation.</p></div>
-          <Link to="/add" aria-label="Log a title" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#dfc59f] text-[#33271e]"><Plus size={22} /></Link>
-        </section>
         {user ? <FeedComposer userId={user.id} profile={profile} /> : null}
 
         {/* Feed section label */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5 mt-8"><h2 className="text-lg font-semibold tracking-tight">Around your circle</h2><span className="text-[10px] tracking-wide text-gray-400">THE LATEST</span></div>
+        <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5 mt-8"><h2 className="text-lg font-semibold tracking-tight">Around your circle</h2></div>
 
         {/* Feed */}
         {posts.length === 0 ? (
@@ -799,7 +792,7 @@ export default function FeedPage() {
       {/* Scroll to Top Button */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 p-3 bg-gradient-to-r from-[#ff655b] to-[#eab84f] hover:from-[#ff8175] hover:to-[#f6cd66] text-white rounded-full shadow-lg shadow-red-500/30 z-40 hover:scale-110 transition-all duration-300 ${
+        className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 p-3 bg-[#ff655b] hover:bg-[#ff8175] text-white rounded-full shadow-lg shadow-red-500/30 z-40 hover:scale-110 transition-all duration-300 ${
           showScrollTop ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-16 pointer-events-none'
         }`}
         aria-label="Scroll to top"

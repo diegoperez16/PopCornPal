@@ -9,11 +9,12 @@ import {
   Gamepad2,
   Loader2,
   Search,
-  Star,
+
   Tv,
   X,
 } from 'lucide-react'
 import DecimalRating from '../components/DecimalRating'
+import PalMark from '../components/brand/PalMark'
 import { useAddEntryPage, type WatchStatus } from '../hooks/useAddEntryPage'
 import { localDateString } from '../lib/addEntryDraft'
 
@@ -23,23 +24,11 @@ const categories = [
   { type: 'game', label: 'Games', Icon: Gamepad2 },
   { type: 'book', label: 'Books', Icon: BookOpen },
 ] as const
-const statuses: { value: WatchStatus; title: string; detail: string }[] = [
-  {
-    value: 'completed',
-    title: 'Finished',
-    detail: 'Another story in the books',
-  },
-  {
-    value: 'in-progress',
-    title: 'In progress',
-    detail: 'Enjoying this one right now',
-  },
-  { value: 'planned', title: 'Up next', detail: 'Save it for a little later' },
-  {
-    value: 'logged',
-    title: 'Add to library',
-    detail: 'Part of your collection',
-  },
+const statuses: { value: WatchStatus; title: string }[] = [
+  { value: 'completed', title: 'Finished' },
+  { value: 'in-progress', title: 'In progress' },
+  { value: 'planned', title: 'Up next' },
+  { value: 'logged', title: 'Add to library' },
 ]
 
 type Workflow = ReturnType<typeof useAddEntryPage>
@@ -75,7 +64,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
               className="h-24 w-16 rounded-lg object-cover bg-gray-800"
             />
           ) : (
-            <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-lg bg-[#36302d]">
+            <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-lg bg-[#232b33]">
               <Clapperboard size={25} />
             </div>
           )}
@@ -89,9 +78,6 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
             >
               {item.title}
             </h2>
-            <p className="text-xs text-gray-400 mt-2">
-              Make a little space for this story.
-            </p>
           </div>
           <button
             type="button"
@@ -105,16 +91,16 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
         </header>
         <div className="overflow-y-auto overscroll-contain p-5 space-y-6">
           {item.type === 'show' && (
-            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#1b1509] p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#171c21] p-1">
               <button
-                className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-[#343332] text-white' : 'text-gray-400'}`}
+                className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-[#2c3440] text-white' : 'text-gray-400'}`}
                 aria-pressed={!w.episodeMode}
                 onClick={w.exitEpisodeMode}
               >
                 Whole show
               </button>
               <button
-                className={`min-h-11 rounded-lg text-sm ${w.episodeMode ? 'bg-[#343332] text-white' : 'text-gray-400'}`}
+                className={`min-h-11 rounded-lg text-sm ${w.episodeMode ? 'bg-[#2c3440] text-white' : 'text-gray-400'}`}
                 aria-pressed={w.episodeMode}
                 onClick={w.enterEpisodeMode}
               >
@@ -219,16 +205,13 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                   </p>
                 )}
               <p className="text-xs text-gray-400">
-                {w.pendingRatings.length} episode ratings ready. Your show is
-                also added to your collection.
+                {w.pendingRatings.length} episode ratings ready.
               </p>
             </>
           ) : (
             <>
               <fieldset disabled={w.saving}>
-                <legend className="auth-label">
-                  Where are you with this one?
-                </legend>
+                <legend className="auth-label">Status</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {statuses.map((status) => (
                     <button
@@ -236,16 +219,9 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                       type="button"
                       onClick={() => w.setStatus(status.value)}
                       aria-pressed={w.status === status.value}
-                      className={`min-h-[78px] rounded-xl border p-3 text-left ${w.status === status.value ? 'border-[#ff8175] bg-[#ff655b]/10' : 'border-white/10 bg-[#1b1509]'}`}
+                      className={`min-h-12 rounded-xl border px-3 text-sm font-semibold ${w.status === status.value ? 'border-[#ff8175] bg-[#ff655b]/10 text-[#ff9b8e]' : 'border-white/10 bg-[#171c21] text-gray-200'}`}
                     >
-                      <span
-                        className={`block text-sm font-semibold ${w.status === status.value ? 'text-[#ff9b8e]' : 'text-gray-200'}`}
-                      >
-                        {status.title}
-                      </span>
-                      <span className="block text-[10px] leading-relaxed text-gray-400 mt-1">
-                        {status.detail}
-                      </span>
+                      {status.title}
                     </button>
                   ))}
                 </div>
@@ -280,7 +256,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
               )}
               <div>
                 <label htmlFor="entry-notes" className="auth-label">
-                  A few thoughts{' '}
+                  Notes{' '}
                   <span className="text-gray-400 text-xs font-normal">
                     · optional
                   </span>
@@ -289,7 +265,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                   id="entry-notes"
                   rows={3}
                   className="app-input resize-none"
-                  placeholder="The scene that stayed with you. The way it made you feel."
+                  placeholder="Any thoughts?"
                   value={w.notes}
                   onChange={(e) => w.setNotes(e.target.value)}
                   disabled={w.saving}
@@ -316,7 +292,7 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
             </p>
           )}
         </div>
-        <footer className="shrink-0 border-t border-white/10 px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] bg-[#1a1b1e]">
+        <footer className="shrink-0 border-t border-white/10 px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] bg-[#1b2127]">
           <button
             className="app-button-primary w-full"
             onClick={() => void w.handleSave()}
@@ -325,18 +301,15 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
             {w.saving ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Saving your story…
+                Saving…
               </>
             ) : (
               <>
                 <Check size={18} />
-                {w.episodeMode ? 'Save episode ratings' : 'Save this story'}
+                {w.episodeMode ? 'Save ratings' : 'Save'}
               </>
             )}
           </button>
-          <p className="text-[10px] mt-2 text-center text-gray-400">
-            Your collection is yours. Share a post with friends anytime.
-          </p>
         </footer>
       </div>
     </dialog>
@@ -348,20 +321,11 @@ export default function AddEntryPage() {
   return (
     <main className="app-page">
       <div className="mx-auto max-w-4xl px-5 pt-8 md:pt-10">
-        <p className="app-kicker mb-3 flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#ff8175]" />
-          Roll the credits
-        </p>
         <h1 className="app-title">
           What’s your latest<span className="text-[#ff8175]">?</span>
         </h1>
-        <p className="app-muted text-sm leading-relaxed mt-3 max-w-sm">
-          A movie night. One more episode. A new favorite.
-          <br />
-          Give it a place in your story.
-        </p>
         <div
-          className="flex gap-2 mt-7 mb-5 overflow-x-auto no-scrollbar"
+          className="grid grid-cols-4 gap-1 mt-6 mb-4 rounded-xl border border-white/10 bg-[#171c21] p-1"
           role="group"
           aria-label="Media type"
         >
@@ -370,10 +334,11 @@ export default function AddEntryPage() {
               key={type}
               aria-pressed={w.activeTab === type}
               onClick={() => w.setActiveTab(type)}
-              className={`inline-flex shrink-0 min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium border ${w.activeTab === type ? 'bg-[#f3ece2] text-[#23201e] border-[#f3ece2]' : 'border-[#353537] text-gray-400'}`}
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium ${w.activeTab === type ? 'bg-[#2c3440] text-[#e8eef3]' : 'text-gray-400'}`}
             >
               <Icon size={16} />
-              {label}
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden text-xs">{label}</span>
             </button>
           ))}
         </div>
@@ -480,7 +445,7 @@ export default function AddEntryPage() {
                   aria-label={`Log ${item.title}`}
                   onClick={() => w.selectItem(item)}
                 >
-                  <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-[#232326] border border-white/10">
+                  <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-[#1b2127] border border-white/10">
                     {item.image ? (
                       <img
                         src={item.image}
@@ -510,27 +475,13 @@ export default function AddEntryPage() {
             )}
           </section>
         ) : (
-          <section className="log-empty mt-8 rounded-3xl border border-[#3c3830] p-7 md:p-10">
-            <div className="flex items-center justify-between">
-              <span className="app-kicker">Every story counts</span>
-              <Star className="text-[#c2a57e]" size={20} strokeWidth={1.3} />
+          <section className="mt-16 text-center">
+            <div className="mb-4 flex justify-center opacity-90">
+              <PalMark size={64} />
             </div>
-            <h2 className="font-serif italic text-[#e2c7a5] text-[29px] leading-tight mt-8">
-              Some stories
-              <br />
-              stay with you.
-            </h2>
-            <p className="text-sm text-[#b8b0a5] mt-4 leading-relaxed max-w-xs">
-              Find a title above to rate it, remember it, or save it for your
-              next movie night.
+            <p className="text-sm text-gray-400">
+              Search for something you’ve watched, played, or read.
             </p>
-            <div className="flex items-center gap-3 mt-8 border-t border-[#d5b787]/15 pt-5 text-[10px] uppercase tracking-[.16em] text-[#c7b79f]">
-              <span>Find it</span>
-              <span className="opacity-30">/</span>
-              <span>Make it yours</span>
-              <span className="opacity-30">/</span>
-              <span>Pass it on</span>
-            </div>
           </section>
         )}
       </div>

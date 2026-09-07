@@ -106,7 +106,7 @@ function FeedPostCardComponent({
       </p>
 
       {post.image_url && (
-        <div className="mb-2.5 rounded-xl overflow-hidden bg-[#17120d]">
+        <div className="mb-2.5 rounded-xl overflow-hidden bg-[#14181c]">
           <ProgressiveImg
             src={post.image_url}
             alt="Post attachment"

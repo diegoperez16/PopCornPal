@@ -75,16 +75,16 @@ test('search, recoverable errors, draft restore, save and sharing form a complet
     .getByRole('button', { name: 'Log Dune: Part Two', exact: true })
     .click()
   await page
-    .getByLabel('A few thoughts')
+    .getByLabel('Notes')
     .fill('An enormous screen kind of movie.')
   await page.screenshot({ path: `${output}/04-mobile-log.png` })
   await page.getByRole('button', { name: 'Close log; keep draft' }).click()
   await page.reload()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('A few thoughts')).toHaveValue(
+  await expect(page.getByLabel('Notes')).toHaveValue(
     'An enormous screen kind of movie.'
   )
-  await page.getByRole('button', { name: 'Save this story' }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('Saved to your library')
   expect(fixture.writes.some((write) => write.table === 'media_entries')).toBe(
     true
@@ -135,7 +135,7 @@ test('episode ratings persist independently and save without an existing show re
   await page.getByRole('button', { name: 'By episode' }).click()
   await page.getByRole('spinbutton', { name: 'Rating for System' }).fill('9')
   await page.getByRole('spinbutton', { name: 'Rating for Hands' }).fill('8.5')
-  await page.getByRole('button', { name: 'Save episode ratings' }).click()
+  await page.getByRole('button', { name: 'Save ratings' }).click()
   await expect(page.getByRole('status')).toContainText(
     'Saved 2 episode ratings'
   )
@@ -155,7 +155,7 @@ test('offline logging keeps work on the device and syncs after reconnect', async
     .getByRole('button', { name: 'Log Dune: Part Two', exact: true })
     .click()
   await context.setOffline(true)
-  await page.getByRole('button', { name: 'Save this story' }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('Saved on this device')
   expect(fixture.writes).toHaveLength(0)
   await context.setOffline(false)
@@ -192,7 +192,7 @@ test('library edits save, failures stay visible, and removal requires a delibera
   const fixture = await mockBackend(context)
   await page.goto('/library')
   await page.getByRole('button', { name: 'View and edit Past Lives' }).click()
-  await page.getByLabel('A few thoughts').fill('Quietly unforgettable.')
+  await page.getByLabel('Notes').fill('Quietly unforgettable.')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByRole('dialog')).not.toBeVisible()
   expect(

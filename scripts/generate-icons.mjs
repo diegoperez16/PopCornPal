@@ -19,7 +19,7 @@ for (const [name, size, maskable] of [
       canvas.width = size
       canvas.height = size
       const context = canvas.getContext('2d')
-      context.fillStyle = '#17120d'
+      context.fillStyle = '#14181c'
       context.fillRect(0, 0, size, size)
       const image = new Image()
       image.src = 'data:image/svg+xml;base64,' + btoa(svg)

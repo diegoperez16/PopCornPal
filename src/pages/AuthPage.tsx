@@ -2,14 +2,11 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
-  BookOpen,
   Check,
   Clapperboard,
   Eye,
   EyeOff,
-  Gamepad2,
   Loader2,
-  Tv,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import Brand from '../components/brand/Brand'
@@ -122,25 +119,17 @@ export default function AuthPage() {
     <main className="auth-page">
       <div className="auth-brand">
         <Brand />
-        <span className="app-kicker hidden sm:block">
-          Good stories. Better company.
-        </span>
       </div>
       <div className="auth-layout">
         <section className="auth-story" aria-label="Welcome to Popcorn Pal">
-          <p className="app-kicker">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ff8175] mr-2" />
-            Your own little cinema club
-          </p>
           <h1>
             For the love
             <br />
             of a <em>good story.</em>
           </h1>
           <p className="auth-description">
-            The films you can’t stop thinking about.
-            <br className="hidden lg:block" /> The friends who get it. Keep them
-            all here.
+            Movies, shows, games, and books — logged, rated, and shared with
+            friends who get it.
           </p>
           <div className="cinema-ticket" aria-hidden="true">
             <div className="ticket-sky">
@@ -163,34 +152,16 @@ export default function AuthPage() {
               <span>GOOD COMPANY INCLUDED</span>
             </div>
           </div>
-          <div className="auth-categories">
-            {[
-              { Icon: Clapperboard, text: 'Movies' },
-              { Icon: Tv, text: 'Shows' },
-              { Icon: Gamepad2, text: 'Games' },
-              { Icon: BookOpen, text: 'Books' },
-            ].map(({ Icon, text }) => (
-              <span key={text}>
-                <Icon size={15} />
-                {text}
-              </span>
-            ))}
-          </div>
         </section>
         <section className="auth-form-panel">
-          <p className="app-kicker mb-3">
-            {mode === 'signin'
-              ? 'The next scene is yours'
-              : mode === 'signup'
-                ? 'Join the club'
-                : 'Password recovery'}
-          </p>
-          <h2 className="text-[30px] font-semibold tracking-[-1px] leading-tight">
+          <h2 className="text-[30px] font-semibold tracking-[-1px] leading-tight mb-7">
             {copy[mode].title}
           </h2>
-          <p className="app-muted text-sm mt-3 mb-7 leading-relaxed">
-            {copy[mode].detail}
-          </p>
+          {mode === 'forgot' && (
+            <p className="app-muted text-sm -mt-4 mb-7 leading-relaxed">
+              {copy[mode].detail}
+            </p>
+          )}
           {sessionExpired && (
             <p
               role="status"
@@ -208,7 +179,7 @@ export default function AuthPage() {
                   key={value}
                   aria-pressed={value === mode}
                   onClick={() => switchMode(value)}
-                  className={`min-h-11 rounded-lg text-sm font-semibold ${mode === value ? 'bg-[#343332] text-[#f6efe3]' : 'text-gray-400'}`}
+                  className={`min-h-11 rounded-lg text-sm font-semibold ${mode === value ? 'bg-[#2c3440] text-[#e8eef3]' : 'text-gray-400'}`}
                 >
                   {value === 'signin' ? 'Sign in' : 'Create account'}
                 </button>
@@ -389,7 +360,6 @@ export default function AuthPage() {
           )}
         </section>
       </div>
-      <p className="auth-footer">Less scrolling. More stories worth sharing.</p>
     </main>
   )
 }

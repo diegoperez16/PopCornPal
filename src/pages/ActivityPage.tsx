@@ -110,7 +110,7 @@ export default function ActivityPage() {
   return (
     <div className="app-page text-white">
       <main className="relative z-10 max-w-3xl mx-auto px-5 pt-8 pb-8">
-        <header className="mb-7"><p className="app-kicker mb-3">A life in stories</p><h1 className="app-title">The story so far<span className="text-[#ff8175]">.</span></h1><p className="app-muted mt-3 text-sm">Your watches, reads, and little obsessions, remembered.</p></header>
+        <header className="mb-6"><h1 className="app-title">The story so far<span className="text-[#ff8175]">.</span></h1></header>
         {/* Quick Stats */}
         <div className="flex gap-3 mb-8">
           <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
@@ -133,7 +133,7 @@ export default function ActivityPage() {
             <p className="text-gray-400 mb-8 max-w-xs text-center">Start logging movies, games, or books to see your timeline build up.</p>
             <button
               onClick={() => navigate('/add')}
-              className="bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
+              className="bg-[#ff655b] text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
             >
               <ArrowUpRight className="w-5 h-5" />
               Log Activity

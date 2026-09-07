@@ -126,10 +126,10 @@ export default function SleekPopcornRefresh({ onRefresh }: SleekPopcornRefreshPr
           active:scale-95 
           disabled:cursor-not-allowed 
           ${status === 'popping' 
-            ? 'bg-[#1e180f] text-red-400 shadow-red-500/5 ring-1 ring-red-500/10' 
+            ? 'bg-[#181d22] text-red-400 shadow-red-500/5 ring-1 ring-red-500/10' 
             : status === 'success' 
-            ? 'bg-[#1e180f] text-[#f6cd66] shadow-[#f6cd66]/5 ring-1 ring-[#f6cd66]/10' 
-            : 'bg-[#1e180f] text-slate-300 hover:text-white hover:bg-[#1a1f2b] shadow-black/50 ring-1 ring-white/5' 
+            ? 'bg-[#181d22] text-[#f6cd66] shadow-[#f6cd66]/5 ring-1 ring-[#f6cd66]/10' 
+            : 'bg-[#181d22] text-slate-300 hover:text-white hover:bg-[#1a1f2b] shadow-black/50 ring-1 ring-white/5' 
           } 
           ${status !== 'idle' ? 'opacity-100' : 'opacity-100'} 
         `} 

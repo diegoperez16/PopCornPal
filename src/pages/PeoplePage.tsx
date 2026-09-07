@@ -111,7 +111,7 @@ export default function PeoplePage() {
         currentUserId={user?.id}
         className="flex items-center gap-3 flex-1 min-w-0"
       >
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
+        <div className="w-12 h-12 rounded-full bg-[#2c3440] flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
           {profile.avatar_url ? (
             <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
           ) : (
@@ -145,7 +145,7 @@ export default function PeoplePage() {
         className={`flex-shrink-0 h-9 px-4 rounded-full font-bold text-xs transition-all duration-200 active:scale-95 ${
           profile.isFollowing
             ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:text-white'
-            : 'bg-gradient-to-r from-[#ff655b] to-[#eab84f] text-[#2b1310] hover:from-[#ff8175] hover:to-[#f6cd66]'
+            : 'bg-[#ff655b] text-[#2b1310]'
         }`}
       >
         {profile.isFollowing ? (
@@ -167,7 +167,7 @@ export default function PeoplePage() {
         currentUserId={user?.id}
         className="flex flex-col items-center mb-3 w-full"
       >
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ff655b] to-[#eab84f] flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
+        <div className="w-16 h-16 rounded-full bg-[#2c3440] flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
           {profile.avatar_url ? (
             <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
           ) : (
@@ -198,7 +198,7 @@ export default function PeoplePage() {
   return (
     <div className="app-page text-white">
       <div className="max-w-3xl mx-auto px-5 py-8">
-        <header className="mb-7"><p className="app-kicker mb-3">Good taste finds good company</p><h1 className="app-title">Find your people<span className="text-[#ff8175]">.</span></h1><p className="app-muted mt-3 text-sm">Friends, fellow fans, and your next favorite recommendation.</p></header>
+        <header className="mb-6"><h1 className="app-title">Find your people<span className="text-[#ff8175]">.</span></h1></header>
         {/* Tab Bar */}
         <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 scrollbar-hide">
           {[
