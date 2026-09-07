@@ -16,6 +16,8 @@ export type MediaEntry = {
   media_type: 'movie' | 'show' | 'game' | 'book'
   title: string
   rating: number | null
+  /** Too bad to rate. Never averaged; see features/verdict. */
+  dumpstered?: boolean | null
   status: 'completed' | 'in-progress' | 'planned' | 'logged'
   completed_date: string | null
   notes: string | null
@@ -84,6 +86,7 @@ export function useAddEntry(userId: string) {
         media_type: entry.media_type,
         title: entry.title,
         rating: entry.rating,
+        dumpstered: entry.dumpstered ?? false,
         status: entry.status,
         completed_date: entry.completed_date,
         notes: entry.notes,
@@ -112,6 +115,7 @@ export function useAddEntry(userId: string) {
         media_type: entry.media_type,
         title: entry.title,
         rating: entry.rating,
+        dumpstered: entry.dumpstered ?? false,
         status: entry.status,
         completed_date: entry.completed_date,
         notes: entry.notes,
@@ -134,6 +138,7 @@ export function useAddEntry(userId: string) {
           media_type: entry.media_type,
           title: entry.title,
           rating: entry.rating,
+          dumpstered: entry.dumpstered ?? false,
           status: 'logged',
           completed_date: null,
           notes: entry.notes,

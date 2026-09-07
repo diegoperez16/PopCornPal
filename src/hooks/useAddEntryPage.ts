@@ -71,6 +71,7 @@ export function useAddEntryPage() {
     query,
     item,
     rating,
+    dumpstered,
     status,
     notes,
     watchedDate,
@@ -356,10 +357,11 @@ export function useAddEntryPage() {
       } else {
         const result = await addEntry({
           ...baseEntry,
+          dumpstered,
           rating:
-            status === 'completed' || status === 'logged'
-              ? rating || null
-              : null,
+            dumpstered || !(status === 'completed' || status === 'logged')
+              ? null
+              : rating || null,
           status,
           completed_date: status === 'completed' ? watchedDate : null,
           notes: notes.trim() || null,
@@ -414,7 +416,12 @@ export function useAddEntryPage() {
       setSession((current) => ({ ...current, open: !!current.draft.item })),
     draftStorageAvailable,
     rating,
-    setRating: (value: number) => updateDraft({ rating: value }),
+    // Choosing one clears the other: a dumpster is a refusal to rate.
+    setRating: (value: number) =>
+      updateDraft({ rating: value, dumpstered: false }),
+    dumpstered,
+    toggleDumpster: () =>
+      updateDraft({ dumpstered: !dumpstered, rating: 0 }),
     status,
     setStatus,
     notes,

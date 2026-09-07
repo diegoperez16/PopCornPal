@@ -14,6 +14,8 @@ import {
   X,
 } from 'lucide-react'
 import DecimalRating from '../components/DecimalRating'
+import VerdictMark from '../features/verdict/VerdictMark'
+import VerdictBadge from '../features/verdict/VerdictBadge'
 import AutoGrowTextarea from '../components/AutoGrowTextarea'
 import PalMark from '../components/brand/PalMark'
 import { useAddEntryPage, type WatchStatus } from '../hooks/useAddEntryPage'
@@ -239,7 +241,33 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                       · optional
                     </span>
                   </p>
-                  <DecimalRating value={w.rating} onChange={w.setRating} />
+                  {w.dumpstered ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3">
+                      <VerdictMark verdict="dumpster" size={40} />
+                      <p className="text-sm text-gray-300">
+                        No rating — you sent this one to the dumpster.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <DecimalRating value={w.rating} onChange={w.setRating} />
+                      <VerdictBadge rating={w.rating} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={w.toggleDumpster}
+                    aria-pressed={w.dumpstered}
+                    disabled={w.saving}
+                    className={`mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors ${
+                      w.dumpstered
+                        ? 'border-accent bg-accent/10 text-accent-soft'
+                        : 'border-line-soft bg-surface-sunken text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    <VerdictMark verdict="dumpster" size={20} />
+                    {w.dumpstered ? 'Dumpstered' : 'Too bad to rate'}
+                  </button>
                 </div>
               )}
               {w.status === 'completed' && (

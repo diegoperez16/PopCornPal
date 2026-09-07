@@ -1,4 +1,6 @@
 import { BookOpen, Film, Gamepad2, Star, Tv } from 'lucide-react'
+import VerdictMark from '../verdict/VerdictMark'
+import { verdictFor } from '../verdict/verdictModel'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
 import ProgressiveImg from '../../components/ProgressiveImg'
 
@@ -21,6 +23,7 @@ export default function LibraryEntryCard({
 }) {
   const Icon = mediaIcons[entry.media_type]
   const isList = view === 'list'
+  const verdict = verdictFor(entry.rating, Boolean(entry.dumpstered))
   return (
     <button
       type="button"
@@ -52,11 +55,20 @@ export default function LibraryEntryCard({
             )}
           </div>
         )}
-        {!isList && entry.rating !== null && (
-          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-lg border border-white/10 bg-gray-900/95 px-2 py-1.5 text-xs font-semibold tabular-nums text-butter-gold">
-            <Star className="h-3 w-3 fill-current" aria-hidden="true" />
-            {entry.rating.toFixed(1)}
-            <span className="sr-only">out of 10</span>
+        {!isList && verdict && (
+          <span
+            className="absolute right-2 top-2 flex items-center gap-1 rounded-lg border border-white/10 bg-gray-900/95 py-1 pl-1 pr-2 text-xs font-semibold tabular-nums text-butter-gold"
+            title={verdict.name}
+          >
+            <VerdictMark verdict={verdict.id} size={22} />
+            {entry.dumpstered ? (
+              <span className="sr-only">{verdict.name}</span>
+            ) : (
+              <>
+                {entry.rating!.toFixed(1)}
+                <span className="sr-only">out of 10 — {verdict.name}</span>
+              </>
+            )}
           </span>
         )}
       </div>

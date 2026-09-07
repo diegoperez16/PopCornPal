@@ -15,6 +15,8 @@ export type AddEntryDraft = {
   query: string
   item: SearchResult | null
   rating: number
+  /** Too bad to rate; mutually exclusive with a rating. */
+  dumpstered: boolean
   status: WatchStatus
   notes: string
   watchedDate: string
@@ -35,6 +37,7 @@ export function emptyAddEntryDraft(): AddEntryDraft {
     query: '',
     item: null,
     rating: 0,
+    dumpstered: false,
     status: 'completed',
     notes: '',
     watchedDate: localDateString(),
@@ -129,7 +132,11 @@ export function parseAddEntryDraft(value: unknown): AddEntryDraft {
       : fallback.activeTab,
     query: typeof value.query === 'string' ? value.query.slice(0, 300) : '',
     item,
-    rating: item && validRating(value.rating) ? value.rating : 0,
+    dumpstered: Boolean(item && value.dumpstered),
+    rating:
+      item && !value.dumpstered && validRating(value.rating)
+        ? value.rating
+        : 0,
     status:
       item &&
       ['completed', 'in-progress', 'planned', 'logged'].includes(

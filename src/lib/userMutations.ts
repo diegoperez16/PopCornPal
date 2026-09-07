@@ -5,6 +5,7 @@ export type MediaEntryMutationInput = {
   media_type: 'movie' | 'show' | 'game' | 'book'
   title: string
   rating: number | null
+  dumpstered?: boolean | null
   status: 'completed' | 'in-progress' | 'planned' | 'logged'
   completed_date: string | null
   notes: string | null
