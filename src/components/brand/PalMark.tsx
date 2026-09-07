@@ -32,7 +32,7 @@ export default function PalMark({
     none: { body: '#f6efe3', stripe: '#ff655b', rim: '#ff655b' },
     lantern: { body: '#0f7a3f', stripe: '#eafff2', rim: '#5cff9d' },
     wizarding: { body: '#f6efe3', stripe: '#7b1e26', rim: '#7b1e26' },
-    spider: { body: '#1f3a93', stripe: '#d6282e', rim: '#d6282e' },
+    spider: { body: '#c8161d', stripe: '#1b3fa0', rim: '#c8161d' },
   }[worn]
 
   return (
@@ -74,22 +74,32 @@ export default function PalMark({
 
       {worn === 'spider' && (
         <>
-          {/* The mask covers the kernel; the eyes do all the work. */}
+          {/* Popcorn tufts stay visible around the mask — burying the kernel in
+              red loses Poppy entirely and reads as a lumpy blob. */}
+          <g>
+            <circle cx="150" cy="212" r="58" fill="#eab84f" />
+            <circle cx="362" cy="212" r="58" fill="#eab84f" />
+            <circle cx="196" cy="146" r="54" fill="#f6cd66" />
+            <circle cx="316" cy="146" r="54" fill="#f6cd66" />
+            <circle cx="256" cy="120" r="58" fill="#ffd97e" />
+          </g>
+          {/* One smooth head, so the mask reads as a mask and not as scenery. */}
+          <ellipse cx="256" cy="214" rx="106" ry="100" fill="#c8161d" />
           <path
-            d="M158 150 q98 -34 196 0 q16 76 -22 116 q-36 34 -76 34 q-40 0 -76 -34 q-38 -40 -22 -116 Z"
-            fill="#d6282e"
-          />
-          <path
-            d="M182 176 q92 -22 148 0 M170 214 q86 -18 172 0 M256 146 l0 128 M206 158 q12 60 42 108 M306 158 q-12 60 -42 108"
-            stroke="#8f1418"
-            strokeWidth="5"
+            d="M256 116 l0 196 M156 172 q100 -26 200 0 M150 216 q106 -22 212 0 M162 262 q94 -20 188 0
+               M192 130 q10 92 34 178 M320 130 q-10 92 -34 178"
+            stroke="#6d0a10"
+            strokeWidth="4.5"
             fill="none"
-            opacity=".75"
+            opacity=".8"
           />
-          <path d="M186 214 q34 -34 62 -6 q-24 44 -58 34 q-10 -14 -4 -28 Z" fill="#f2f5ff" />
-          <path d="M326 214 q-34 -34 -62 -6 q24 44 58 34 q10 -14 4 -28 Z" fill="#f2f5ff" />
-          <path d="M186 214 q34 -34 62 -6 q-24 44 -58 34 q-10 -14 -4 -28 Z" fill="none" stroke="#8f1418" strokeWidth="6" />
-          <path d="M326 214 q-34 -34 -62 -6 q24 44 58 34 q10 -14 4 -28 Z" fill="none" stroke="#8f1418" strokeWidth="6" />
+          {/* Each eye is tall and rounded on the outside and tapers to a point
+              toward the nose, tipped slightly down. That taper is the whole
+              likeness; get it backwards and it reads as sunglasses. */}
+          <path d="M166 202 q4 -30 30 -34 q40 2 66 44 q-30 30 -66 26 q-30 -6 -30 -36 Z" fill="#0b0b0d" />
+          <path d="M346 202 q-4 -30 -30 -34 q-40 2 -66 44 q30 30 66 26 q30 -6 30 -36 Z" fill="#0b0b0d" />
+          <path d="M177 203 q3 -22 22 -25 q31 2 51 34 q-23 22 -51 19 q-23 -5 -22 -28 Z" fill="#f4f7ff" />
+          <path d="M335 203 q-3 -22 -22 -25 q-31 2 -51 34 q23 22 51 19 q23 -5 22 -28 Z" fill="#f4f7ff" />
         </>
       )}
 
@@ -141,10 +151,22 @@ export default function PalMark({
       <rect x="118" y="288" width="276" height="30" rx="15" fill={palette.rim} />
 
       {worn === 'spider' && (
-        <g stroke="#f2f5ff" strokeWidth="7" fill="none" opacity=".85">
-          <path d="M256 306 l0 154 M180 316 l60 144 M332 316 l-60 144" />
-          <path d="M166 352 q90 -18 180 0 M176 396 q80 -16 160 0 M186 438 q70 -14 140 0" />
-        </g>
+        <>
+          <g stroke="#0b0b0d" strokeWidth="5" fill="none" opacity=".75">
+            <path d="M256 306 l0 154 M198 312 l44 148 M314 312 l-44 148" />
+            <path d="M176 348 q80 -18 160 0 M186 394 q70 -16 140 0 M196 438 q60 -14 120 0" />
+          </g>
+          <g fill="#0b0b0d">
+            <ellipse cx="256" cy="372" rx="15" ry="19" />
+            <path
+              d="M242 358 q-22 -14 -32 -30 M270 358 q22 -14 32 -30 M240 372 q-26 -2 -44 6 M272 372 q26 -2 44 6 M244 388 q-22 12 -30 30 M268 388 q22 12 30 30"
+              stroke="#0b0b0d"
+              strokeWidth="5"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </g>
+        </>
       )}
 
       {worn === 'lantern' && (
