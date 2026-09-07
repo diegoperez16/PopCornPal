@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { createDraftStorage } from '../../lib/draftStorage'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Book, Film, Gamepad2, Image as ImageIcon, Tv, User, X } from 'lucide-react'
 import UserAvatar from '../UserAvatar'
 import GifPicker from '../GifPicker'
@@ -18,14 +19,6 @@ type FeedComposerProps = {
 
 type MediaFilterType = 'all' | 'movie' | 'show' | 'game' | 'book'
 
-const loadDraft = (key: string, fallback = '') => {
-  try {
-    return localStorage.getItem(key) ?? fallback
-  } catch {
-    return fallback
-  }
-}
-
 const getMediaIcon = (type: string) => {
   switch (type) {
     case 'movie':
@@ -42,6 +35,8 @@ const getMediaIcon = (type: string) => {
 }
 
 export default function FeedComposer({ userId, profile }: FeedComposerProps) {
+  const storage = useMemo(() => createDraftStorage(userId), [userId])
+  const loadDraft = (key: string, fallback = '') => storage.getItem(key) ?? fallback
   const { mutateAsync: createPost, isPending: posting } = useCreatePost(userId)
   const [newPost, setNewPost] = useState(() => loadDraft('popcorn_new_post_draft'))
   const [selectedMediaEntry, setSelectedMediaEntry] = useState<string | null>(() =>
@@ -63,24 +58,24 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
   const postMention = useMentionAutocomplete()
 
   useEffect(() => {
-    localStorage.setItem('popcorn_new_post_draft', newPost)
+    storage.setItem('popcorn_new_post_draft', newPost)
 
-    if (selectedMediaEntry) localStorage.setItem('popcorn_post_media', selectedMediaEntry)
-    else localStorage.removeItem('popcorn_post_media')
+    if (selectedMediaEntry) storage.setItem('popcorn_post_media', selectedMediaEntry)
+    else storage.removeItem('popcorn_post_media')
 
-    if (imageUrl) localStorage.setItem('popcorn_post_img_url', imageUrl)
-    else localStorage.removeItem('popcorn_post_img_url')
+    if (imageUrl) storage.setItem('popcorn_post_img_url', imageUrl)
+    else storage.removeItem('popcorn_post_img_url')
 
     if (uploadedImage) {
       try {
-        localStorage.setItem('popcorn_post_upload', uploadedImage)
+        storage.setItem('popcorn_post_upload', uploadedImage)
       } catch (error) {
         console.warn('Image too large to persist', error)
       }
     } else {
-      localStorage.removeItem('popcorn_post_upload')
+      storage.removeItem('popcorn_post_upload')
     }
-  }, [imageUrl, newPost, selectedMediaEntry, uploadedImage])
+  }, [imageUrl, newPost, selectedMediaEntry, uploadedImage, storage])
 
   const resetComposer = () => {
     setNewPost('')
@@ -88,10 +83,10 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
     setImageUrl('')
     setUploadedImage(null)
     setShowMediaSelector(false)
-    localStorage.removeItem('popcorn_new_post_draft')
-    localStorage.removeItem('popcorn_post_media')
-    localStorage.removeItem('popcorn_post_img_url')
-    localStorage.removeItem('popcorn_post_upload')
+    storage.removeItem('popcorn_new_post_draft')
+    storage.removeItem('popcorn_post_media')
+    storage.removeItem('popcorn_post_img_url')
+    storage.removeItem('popcorn_post_upload')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -187,9 +182,9 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
 
   return (
     <>
-      <div className="bg-gray-800/50 backdrop-blur-sm border border-white/6 rounded-2xl p-4 mb-5">
+      <div className="app-panel rounded-2xl p-4 sm:p-5 mb-5">
         <div className="flex gap-4">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <div className="w-10 h-10 rounded-full bg-[#524d49] flex items-center justify-center flex-shrink-0 overflow-hidden">
             {profile?.avatar_url ? (
               <UserAvatar
                 avatarUrl={profile.avatar_url}
@@ -234,8 +229,9 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
                     postMention.close()
                   }
                 }}
-                placeholder="What's on your mind?"
-                className="w-full bg-transparent border-none text-white placeholder-gray-500 focus:ring-0 resize-none text-lg min-h-[60px]"
+                aria-label="Share a thought with your friends"
+                placeholder="What’s worth talking about?"
+                className="w-full bg-transparent border-none text-white placeholder-gray-500 focus:ring-0 resize-none text-base min-h-[72px]"
                 rows={2}
               />
             </div>
@@ -278,13 +274,13 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
             )}
 
             {uploadedImage && !uploadingImage && (
-              <div className="mt-3 relative inline-block">
+              <div className="mt-3 relative inline-block max-w-full">
                 <img
                   loading="lazy"
                   decoding="async"
                   src={uploadedImage}
                   alt="Upload preview"
-                  className="max-h-60 rounded-xl border border-gray-700"
+                  className="h-auto w-auto max-w-full max-h-60 object-contain rounded-xl border border-gray-700"
                 />
                 <button
                   onClick={handleRemoveImage}
@@ -314,7 +310,7 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
               <div className="flex gap-1">
                 <button
                   onClick={() => setShowMediaSelector(!showMediaSelector)}
-                  className="p-2 text-red-400 hover:bg-red-500/10 rounded-full transition-colors"
+                  className="min-h-11 min-w-11 flex items-center justify-center p-2 text-[#e9bca4] hover:bg-red-500/10 rounded-full transition-colors"
                   title="Add Media"
                 >
                   <Film className="w-5 h-5" />
@@ -329,14 +325,14 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
                 />
                 <label
                   htmlFor="image-upload"
-                  className="p-2 text-green-400 hover:bg-green-500/10 rounded-full transition-colors cursor-pointer"
+                  className="min-h-11 min-w-11 flex items-center justify-center p-2 text-gray-400 hover:bg-green-500/10 rounded-full transition-colors cursor-pointer"
                   title="Upload Image"
                 >
                   <ImageIcon className="w-5 h-5" />
                 </label>
                 <button
                   onClick={() => setShowPostGifPicker(true)}
-                  className="p-2 text-purple-400 hover:bg-purple-500/10 rounded-full transition-colors flex items-center justify-center font-bold text-xs"
+                  className="min-h-11 min-w-11 p-2 text-gray-400 hover:bg-purple-500/10 rounded-full transition-colors flex items-center justify-center font-bold text-xs"
                   title="Add GIF"
                 >
                   <span className="border border-current rounded px-1 py-0.5">GIF</span>
@@ -346,7 +342,7 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
               <button
                 onClick={handleCreatePost}
                 disabled={!newPost.trim() || posting || uploadingImage}
-                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-5 py-1.5 rounded-full text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-lg shadow-red-500/20"
+                className="app-button-primary !min-h-11 !py-2 !px-5 !rounded-full"
               >
                 {posting ? 'Posting...' : uploadingImage ? 'Uploading...' : 'Post'}
               </button>

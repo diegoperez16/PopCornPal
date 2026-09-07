@@ -1,92 +1,123 @@
-import { Plus, Home, Search, BookMarked, User } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useRef } from 'react'
+import { useLocation, Link } from 'react-router-dom'
+import { Clapperboard, History, X } from 'lucide-react'
 import { prefetchRouteModule } from '../lib/routeLoaders'
+import { navigation } from '../app/navigation'
 
-const navItems = [
-  { path: '/feed',    Icon: Home,       label: 'Home'     },
-  { path: '/people',  Icon: Search,     label: 'Discover'  },
-  // center slot reserved for the FAB
-  { path: '/library', Icon: BookMarked, label: 'Library'   },
-  { path: '/profile', Icon: User,       label: 'Profile'   },
+const destinations = [
+  navigation[2],
+  navigation[0],
+  navigation[1],
+  navigation[4],
+  navigation[3],
+  { path: '/activity', Icon: History, label: 'Activity' },
 ]
 
 export default function MobileNav() {
-  const navigate = useNavigate()
+  const dialog = useRef<HTMLDialogElement>(null)
+  const launcher = useRef<HTMLButtonElement>(null)
   const location = useLocation()
+  const close = () => dialog.current?.close()
+  const currentLabel =
+    destinations.find((item) => item.path === location.pathname)?.label ??
+    'Explore'
 
   return (
-    <nav className="mobile-nav md:hidden fixed bottom-0 left-0 right-0 bg-gray-950/90 backdrop-blur-xl border-t border-white/[0.04] z-50 safe-area-bottom">
-      {/* FAB — floats above the nav bar in the center */}
-      <div className="absolute left-1/2 -translate-x-1/2 -top-6 z-10">
-        <button
-          onClick={() => navigate('/add')}
-          onPointerEnter={() => { void prefetchRouteModule('/add') }}
-          onTouchStart={() => { void prefetchRouteModule('/add') }}
-          aria-label="Add entry"
-          className={`w-14 h-14 rounded-full bg-gradient-to-br from-red-500 to-pink-600 shadow-lg shadow-red-500/30 flex items-center justify-center transition-transform active:scale-90 ${
-            location.pathname === '/add' ? 'ring-2 ring-white/20' : ''
-          }`}
-        >
-          <Plus className="w-7 h-7 text-white" strokeWidth={2.5} />
-        </button>
-      </div>
-
-      <div className="flex items-center h-14 px-4">
-        {/* Left two items */}
-        {navItems.slice(0, 2).map((item) => {
-          const isActive = location.pathname === item.path
-          return (
-            <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              onPointerEnter={() => { void prefetchRouteModule(item.path) }}
-              onTouchStart={() => { void prefetchRouteModule(item.path) }}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors duration-200 ${
-                isActive ? 'text-white' : 'text-gray-600 active:text-gray-400'
-              }`}
-              aria-label={item.label}
-            >
-              <item.Icon
-                className="w-[22px] h-[22px]"
-                strokeWidth={isActive ? 2.5 : 1.5}
-                fill={isActive ? 'currentColor' : 'none'}
-              />
-              {isActive && (
-                <div className="w-1 h-1 mt-1.5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full" />
-              )}
-            </button>
+    <div className="mobile-nav md:hidden">
+      <button
+        ref={launcher}
+        onClick={() => dialog.current?.showModal()}
+        aria-haspopup="dialog"
+        aria-label="Open navigation"
+        className="radial-launcher"
+        title="Open navigation"
+      >
+        <Clapperboard size={24} strokeWidth={1.8} />
+        <span className="radial-launcher-dot" />
+      </button>
+      <dialog
+        ref={dialog}
+        className="radial-dialog"
+        aria-label="Popcorn Pal navigation"
+        onClose={() => launcher.current?.focus()}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) close()
+        }}
+        onKeyDown={(event) => {
+          const items = Array.from(
+            dialog.current?.querySelectorAll<HTMLAnchorElement>('a') ?? []
           )
-        })}
-
-        {/* Center spacer for FAB */}
-        <div className="flex-1" />
-
-        {/* Right two items */}
-        {navItems.slice(2).map((item) => {
-          const isActive = location.pathname === item.path
-          return (
-            <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              onPointerEnter={() => { void prefetchRouteModule(item.path) }}
-              onTouchStart={() => { void prefetchRouteModule(item.path) }}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors duration-200 ${
-                isActive ? 'text-white' : 'text-gray-600 active:text-gray-400'
-              }`}
-              aria-label={item.label}
-            >
-              <item.Icon
-                className="w-[22px] h-[22px]"
-                strokeWidth={isActive ? 2.5 : 1.5}
-                fill={isActive ? 'currentColor' : 'none'}
-              />
-              {isActive && (
-                <div className="w-1 h-1 mt-1.5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full" />
-              )}
-            </button>
+          const current = items.indexOf(
+            document.activeElement as HTMLAnchorElement
           )
-        })}
-      </div>
-    </nav>
+          if (
+            [
+              'ArrowRight',
+              'ArrowDown',
+              'ArrowLeft',
+              'ArrowUp',
+              'Home',
+              'End',
+            ].includes(event.key)
+          ) {
+            event.preventDefault()
+            const next =
+              event.key === 'Home'
+                ? 0
+                : event.key === 'End'
+                  ? items.length - 1
+                  : (current +
+                      (['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1) +
+                      items.length) %
+                    items.length
+            items[next]?.focus()
+          }
+        }}
+      >
+        <div className="radial-heading">
+          <p className="app-kicker">Your next scene</p>
+          <h2>Where to?</h2>
+        </div>
+        <nav className="radial-wheel" aria-label="Main navigation">
+          <div className="radial-orbit" aria-hidden="true" />
+          {destinations.map(({ path, Icon, label }, index) => {
+            const angle = ((index * 60 - 90) * Math.PI) / 180
+            const active = location.pathname === path
+            return (
+              <Link
+                to={path}
+                key={path}
+                onClick={close}
+                aria-current={active ? 'page' : undefined}
+                className={`radial-destination ${path === '/add' ? 'radial-log' : ''} ${active ? 'is-active' : ''}`}
+                style={{
+                  left: `calc(50% + ${Math.cos(angle) * 113}px)`,
+                  top: `calc(50% + ${Math.sin(angle) * 113}px)`,
+                }}
+                onFocus={() => {
+                  void prefetchRouteModule(path)
+                }}
+                onPointerEnter={() => {
+                  void prefetchRouteModule(path)
+                }}
+              >
+                <Icon size={24} strokeWidth={1.7} />
+                <span>{label === 'Log' ? 'Log a title' : label}</span>
+              </Link>
+            )
+          })}
+          <button
+            className="radial-close"
+            aria-label="Close navigation"
+            onClick={close}
+            autoFocus
+          >
+            <X size={23} />
+            <span>Close</span>
+          </button>
+        </nav>
+        <p className="radial-caption">Now showing · {currentLabel}</p>
+      </dialog>
+    </div>
   )
 }

@@ -59,11 +59,11 @@ function FeedPostCardComponent({
 }: FeedPostCardProps) {
   return (
     <div
-      className="bg-gray-800/40 backdrop-blur-sm border border-white/6 rounded-2xl p-4 fade-in transition-colors hover:bg-gray-800/60"
+      className="app-panel rounded-2xl p-4 sm:p-5 fade-in"
       style={{ animationDelay: `${index * 0.05}s` }}
     >
       <div className="flex items-center gap-2.5 mb-2.5">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center overflow-hidden flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-[#665450] flex items-center justify-center overflow-hidden flex-shrink-0">
           {post.profiles.avatar_url ? (
             <UserAvatar
               avatarUrl={post.profiles.avatar_url}
@@ -106,23 +106,24 @@ function FeedPostCardComponent({
       </p>
 
       {post.image_url && (
-        <div className="mb-2.5 rounded-xl overflow-hidden">
+        <div className="mb-2.5 rounded-xl overflow-hidden bg-[#101113]">
           <ProgressiveImg
             src={post.image_url}
             alt="Post attachment"
-            className="w-full max-h-[360px] object-cover"
+            className="mx-auto h-auto w-auto max-w-full max-h-[min(70vh,640px)] object-contain"
           />
         </div>
       )}
 
       {post.media_entries && (
         <div className="mb-2.5 flex items-stretch rounded-xl overflow-hidden border border-white/6">
-          <div className="bg-white/[0.03] flex-1 flex items-center gap-2.5 p-2.5 min-w-0">
+          <div className="bg-white/[0.03] flex-1 flex items-center gap-3 p-3 min-w-0">
             {post.media_entries.cover_image_url ? (
-              <div className="w-10 h-14 flex-shrink-0 rounded overflow-hidden">
+              <div className="w-14 h-20 flex-shrink-0 rounded overflow-hidden">
                 <ProgressiveImg
                   src={post.media_entries.cover_image_url}
                   alt={post.media_entries.title}
+                  wrapperClassName="h-full w-full"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -137,8 +138,8 @@ function FeedPostCardComponent({
             <ArrowUpRight className="w-4 h-4 text-gray-600 flex-shrink-0" />
           </div>
           {post.media_entries.rating != null && (
-            <div className="w-12 flex-shrink-0 bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center">
-              <span className="text-white text-base font-bold tabular-nums">
+            <div className="w-12 flex-shrink-0 bg-[#dfc59f] !text-[#201916] flex items-center justify-center">
+              <span className="text-[#201916] text-base font-bold tabular-nums">
                 {post.media_entries.rating}
               </span>
             </div>
@@ -148,8 +149,10 @@ function FeedPostCardComponent({
 
       <div className="flex items-center gap-1 pt-2 border-t border-white/5">
         <button
+          aria-label={post.is_liked ? "Unlike post" : "Like post"}
+          aria-pressed={post.is_liked}
           onClick={() => onLikePost(post.id, post.is_liked)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${
+          className={`flex items-center gap-1.5 min-h-11 min-w-11 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 ${
             post.is_liked
               ? 'bg-red-500/15 text-red-400'
               : 'text-gray-500 hover:bg-gray-700/50 hover:text-gray-300'
@@ -163,8 +166,10 @@ function FeedPostCardComponent({
           {post.likes_count > 0 && <span>{post.likes_count}</span>}
         </button>
         <button
+          aria-label={`Comments on ${post.profiles.username}’s post`}
+          aria-expanded={isExpanded}
           onClick={() => onToggleComments(post.id)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-95 ${
+          className={`flex items-center gap-1.5 min-h-11 min-w-11 px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-95 ${
             isExpanded
               ? 'bg-blue-500/15 text-blue-400'
               : 'text-gray-500 hover:bg-gray-700/50 hover:text-gray-300'
@@ -175,8 +180,9 @@ function FeedPostCardComponent({
         </button>
         <div className="flex-1" />
         <button
+          aria-label="Share post"
           onClick={() => onSharePost(post)}
-          className="p-1.5 text-gray-600 hover:text-gray-300 rounded-full hover:bg-gray-700/50 transition-colors active:scale-95"
+          className="min-h-11 min-w-11 flex items-center justify-center p-1.5 text-gray-400 hover:text-gray-300 rounded-full hover:bg-gray-700/50 transition-colors active:scale-95"
         >
           <Share2 className="w-4 h-4" />
         </button>

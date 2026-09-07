@@ -13,7 +13,10 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response'
 declare const self: ServiceWorkerGlobalScope
 
 // ─── LIFECYCLE ────────────────────────────────────────────────────────────
-self.skipWaiting()
+// Activate updates only after the user accepts, preserving in-progress forms.
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting()
+})
 clientsClaim()
 
 // ─── PRECACHING ───────────────────────────────────────────────────────────
@@ -49,6 +52,15 @@ registerRoute(
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 7 }),
     ],
+  })
+)
+
+// Covers already viewed on this device remain available with a cached library.
+registerRoute(
+  ({ url, request }) => request.destination === 'image' && ['image.tmdb.org', 'media.rawg.io', 'books.google.com', 'books.googleusercontent.com'].includes(url.hostname),
+  new CacheFirst({
+    cacheName: 'media-covers',
+    plugins: [new CacheableResponsePlugin({ statuses: [0, 200] }), new ExpirationPlugin({ maxEntries: 180, maxAgeSeconds: 60 * 60 * 24 * 30 })],
   })
 )
 
@@ -92,7 +104,11 @@ self.addEventListener('push', (event: PushEvent) => {
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close()
-  const targetUrl = (event.notification.data?.url as string | undefined) ?? '/feed'
+  let targetUrl = new URL('/feed', self.location.origin).href
+  try {
+    const candidate = new URL(event.notification.data?.url ?? '/feed', self.location.origin)
+    if (candidate.origin === self.location.origin) targetUrl = candidate.href
+  } catch { /* A malformed notification falls back to the feed. */ }
 
   event.waitUntil(
     self.clients

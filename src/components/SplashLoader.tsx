@@ -1,13 +1,22 @@
-import { Popcorn } from 'lucide-react'
+import Brand from './brand/Brand'
 
 export default function SplashLoader() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-5">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center shadow-lg shadow-red-500/20">
-        <Popcorn className="w-8 h-8 text-white" />
+    <div
+      className="flex min-h-[70dvh] flex-col items-center justify-center gap-7"
+      role="status"
+      aria-label="Loading Popcorn Pal"
+    >
+      <Brand />
+      <div className="flex gap-1.5" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff655b]"
+            style={{ animationDelay: `${i * 180}ms` }}
+          />
+        ))}
       </div>
-      <span className="text-xl font-bold text-white tracking-tight">PopcornPal</span>
-      <div className="w-6 h-6 border-2 border-gray-700 border-t-red-500 rounded-full animate-spin" />
     </div>
   )
 }

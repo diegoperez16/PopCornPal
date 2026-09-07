@@ -1,109 +1,69 @@
-import { Users, Search, Plus, Calendar, LogOut, RefreshCw, Popcorn } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { useShallow } from 'zustand/react/shallow'
 import { useState } from 'react'
+import { History, LogOut } from 'lucide-react'
+import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { useQueryClient } from '@tanstack/react-query'
 import NotificationBell from './NotificationBell'
-import UserAvatar from './UserAvatar'
+import Brand from './brand/Brand'
 import { prefetchRouteModule } from '../lib/routeLoaders'
+import { navigation } from '../app/navigation'
 
 export default function DesktopNav() {
+  const [signOutError, setSignOutError] = useState('')
+  const signOut = useAuthStore((s) => s.signOut)
   const navigate = useNavigate()
-  const location = useLocation()
-  const { signOut, profile } = useAuthStore(useShallow(s => ({ signOut: s.signOut, profile: s.profile })))
-  const queryClient = useQueryClient()
-  const [refreshing, setRefreshing] = useState(false)
-
-  const handleRefresh = () => {
-    if (refreshing) return
-    setRefreshing(true)
-    queryClient.refetchQueries({ type: 'active' }).finally(() => setRefreshing(false))
-  }
-
-  const navItems = [
-    { path: '/feed', icon: Users, label: 'Feed' },
-    { path: '/people', icon: Search, label: 'People' },
-    { path: '/activity', icon: Calendar, label: 'Activity' },
-    { path: '/add', icon: Plus, label: 'Add' },
-  ]
-
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/auth')
-  }
-
   return (
-    <nav className="hidden md:block bg-gray-900/95 backdrop-blur-lg border-b border-white/5 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-14">
-          {/* Logo */}
-          <div className="flex items-center gap-8">
-            <button
-              onClick={() => navigate('/feed')}
-              className="flex items-center gap-2 outline-none focus:outline-none"
+    <header className="sticky top-0 z-40 hidden border-b border-white/[0.07] bg-[#101113]/95 backdrop-blur-xl md:block">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-6 px-6">
+        <Link to="/feed" aria-label="Popcorn Pal home">
+          <Brand />
+        </Link>
+        <nav className="flex items-center gap-1" aria-label="Main navigation">
+          {navigation.map(({ path, Icon, label }) => (
+            <NavLink
+              key={path}
+              to={path}
+              onPointerEnter={() => {
+                void prefetchRouteModule(path)
+              }}
+              className={({ isActive }) =>
+                `inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium ${isActive ? 'bg-white/[0.07] text-[#ff8175]' : 'text-gray-400 hover:text-white'}`
+              }
             >
-              <Popcorn className="w-5 h-5 text-rose-500" />
-              <span className="font-bold text-sm tracking-tight text-white">PopcornPal</span>
-            </button>
-
-            {/* Nav Links */}
-            <div className="flex items-center gap-1">
-              {navItems.map((item) => {
-                const isActive = location.pathname === item.path
-                const Icon = item.icon
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => navigate(item.path)}
-                    onPointerEnter={() => { void prefetchRouteModule(item.path) }}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'text-white bg-white/8'
-                        : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {item.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleRefresh}
-              className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-red-400' : ''}`} />
-            </button>
-            <NotificationBell />
-
-            <button
-              onClick={() => navigate('/profile')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
-              title={profile?.username}
-            >
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold overflow-hidden">
-                <UserAvatar avatarUrl={profile?.avatar_url} avatarCrop={profile?.avatar_crop} username={profile?.username ?? ''} />
-                {!profile?.avatar_url && (profile?.username?.[0] ?? '?').toUpperCase()}
-              </div>
-              <span className="text-sm text-gray-400">{profile?.username}</span>
-            </button>
-
-            <button
-              onClick={handleSignOut}
-              className="p-2 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-colors"
-              title="Sign out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+              <Icon size={18} />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="flex items-center">
+          <Link
+            to="/activity"
+            className="app-icon-button"
+            aria-label="Your activity"
+          >
+            <History size={19} />
+          </Link>
+          <NotificationBell />
+          <button
+            className="app-icon-button"
+            aria-label="Sign out"
+            onClick={async () => {
+              try {
+                await signOut()
+                navigate('/auth')
+              } catch {
+                setSignOutError('Could not sign out. Please try again.')
+              }
+            }}
+          >
+            <LogOut size={19} />
+          </button>
         </div>
       </div>
-    </nav>
+      {signOutError && (
+        <p role="alert" className="text-center text-sm text-rose-200 py-2">
+          {signOutError}
+        </p>
+      )}
+    </header>
   )
 }

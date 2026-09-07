@@ -2,6 +2,12 @@
 
 A modern social media platform for tracking and sharing your entertainment journey. Log movies, TV shows, games, and books, connect with friends, and discover what everyone's enjoying.
 
+## Mobile PWA redesign
+
+The cinematic mobile redesign uses a central radial launcher, a focused logging sheet, account-scoped offline data, and a responsive collection. See [the implementation and release handoff](docs/MOBILE_PWA_HANDOFF.md) for architecture changes, validation, and remaining hosting prerequisites.
+
+Run `npm test` for regression tests and `npm run test:e2e` for the isolated production-browser/PWA suite. Browser tests require `npx playwright install chromium`.
+
 ## ✨ Features
 
 ### 📱 Core Features
@@ -27,7 +33,7 @@ A modern social media platform for tracking and sharing your entertainment journ
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ and npm
+- Node.js 22.18+ and npm
 - Supabase account (free tier available at [supabase.com](https://supabase.com))
 
 ### Installation
@@ -94,7 +100,7 @@ npm run preview
 - **Styling**: Tailwind CSS 3 (mobile-first)
 - **PWA**: vite-plugin-pwa (offline support, app installation)
 - **State Management**: Zustand (lightweight global state)
-- **Routing**: React Router v6
+- **Routing**: React Router 7
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime)
 - **Authentication**: Supabase Auth (email/password + social providers ready)
 
@@ -148,7 +154,7 @@ After setting up the main schema, run these migrations in order:
 ### Phase 1: Foundation ✅ COMPLETE
 - [x] PWA setup with home screen installation
 - [x] Mobile-first responsive UI
-- [x] Routing (React Router v6)
+- [x] Routing (React Router 7)
 - [x] State management (Zustand)
 - [x] Backend integration (Supabase)
 - [x] Authentication (email/password)

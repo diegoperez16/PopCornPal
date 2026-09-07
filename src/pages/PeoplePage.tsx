@@ -187,7 +187,7 @@ export default function PeoplePage() {
       </ProfileLink>
       <button
         onClick={() => handleFollow(profile.id)}
-        className="w-full py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500 active:scale-95 transition-all shadow-sm"
+        className="app-button-primary w-full !min-h-11"
       >
         Follow
       </button>
@@ -195,8 +195,9 @@ export default function PeoplePage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-24">
-      <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="app-page text-white">
+      <div className="max-w-3xl mx-auto px-5 py-8">
+        <header className="mb-7"><p className="app-kicker mb-3">Good taste finds good company</p><h1 className="app-title">Find your people<span className="text-[#ff8175]">.</span></h1><p className="app-muted mt-3 text-sm">Friends, fellow fans, and your next favorite recommendation.</p></header>
         {/* Tab Bar */}
         <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 scrollbar-hide">
           {[
@@ -209,6 +210,7 @@ export default function PeoplePage() {
             return (
               <button
                 key={tab.id}
+                aria-pressed={isActive}
                 onClick={() => {
                   setPeopleActiveTab(tab.id as typeof peopleActiveTab)
                 }}
@@ -247,9 +249,9 @@ export default function PeoplePage() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    aria-label="Search people by username"
                     placeholder="Search by username…"
                     className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
-                    autoFocus
                   />
                   {searchQuery && (
                     <button onClick={() => { setSearchQuery('') }} className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">

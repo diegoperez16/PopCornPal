@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
 interface ProgressiveImgProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  /** Layout classes for the wrapper, such as filling a fixed-size cover frame. */
+  wrapperClassName?: string
   /** Extra classes for the shimmer placeholder behind the image */
   placeholderClass?: string
 }
@@ -8,16 +10,16 @@ interface ProgressiveImgProps extends React.ImgHTMLAttributes<HTMLImageElement> 
 /**
  * Renders an <img> that starts invisible with a shimmer placeholder,
  * then fades in once the browser has decoded the image.
- * Drop-in replacement for <img> — accepts all standard img props.
+ * Accepts standard img props; size the wrapper separately for fixed cover frames.
  */
-export default function ProgressiveImg({ className = '', placeholderClass = '', onError, ...props }: ProgressiveImgProps) {
+export default function ProgressiveImg({ className = '', wrapperClassName = '', placeholderClass = '', onError, ...props }: ProgressiveImgProps) {
   const [loaded, setLoaded] = useState(false)
   const [hidden, setHidden] = useState(false)
 
   if (hidden) return null
 
   return (
-    <div className={`relative ${placeholderClass}`}>
+    <div className={`relative ${wrapperClassName} ${placeholderClass}`}>
       {/* Shimmer placeholder — visible until image loads */}
       {!loaded && (
         <div className="absolute inset-0 bg-gray-800 animate-pulse rounded-[inherit]" />

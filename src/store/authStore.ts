@@ -1,25 +1,63 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
-import type { Profile } from '../lib/supabase'
+import { supabase, type Profile } from '../lib/supabase'
+import { accountScope } from '../lib/accountScope'
+import {
+  clearPersistedQueryCache,
+  queryClient,
+  setQueryCacheUser,
+} from '../lib/queryClient'
 
-// Set to true while signOut() is running so the SIGNED_OUT listener
-// knows it was intentional and doesn't show the "session expired" banner.
-let _signingOut = false
+let signingOut = false
+let initialization: Promise<void> | null = null
+let resumePromise: Promise<void> | null = null
+let listenerInstalled = false
+let authRevision = 0
+const profileRequests = new Map<string, Promise<void>>()
 
 const safeLocalStorage = {
-  getItem: (key: string) => localStorage.getItem(key),
+  getItem: (key: string) => {
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  },
   setItem: (key: string, value: string) => {
     try {
       localStorage.setItem(key, value)
-    } catch (e) {
-      console.warn('localStorage quota exceeded — clearing auth cache', e)
-      localStorage.removeItem('popcorn-auth')
-      try { localStorage.setItem(key, value) } catch { /* give up silently */ }
+    } catch {
+      /* Auth works without a profile cache. */
     }
   },
-  removeItem: (key: string) => localStorage.removeItem(key),
+  removeItem: (key: string) => {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      /* Storage may be disabled. */
+    }
+  },
+}
+
+async function withTimeout<T>(
+  promise: PromiseLike<T>,
+  milliseconds: number
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Session request timed out')),
+          milliseconds
+        )
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 interface AuthState {
@@ -29,7 +67,11 @@ interface AuthState {
   lastAuthCheck: number
   sessionExpired: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, username: string) => Promise<void>
+  signUp: (
+    email: string,
+    password: string,
+    username: string
+  ) => Promise<'signed-in' | 'confirmation-required'>
   signOut: () => Promise<void>
   clearSessionExpired: () => void
   resetPasswordForEmail: (email: string) => Promise<void>
@@ -42,294 +84,260 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-  (set, get) => ({
-  user: null,
-  profile: null,
-  loading: false,
-  lastAuthCheck: 0,
-  sessionExpired: false,
-
-  initialize: async () => {
-    try {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const accessToken = hashParams.get('access_token')
-      const refreshToken = hashParams.get('refresh_token')
-      const type = hashParams.get('type') // Supabase sends 'recovery' type for password resets
-      
-      if (accessToken && refreshToken) {
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
+    (set, get) => {
+      async function applyUser(user: User | null, sessionExpired = false) {
+        const ready = setQueryCacheUser(user?.id ?? null)
+        const scope = accountScope.capture()
+        const cachedProfile = get().profile
+        // A stored profile is display data, never proof of an authenticated session.
+        set({
+          user,
+          profile: cachedProfile?.id === user?.id ? cachedProfile : null,
+          lastAuthCheck: user ? Date.now() : 0,
+          sessionExpired,
         })
-        
-        if (error) console.error('Error setting session:', error)
-        else if (data.session?.user) {
-          set({ user: data.session.user })
-          
-          // Attempt to fetch profile with timeout
-          const fetchProfilePromise = get().fetchProfile(data.session.user.id)
-          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
-          await Promise.race([fetchProfilePromise, timeoutPromise])
-          
-          // Only redirect to feed if we are NOT in recovery/password update mode
-          if (type !== 'recovery' && window.location.pathname !== '/update-password') {
-            window.history.replaceState({}, document.title, '/feed')
-          }
-          
-          set({ loading: false })
-          return
-        }
+        await ready
+        return accountScope.isCurrent(scope)
       }
 
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
-          set({ user: session?.user ?? null, lastAuthCheck: Date.now() })
-          if (session?.user) await get().fetchProfile(session.user.id)
-          // Token refresh is proactive (token still valid, just renewed) — no need to
-          // invalidate queries. TanStack Query's refetchOnWindowFocus + staleTime handle refresh.
-        } else if (event === 'SIGNED_OUT') {
-          // Distinguish automatic expiry from manual sign-out so we can show
-          // the "session expired" banner only when the user didn't log out themselves.
-          set({ user: null, profile: null, lastAuthCheck: 0, sessionExpired: !_signingOut })
-        } else {
-          const currentUser = get().user
-          if (session?.user?.id !== currentUser?.id) {
-            set({ user: session?.user ?? null })
-            if (session?.user) await get().fetchProfile(session.user.id)
-            else set({ profile: null })
+      function installAuthListener() {
+        if (listenerInstalled) return
+        listenerInstalled = true
+        supabase.auth.onAuthStateChange((event, session) => {
+          authRevision += 1
+          const expired = event === 'SIGNED_OUT' && !signingOut && !!get().user
+          const work = applyUser(session?.user ?? null, expired)
+          // Supabase holds its auth lock while invoking listeners. Do not await
+          // a profile request (which needs that same lock) inside this callback.
+          if (session?.user) {
+            const userId = session.user.id
+            setTimeout(() => {
+              void work
+                .then((current) => {
+                  if (current && get().user?.id === userId)
+                    return get().fetchProfile(userId)
+                })
+                .catch((error) =>
+                  console.warn('Could not refresh profile:', error)
+                )
+            }, 0)
           }
-        }
-      })
-
-      // getSession() uses navigator.locks internally with no timeout —
-      // if a lock is stuck (crashed tab, browser bug), it hangs forever.
-      // Race it against a 3-second deadline so the app always proceeds.
-      let session = null as Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
-      try {
-        const result = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('getSession timed out')), 3000)
-          ),
-        ])
-        session = result.data.session
-      } catch (e) {
-        console.warn('getSession failed or timed out, proceeding without cached session:', e)
+        })
       }
 
-      // If the cached token is expired or expiring within 60s, refresh it now
-      // before any queries fire. This avoids needing two reloads after backgrounding.
-      if (session) {
-        const expiresAt = session.expires_at ?? 0
-        const expiredOrExpiringSoon = expiresAt < Math.floor(Date.now() / 1000) + 60
-        if (expiredOrExpiringSoon) {
+      return {
+        user: null,
+        profile: null,
+        loading: true,
+        lastAuthCheck: 0,
+        sessionExpired: false,
+
+        initialize: () => {
+          if (initialization) return initialization
+          installAuthListener()
+          initialization = (async () => {
+            try {
+              const params = new URLSearchParams(
+                window.location.hash.substring(1)
+              )
+              const accessToken = params.get('access_token')
+              const refreshToken = params.get('refresh_token')
+              const recovery = params.get('type') === 'recovery'
+              const revision = authRevision
+              const result =
+                accessToken && refreshToken
+                  ? await withTimeout(
+                      supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                      }),
+                      8000
+                    )
+                  : await withTimeout(supabase.auth.getSession(), 8000)
+              if (result.error) throw result.error
+              const session = result.data.session
+              // An auth event that arrived during the read is more recent than it.
+              if (
+                revision === authRevision ||
+                accountScope.userId === session?.user?.id
+              ) {
+                await applyUser(session?.user ?? null)
+              } else {
+                await setQueryCacheUser(accountScope.userId)
+              }
+              if (accessToken && refreshToken) {
+                const path =
+                  recovery || window.location.pathname === '/update-password'
+                    ? '/update-password'
+                    : '/feed'
+                // Remove credentials from history, including recovery links.
+                window.history.replaceState({}, document.title, path)
+              }
+              const userId = get().user?.id
+              if (userId) {
+                await withTimeout(get().fetchProfile(userId), 2500).catch(
+                  () => {}
+                )
+              }
+            } catch (error) {
+              console.warn('Could not initialize session:', error)
+              // Never authenticate using a stale application-level localStorage copy.
+              // A valid Supabase auth event can still recover the session later.
+              await setQueryCacheUser(get().user?.id ?? null)
+            } finally {
+              set({ loading: false })
+            }
+          })()
+          return initialization
+        },
+
+        resumeSession: () => {
+          if (resumePromise) return resumePromise
+          const { user, lastAuthCheck } = get()
+          if (!user || Date.now() - lastAuthCheck < 60_000)
+            return Promise.resolve()
+          const scope = accountScope.capture()
+          resumePromise = (async () => {
+            try {
+              const { data, error } = await withTimeout(
+                supabase.auth.refreshSession(),
+                8000
+              )
+              if (!accountScope.isCurrent(scope)) return
+              if (error) {
+                console.warn('Session refresh failed:', error.message)
+                return
+              }
+              await applyUser(data.session?.user ?? null, !data.session)
+              if (data.session && !get().profile)
+                await get().fetchProfile(data.session.user.id)
+            } catch (error) {
+              console.warn('Could not resume session:', error)
+            }
+          })().finally(() => {
+            resumePromise = null
+          })
+          return resumePromise
+        },
+
+        signIn: async (email, password) => {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
+          if (error) throw error
+          if (data.user) {
+            await applyUser(data.user)
+            await get().fetchProfile(data.user.id)
+          }
+        },
+
+        signUp: async (email, password, username) => {
+          const { data: existing, error: lookupError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle()
+          if (lookupError) throw lookupError
+          if (existing)
+            throw new Error(
+              'Username is already taken. Please choose a different one.'
+            )
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { username },
+              emailRedirectTo: `${window.location.origin}/auth/callback?confirmed=true`,
+            },
+          })
+          if (error) throw error
+          if (!data.user) throw new Error('Failed to create user')
+          if (!data.session) return 'confirmation-required'
+          await applyUser(data.user)
+          await get().fetchProfile(data.user.id)
+          return 'signed-in'
+        },
+
+        resetPasswordForEmail: async (email) => {
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/update-password`,
+          })
+          if (error) throw error
+        },
+
+        updatePassword: async (password) => {
+          const { error } = await supabase.auth.updateUser({ password })
+          if (error) throw error
+        },
+
+        signOut: async () => {
+          const userId = get().user?.id
+          signingOut = true
           try {
-            const { data } = await Promise.race([
-              supabase.auth.refreshSession(),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('refreshSession timed out')), 3000)
-              ),
-            ])
-            if (data.session) session = data.session
-          } catch {
-            // Network down or timed out — keep the existing session
+            // A failed sign-out must not masquerade as a successful one. Local
+            // scope signs out this device without disrupting other signed-in devices.
+            const { error } = await supabase.auth.signOut({ scope: 'local' })
+            if (error) throw error
+            await applyUser(null)
+            await clearPersistedQueryCache(userId).catch(() => {})
+          } finally {
+            signingOut = false
           }
-        }
-      }
+        },
 
-      if (session?.user) {
-        set({ user: session.user, lastAuthCheck: Date.now() })
-        if (get().profile) {
-          // We have a cached profile (zustand persist) — render instantly with it,
-          // but ALWAYS refresh in the background (non-blocking) so profile edits made
-          // elsewhere (e.g. a username change on another device/deploy) actually show
-          // up. Previously this was skipped entirely, so a stale cached profile —
-          // including an old username — would never refetch.
-          void get().fetchProfile(session.user.id).catch(() => {})
-        } else {
-          const fetchProfilePromise = get().fetchProfile(session.user.id)
-          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000))
-          await Promise.race([fetchProfilePromise, timeoutPromise])
-        }
+        clearSessionExpired: () => set({ sessionExpired: false }),
+
+        fetchProfile: (userId) => {
+          const key = `${userId}:${accountScope.capture().generation}`
+          const existing = profileRequests.get(key)
+          if (existing) return existing
+          const scope = accountScope.capture()
+          const request = (async () => {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle()
+            if (error) throw error
+            if (accountScope.isCurrent(scope) && get().user?.id === userId) {
+              set({ profile: data })
+            }
+          })().finally(() => {
+            profileRequests.delete(key)
+          })
+          profileRequests.set(key, request)
+          return request
+        },
+
+        updateProfile: async (updates) => {
+          const { user } = get()
+          if (!user) throw new Error('No user logged in')
+          const scope = accountScope.capture()
+          const { data, error } = await supabase
+            .from('profiles')
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq('id', user.id)
+            .select()
+            .single()
+          if (error) throw error
+          if (!accountScope.isCurrent(scope)) return
+          set({ profile: data })
+          void queryClient.invalidateQueries({
+            predicate: (query) =>
+              ['feed', 'people', 'profile', 'activity'].includes(
+                query.queryKey[0] as string
+              ),
+          })
+        },
       }
-    } catch (error) {
-      console.error('Error initializing auth:', error)
-    } finally {
-      set({ loading: false })
+    },
+    {
+      name: 'popcorn-auth',
+      version: 2,
+      storage: createJSONStorage(() => safeLocalStorage),
+      // Supabase owns persisted authentication; only cache profile display data here.
+      partialize: (state) => ({ profile: state.profile }),
     }
-  },
-
-  resumeSession: async () => {
-    try {
-      const { user, lastAuthCheck, profile } = get()
-      if (!user) return
-
-      // Throttle to once per 60 s — avoid hammering on rapid tab-switches
-      const ONE_MINUTE = 60 * 1000
-      if (Date.now() - lastAuthCheck < ONE_MINUTE) return
-
-      // Use refreshSession() (not getSession()) so we always get a fresh JWT.
-      // getSession() can return a locally-cached token the client thinks is valid
-      // but has actually expired on the server while the PWA was backgrounded.
-      //
-      // Bound it with a timeout: supabase-js's auth lock can hang after the tab
-      // was backgrounded, and we never want this to block indefinitely. If it
-      // times out we keep the cached session — queries self-heal via the
-      // QueryCache auth-error recovery if the token really is dead.
-      const refreshResult = await Promise.race([
-        supabase.auth.refreshSession(),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
-      ])
-      if (!refreshResult) {
-        console.warn('resumeSession: token refresh timed out, keeping cached state')
-        return
-      }
-      const { data, error } = refreshResult
-
-      if (error) {
-        // Network error — keep cached user so the app stays usable offline.
-        // The NetworkErrorBanner will surface and the user can reload manually.
-        console.warn('resumeSession: token refresh failed, keeping cached state', error.message)
-        return
-      }
-
-      if (!data.session) {
-        // Refresh token itself is expired — force logout so the user re-authenticates.
-        console.warn('resumeSession: refresh token expired, signing out')
-        await get().signOut()
-        return
-      }
-
-      set({ user: data.session.user, lastAuthCheck: Date.now() })
-
-      if (!profile) {
-        const fetchProfilePromise = get().fetchProfile(data.session.user.id)
-        const timeout = new Promise(resolve => setTimeout(resolve, 5000))
-        await Promise.race([fetchProfilePromise, timeout])
-      }
-    } catch (err) {
-      console.error('Resume session failed', err)
-    }
-  },
-
-  signIn: async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
-    if (data.user) {
-      set({ user: data.user })
-      await get().fetchProfile(data.user.id)
-    }
-  },
-
-  signUp: async (email, password, username) => {
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', username)
-      .maybeSingle()
-
-    if (existing) throw new Error('Username is already taken. Please choose a different one.')
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username },
-        emailRedirectTo: `${window.location.origin}/auth/callback?confirmed=true`
-      }
-    })
-
-    if (error) throw new Error(error.message)
-    if (!data.user) throw new Error('Failed to create user')
-
-    if (data.user && !data.session) {
-      throw new Error('✉️ Please check your email to confirm your account.')
-    }
-
-    set({ user: data.user })
-    await get().fetchProfile(data.user.id)
-  },
-
-  // New function: Request Password Reset Email
-  resetPasswordForEmail: async (email) => {
-    // IMPORTANT: This redirectTo tells Supabase where to send the user 
-    // after they click the link in the email.
-    const redirectTo = `${window.location.origin}/update-password`
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    })
-    if (error) throw error
-  },
-
-  // New function: Update Password (used after clicking the link)
-  updatePassword: async (password) => {
-    const { error } = await supabase.auth.updateUser({ password })
-    if (error) throw error
-  },
-
-  signOut: async () => {
-    _signingOut = true
-    try {
-      await supabase.auth.signOut()
-    } finally {
-      _signingOut = false
-    }
-    // Clear TanStack Query cache and persisted cache
-    const { clearPersistedQueryCache, queryClient } = await import('../lib/queryClient')
-    queryClient.clear()
-    await clearPersistedQueryCache()
-    // Clear user-specific localStorage drafts
-    Object.keys(localStorage)
-      .filter(k => k.startsWith('popcorn_') && k !== 'popcorn-auth')
-      .forEach(k => localStorage.removeItem(k))
-    set({ user: null, profile: null, lastAuthCheck: 0, sessionExpired: false })
-  },
-
-  clearSessionExpired: () => set({ sessionExpired: false }),
-
-  fetchProfile: async (userId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (data) set({ profile: data })
-  },
-
-  updateProfile: async (updates) => {
-    const { user } = get()
-    if (!user) throw new Error('No user logged in')
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', user.id)
-      .select()
-      .single()
-
-    if (error) throw error
-    set({ profile: data })
-
-    // The username/avatar are denormalized into feed posts, comments, people
-    // lists and profile pages (all cached + persisted). Invalidate those domains
-    // so a profile edit — e.g. a username change — propagates instead of showing
-    // the old value from cache until staleTime lapses.
-    const { queryClient } = await import('../lib/queryClient')
-    queryClient.invalidateQueries({
-      predicate: (query) =>
-        ['feed', 'people', 'profile', 'activity'].includes(query.queryKey[0] as string),
-    })
-  },
-  }),
-  {
-    name: 'popcorn-auth',
-    storage: createJSONStorage(() => safeLocalStorage),
-    partialize: (state) => ({
-      user: state.user,
-      profile: state.profile,
-      lastAuthCheck: state.lastAuthCheck,
-    }),
-  }
-))
+  )
+)

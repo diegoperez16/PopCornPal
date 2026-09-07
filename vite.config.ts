@@ -10,24 +10,31 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // injectManifest lets us write a custom SW (src/sw.ts) with push +
       // background-sync handlers while still injecting the Workbox precache manifest.
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      injectRegister: false,
+      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'PopcornPal',
-        short_name: 'PopcornPal',
+        name: 'Popcorn Pal',
+        short_name: 'Popcorn Pal',
         description: 'Track and share your movies, shows, games, and books with friends',
-        theme_color: '#1a1a1a',
-        background_color: '#1a1a1a',
+        id: '/',
+        lang: 'en',
+        categories: ['entertainment', 'social'],
+        theme_color: '#101113',
+        background_color: '#101113',
         display: 'standalone',
-        orientation: 'portrait',
+
         scope: '/',
-        start_url: '/',
+        start_url: '/feed',
+        shortcuts: [
+          { name: 'Log a title', url: '/add', icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Your library', url: '/library', icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }] },
+        ],
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -40,10 +47,10 @@ export default defineConfig({
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'maskable'
           }
         ]
       },

@@ -108,14 +108,9 @@ export default function ActivityPage() {
   const daysActive = sortedDates.length
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white pb-24 md:pb-12">
-      {/* Background Gradient Mesh */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
-        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-purple-900/40 to-transparent"></div>
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-gradient-to-t from-red-900/20 to-transparent rounded-full blur-3xl"></div>
-      </div>
-
-      <main className="relative z-10 max-w-3xl mx-auto px-4 pt-6 pb-8">
+    <div className="app-page text-white">
+      <main className="relative z-10 max-w-3xl mx-auto px-5 pt-8 pb-8">
+        <header className="mb-7"><p className="app-kicker mb-3">A life in stories</p><h1 className="app-title">The story so far<span className="text-[#ff8175]">.</span></h1><p className="app-muted mt-3 text-sm">Your watches, reads, and little obsessions, remembered.</p></header>
         {/* Quick Stats */}
         <div className="flex gap-3 mb-8">
           <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">

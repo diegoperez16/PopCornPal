@@ -1,7 +1,10 @@
-import { createStore, get, set } from 'idb-keyval'
+import { createStore, get, update } from 'idb-keyval'
 import { useSyncExternalStore } from 'react'
 import { registerOfflineSync } from './push'
 import { supabase } from './supabase'
+import { accountScope } from './accountScope'
+import { createOfflineQueue } from './offlineQueueCore'
+import { isAuthError, isNetworkError } from './requestErrors'
 import {
   createComment,
   createMediaEntry,
@@ -23,46 +26,134 @@ import {
   type UpdateCommentInput,
 } from './userMutations'
 
-const offlineMutationStore = createStore('popcornpal-offline', 'offline-mutations')
-const offlineMutationKey = 'queue'
+const offlineMutationStore = createStore(
+  'popcornpal-offline',
+  'offline-mutations'
+)
+const queueKey = (userId: string) => `queue:v2:${userId}`
 
 type OfflineMutationBase = {
   id: string
   createdAt: string
+  userId: string
 }
 
 export type OfflineMutation =
   | (OfflineMutationBase & { kind: 'create-post'; payload: CreatePostInput })
-  | (OfflineMutationBase & { kind: 'delete-post'; payload: { userId: string; postId: string } })
-  | (OfflineMutationBase & { kind: 'create-comment'; payload: CreateCommentInput })
-  | (OfflineMutationBase & { kind: 'delete-comment'; payload: { userId: string; commentId: string } })
-  | (OfflineMutationBase & { kind: 'update-comment'; payload: UpdateCommentInput })
-  | (OfflineMutationBase & { kind: 'toggle-post-like'; payload: ToggleLikeInput })
-  | (OfflineMutationBase & { kind: 'toggle-comment-like'; payload: ToggleCommentLikeInput })
-  | (OfflineMutationBase & { kind: 'add-entry'; payload: { userId: string; entry: MediaEntryMutationInput } })
-  | (OfflineMutationBase & { kind: 'update-entry'; payload: { id: string; updates: Partial<MediaEntryMutationInput> } })
+  | (OfflineMutationBase & {
+      kind: 'delete-post'
+      payload: { userId: string; postId: string }
+    })
+  | (OfflineMutationBase & {
+      kind: 'create-comment'
+      payload: CreateCommentInput
+    })
+  | (OfflineMutationBase & {
+      kind: 'delete-comment'
+      payload: { userId: string; commentId: string }
+    })
+  | (OfflineMutationBase & {
+      kind: 'update-comment'
+      payload: UpdateCommentInput
+    })
+  | (OfflineMutationBase & {
+      kind: 'toggle-post-like'
+      payload: ToggleLikeInput
+    })
+  | (OfflineMutationBase & {
+      kind: 'toggle-comment-like'
+      payload: ToggleCommentLikeInput
+    })
+  | (OfflineMutationBase & {
+      kind: 'add-entry'
+      payload: { userId: string; entry: MediaEntryMutationInput }
+    })
+  | (OfflineMutationBase & {
+      kind: 'update-entry'
+      payload: { id: string; updates: Partial<MediaEntryMutationInput> }
+    })
   | (OfflineMutationBase & { kind: 'delete-entry'; payload: { id: string } })
-  | (OfflineMutationBase & { kind: 'upsert-episode-rating'; payload: EpisodeRatingMutationInput })
+  | (OfflineMutationBase & {
+      kind: 'upsert-episode-rating'
+      payload: EpisodeRatingMutationInput
+    })
 
 type QueueListener = () => void
 
 const listeners = new Set<QueueListener>()
 let queueSnapshot = 0
-let flushPromise: Promise<number> | null = null
+let queueErrorSnapshot: string | null = null
 
-function emitQueueChange(nextCount: number) {
+function emitQueueChange(nextCount: number, error: string | null = null) {
   queueSnapshot = nextCount
-  listeners.forEach(listener => listener())
+  queueErrorSnapshot = error
+  listeners.forEach((listener) => listener())
 }
 
-async function readQueue() {
-  return (await get<OfflineMutation[]>(offlineMutationKey, offlineMutationStore)) ?? []
+const queue = createOfflineQueue<OfflineMutation>({
+  read: async (userId) =>
+    (await get<OfflineMutation[]>(queueKey(userId), offlineMutationStore)) ??
+    [],
+  update: (userId, transform) =>
+    update<OfflineMutation[]>(
+      queueKey(userId),
+      (current) => transform(current ?? []),
+      offlineMutationStore
+    ),
+})
+
+// Coordinate replay across installed/browser windows without blocking typing/enqueue.
+async function withQueueLock<T>(
+  userId: string,
+  action: () => Promise<T>
+): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request(
+      `popcorn-queue:${userId}`,
+      { signal: AbortSignal.timeout(5000) },
+      action
+    )
+  }
+  return action()
 }
 
-async function writeQueue(queue: OfflineMutation[]) {
-  await set(offlineMutationKey, queue, offlineMutationStore)
-  emitQueueChange(queue.length)
+// The old global queue has no trustworthy owner for entry updates/deletes.
+// Keep it intact for recovery; migrate only changes that explicitly identify one.
+async function migrateLegacyQueue(userId: string) {
+  const legacy = await get<OfflineMutation[]>('queue', offlineMutationStore)
+  if (!legacy?.length) return
+  const owned = legacy.filter(
+    (item) => 'userId' in item.payload && item.payload.userId === userId
+  )
+  if (!owned.length) return
+  await update<OfflineMutation[]>(
+    queueKey(userId),
+    (current) => {
+      const items = current ?? []
+      const ids = new Set(items.map((item) => item.id))
+      return [
+        ...items,
+        ...owned
+          .filter((item) => !ids.has(item.id))
+          .map((item) => ({ ...item, userId })),
+      ]
+    },
+    offlineMutationStore
+  )
+  const migratedIds = new Set(owned.map((item) => item.id))
+  await update<OfflineMutation[]>(
+    'queue',
+    (current) => (current ?? []).filter((item) => !migratedIds.has(item.id)),
+    offlineMutationStore
+  )
 }
+
+accountScope.subscribe(() => {
+  emitQueueChange(0)
+  void initializeOfflineMutationQueue().catch(() => {
+    emitQueueChange(0, 'Offline changes could not be read from this device.')
+  })
+})
 
 function subscribe(listener: QueueListener) {
   listeners.add(listener)
@@ -108,62 +199,64 @@ function canQueueOffline() {
   return typeof navigator !== 'undefined' && !navigator.onLine
 }
 
-function isAuthError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const e = error as Record<string, unknown>
-  return (
-    e.code === 'PGRST301' ||
-    e.status === 401 ||
-    (typeof e.message === 'string' &&
-      (e.message.includes('JWT') || e.message.includes('token is expired')))
-  )
+function requireMutationOwner(mutation: OfflineMutationInput) {
+  const userId = accountScope.userId
+  if (!userId) throw new Error('Sign in before saving changes.')
+  if ('userId' in mutation.payload && mutation.payload.userId !== userId) {
+    throw new Error('Your account changed. Please try saving again.')
+  }
+  return userId
 }
 
-function isRetryableMutationError(error: unknown) {
-  if (canQueueOffline()) return true
-  if (!(error instanceof Error)) return false
-
-  const message = error.message.toLowerCase()
-  return (
-    message.includes('network') ||
-    message.includes('failed to fetch') ||
-    message.includes('fetch failed') ||
-    message.includes('load failed')
-  )
-}
+type WithoutMetadata<T> = T extends OfflineMutation
+  ? Omit<T, keyof OfflineMutationBase>
+  : never
+export type OfflineMutationInput = WithoutMetadata<OfflineMutation>
 
 export async function initializeOfflineMutationQueue() {
-  const queue = await readQueue()
-  emitQueueChange(queue.length)
+  const scope = accountScope.capture()
+  if (!scope.userId) {
+    emitQueueChange(0)
+    return
+  }
+  await withQueueLock(scope.userId, () => migrateLegacyQueue(scope.userId!))
+  const items = await queue.read(scope.userId)
+  if (accountScope.isCurrent(scope)) emitQueueChange(items.length)
 }
 
 export async function getQueuedOfflineMutations() {
-  return readQueue()
+  const userId = accountScope.userId
+  return userId ? queue.read(userId) : []
 }
 
-export async function enqueueOfflineMutation(
-  mutation: Omit<OfflineMutation, 'id' | 'createdAt'>
-) {
-  const queue = await readQueue()
-  const queuedMutation: OfflineMutation = {
+export async function enqueueOfflineMutation(mutation: OfflineMutationInput) {
+  return enqueueForOwner(mutation, requireMutationOwner(mutation))
+}
+
+async function enqueueForOwner(mutation: OfflineMutationInput, userId: string) {
+  const item = await queue.enqueue({
     ...mutation,
+    userId,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-  } as OfflineMutation
-
-  queue.push(queuedMutation)
-  await writeQueue(queue)
-  await registerOfflineSync()
-
-  return queuedMutation
+  } as OfflineMutation)
+  if (accountScope.userId === userId) {
+    const items = await queue.read(userId)
+    if (accountScope.userId === userId) emitQueueChange(items.length)
+  }
+  // Saving locally succeeds even if this browser does not support background sync.
+  void registerOfflineSync().catch(() => {})
+  return item
 }
 
 export async function executeQueuedMutationOrRun<T>(
-  mutation: Omit<OfflineMutation, 'id' | 'createdAt'>,
+  mutation: OfflineMutationInput,
   action: () => Promise<T>
 ): Promise<{ queued: boolean; result?: T }> {
+  const owner = requireMutationOwner(mutation)
+  const scope = accountScope.capture()
   if (canQueueOffline()) {
-    await enqueueOfflineMutation(mutation)
+    await enqueueForOwner(mutation, owner)
     return { queued: true }
   }
 
@@ -173,87 +266,65 @@ export async function executeQueuedMutationOrRun<T>(
   } catch (error) {
     if (isAuthError(error)) {
       const { error: refreshError } = await supabase.auth.refreshSession()
-      if (!refreshError) {
+      if (!refreshError && accountScope.isCurrent(scope)) {
         try {
           const result = await action()
           return { queued: false, result }
         } catch (retryError) {
-          if (!isRetryableMutationError(retryError)) throw retryError
-          await enqueueOfflineMutation(mutation)
+          if (!(canQueueOffline() || isNetworkError(retryError)))
+            throw retryError
+          await enqueueForOwner(mutation, owner)
           return { queued: true }
         }
       }
       throw error
     }
-    if (!isRetryableMutationError(error)) throw error
-    await enqueueOfflineMutation(mutation)
+    if (!(canQueueOffline() || isNetworkError(error))) throw error
+    await enqueueForOwner(mutation, owner)
     return { queued: true }
   }
 }
 
 export async function flushOfflineMutationQueue() {
-  if (flushPromise) {
-    const flushed = await flushPromise
-    return { flushed }
-  }
+  const scope = accountScope.capture()
+  if (!scope.userId || canQueueOffline()) return { flushed: 0 }
 
-  flushPromise = (async () => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return 0
-
-    const queue = await readQueue()
-    if (queue.length === 0) {
-      emitQueueChange(0)
-      return 0
-    }
-
-    const remaining: OfflineMutation[] = []
-    let flushedCount = 0
-    let tokenRefreshed = false
-
-    for (let index = 0; index < queue.length; index += 1) {
-      const mutation = queue[index]
-      try {
-        await runOfflineMutation(mutation)
-        flushedCount += 1
-      } catch (error) {
-        if (isAuthError(error) && !tokenRefreshed) {
-          tokenRefreshed = true
+  const result = await withQueueLock(scope.userId, () =>
+    queue.flush(
+      scope.userId!,
+      () => accountScope.isCurrent(scope) && !canQueueOffline(),
+      async (mutation) => {
+        try {
+          await runOfflineMutation(mutation)
+        } catch (error) {
+          if (!isAuthError(error)) throw error
           const { error: refreshError } = await supabase.auth.refreshSession()
-          if (!refreshError) {
-            try {
-              await runOfflineMutation(mutation)
-              flushedCount += 1
-              continue
-            } catch (retryError) {
-              if (isRetryableMutationError(retryError)) {
-                remaining.push(...queue.slice(index))
-                break
-              }
-              console.error('[offline-queue] dropping mutation after auth-retry failure', mutation, retryError)
-              continue
-            }
-          }
+          if (refreshError || !accountScope.isCurrent(scope)) throw error
+          await runOfflineMutation(mutation)
         }
-
-        if (isRetryableMutationError(error)) {
-          remaining.push(...queue.slice(index))
-          break
-        }
-
-        console.error('[offline-queue] dropping mutation after non-retryable failure', mutation, error)
       }
-    }
+    )
+  ).catch((error) => ({ flushed: 0, error }))
 
-    await writeQueue(remaining)
-    return flushedCount
-  })()
-
-  try {
-    const flushed = await flushPromise
-    return { flushed }
-  } finally {
-    flushPromise = null
+  if (accountScope.isCurrent(scope)) {
+    const items = await queue.read(scope.userId)
+    if (accountScope.isCurrent(scope))
+      emitQueueChange(
+        items.length,
+        result.error
+          ? 'Some changes could not sync. They are saved on this device; reconnect or sign in again to retry.'
+          : null
+      )
   }
+  return result
+}
+
+export function useOfflineMutationError() {
+  return useSyncExternalStore(
+    subscribe,
+    () => queueErrorSnapshot,
+    () => null
+  )
 }
 
 export function useOfflineMutationCount() {

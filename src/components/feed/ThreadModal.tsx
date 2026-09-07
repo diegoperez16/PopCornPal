@@ -366,8 +366,8 @@ export default function ThreadModal({
                             Uploading image...
                           </div>
                         ) : (
-                          <div className="relative inline-block group">
-                            <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-20 rounded-lg border border-gray-700" />
+                          <div className="relative inline-block max-w-full group">
+                            <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700" />
                             <button
                               onClick={() => setReplyImageUrl('')}
                               className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -571,8 +571,8 @@ export default function ThreadModal({
                                       Uploading image...
                                     </div>
                                   ) : (
-                                    <div className="relative inline-block group">
-                                      <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-20 rounded-lg border border-gray-700" />
+                                    <div className="relative inline-block max-w-full group">
+                                      <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700" />
                                       <button
                                         onClick={() => setReplyImageUrl('')}
                                         className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"

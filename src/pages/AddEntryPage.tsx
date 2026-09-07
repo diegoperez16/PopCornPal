@@ -1,534 +1,540 @@
-import React, { useEffect, useState } from 'react'
-import { Film, Tv, Gamepad2, Book, Search, Loader2, X, Minus, Plus, ChevronDown } from 'lucide-react'
-import SharedDecimalRating from '../components/DecimalRating'
+import { useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  useAddEntryPage,
-  type SearchResult,
-  type MediaType,
-  type Season,
-  type Episode,
-} from '../hooks/useAddEntryPage'
+  ArrowRight,
+  BookOpen,
+  Check,
+  Clapperboard,
+  Film,
+  Gamepad2,
+  Loader2,
+  Search,
+  Star,
+  Tv,
+  X,
+} from 'lucide-react'
+import DecimalRating from '../components/DecimalRating'
+import { useAddEntryPage, type WatchStatus } from '../hooks/useAddEntryPage'
+import { localDateString } from '../lib/addEntryDraft'
 
+const categories = [
+  { type: 'movie', label: 'Movies', Icon: Film },
+  { type: 'show', label: 'Shows', Icon: Tv },
+  { type: 'game', label: 'Games', Icon: Gamepad2 },
+  { type: 'book', label: 'Books', Icon: BookOpen },
+] as const
+const statuses: { value: WatchStatus; title: string; detail: string }[] = [
+  {
+    value: 'completed',
+    title: 'Finished',
+    detail: 'Another story in the books',
+  },
+  {
+    value: 'in-progress',
+    title: 'In progress',
+    detail: 'Enjoying this one right now',
+  },
+  { value: 'planned', title: 'Up next', detail: 'Save it for a little later' },
+  {
+    value: 'logged',
+    title: 'Add to library',
+    detail: 'Part of your collection',
+  },
+]
 
-// ─── Compact inline episode rating ───────────────────────────────────────────
-function EpisodeRatingInput({
-  value,
-  onChange,
-}: {
-  value: number
-  onChange: (v: number) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-
-  const commit = () => {
-    const n = parseFloat(draft)
-    if (!isNaN(n)) onChange(Math.min(10, Math.max(0, Math.round(n * 10) / 10)))
-    setEditing(false)
-  }
-
-  const step = (delta: number) => {
-    const next = Math.round((value + delta) * 10) / 10
-    onChange(Math.min(10, Math.max(0, next)))
-  }
-
+type Workflow = ReturnType<typeof useAddEntryPage>
+function LogSheet({ workflow: w }: { workflow: Workflow }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const item = w.selectedItem
+  useEffect(() => {
+    const element = dialog.current
+    if (item) element?.showModal()
+    else element?.close()
+    return () => element?.close()
+  }, [item])
+  if (!item) return null
   return (
-    <div className="flex items-center gap-1.5 flex-shrink-0">
-      <button
-        onClick={() => step(-0.5)}
-        className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 hover:text-white transition-colors active:scale-90"
-      >
-        <Minus className="w-2.5 h-2.5" />
-      </button>
-      {editing ? (
-        <input
-          type="number"
-          step="0.1"
-          min="0"
-          max="10"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === 'Enter' && commit()}
-          className="w-10 text-center bg-transparent text-sm font-bold text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-          autoFocus
-        />
-      ) : (
-        <button
-          onClick={() => { setDraft(value > 0 ? String(value) : ''); setEditing(true) }}
-          className="w-10 text-center text-sm font-semibold tabular-nums"
-        >
-          {value > 0
-            ? <span className="text-white">{value.toFixed(1)}</span>
-            : <span className="text-gray-600">—</span>
-          }
-        </button>
-      )}
-      <button
-        onClick={() => step(0.5)}
-        className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-gray-500 hover:text-white transition-colors active:scale-90"
-      >
-        <Plus className="w-2.5 h-2.5" />
-      </button>
-    </div>
-  )
-}
-
-// ─── Episode row ─────────────────────────────────────────────────────────────
-function EpisodeRow({
-  episode,
-  rating,
-  onRate,
-}: {
-  episode: Episode
-  rating: number
-  onRate: (r: number) => void
-}) {
-  return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
-      {episode.still_path ? (
-        <img
-          src={episode.still_path}
-          alt={episode.name}
-          loading="lazy"
-          className="w-16 h-9 rounded object-cover flex-shrink-0 bg-gray-800"
-        />
-      ) : (
-        <div className="w-16 h-9 rounded bg-gray-800/60 flex-shrink-0 flex items-center justify-center">
-          <Tv className="w-4 h-4 text-gray-700" />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-gray-600 font-medium">Ep {episode.episode_number}</p>
-        <p className="text-xs font-semibold text-gray-300 truncate leading-tight">{episode.name}</p>
-      </div>
-      <EpisodeRatingInput value={rating} onChange={onRate} />
-    </div>
-  )
-}
-
-// ─── Season tabs ──────────────────────────────────────────────────────────────
-function SeasonTabs({
-  seasons,
-  selected,
-  onSelect,
-}: {
-  seasons: Season[]
-  selected: number
-  onSelect: (n: number) => void
-}) {
-  return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-      {seasons.map((s) => (
-        <button
-          key={s.season_number}
-          onClick={() => onSelect(s.season_number)}
-          className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all ${
-            selected === s.season_number
-              ? 'bg-white text-gray-900'
-              : 'bg-gray-800 text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          S{s.season_number}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ─── Poster card ──────────────────────────────────────────────────────────────
-function PosterCard({
-  item,
-  onSelect,
-}: {
-  item: SearchResult
-  onSelect: (i: SearchResult) => void
-}) {
-  const Icon =
-    item.type === 'show' ? Tv : item.type === 'game' ? Gamepad2 : item.type === 'book' ? Book : Film
-
-  return (
-    <div onClick={() => onSelect(item)} className="group cursor-pointer">
-      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-gray-800/60 relative ring-1 ring-white/5 group-hover:ring-white/15 transition-all duration-200 group-hover:-translate-y-0.5">
-        {item.image ? (
-          <img
-            src={item.image}
-            alt={item.title}
-            loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Icon className="w-7 h-7 text-gray-700" />
+    <dialog
+      ref={dialog}
+      aria-labelledby="log-title"
+      className="log-sheet"
+      onCancel={(e) => {
+        e.preventDefault()
+        w.handleClose()
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) w.handleClose()
+      }}
+    >
+      <div className="flex flex-col max-h-[90dvh]">
+        <header className="flex shrink-0 items-start gap-4 border-b border-white/10 p-5">
+          {item.image ? (
+            <img
+              src={item.image}
+              alt=""
+              className="h-24 w-16 rounded-lg object-cover bg-gray-800"
+            />
+          ) : (
+            <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-lg bg-[#36302d]">
+              <Clapperboard size={25} />
+            </div>
+          )}
+          <div className="min-w-0 pt-1 flex-1">
+            <p className="app-kicker mb-2">
+              {item.type} {item.year && `· ${item.year}`}
+            </p>
+            <h2
+              id="log-title"
+              className="text-xl font-semibold leading-tight tracking-tight"
+            >
+              {item.title}
+            </h2>
+            <p className="text-xs text-gray-400 mt-2">
+              Make a little space for this story.
+            </p>
           </div>
-        )}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200" />
-      </div>
-      <p className="text-[11px] font-semibold text-gray-400 mt-1.5 truncate group-hover:text-gray-200 transition-colors leading-tight">
-        {item.title}
-      </p>
-      {item.year && (
-        <p className="text-[10px] text-gray-700">{item.year}</p>
-      )}
-    </div>
-  )
-}
-
-// ─── Log panel ────────────────────────────────────────────────────────────────
-function LogPanel({
-  item,
-  hook,
-  onClose,
-}: {
-  item: SearchResult
-  hook: ReturnType<typeof useAddEntryPage>
-  onClose: () => void
-}) {
-  const {
-    rating, setRating,
-    status, setStatus,
-    notes, setNotes,
-    watchedDate, setWatchedDate,
-    episodeMode, enterEpisodeMode, exitEpisodeMode,
-    seasons, selectedSeason, setSelectedSeason,
-    episodes, pendingRatings,
-    loadingSeasons, loadingEpisodes,
-    saving, duplicateError, saveError,
-    setPendingEpisodeRating,
-    getPendingEpisodeRating,
-    handleSave,
-  } = hook
-
-  const isShow = item.type === 'show'
-  const pendingCount = pendingRatings.length
-
-  const statusOptions = [
-    { value: 'completed', label: 'Watched' },
-    { value: 'in-progress', label: 'Watching' },
-    { value: 'planned', label: 'Want to Watch' },
-    { value: 'logged', label: 'Logged' },
-  ] as const
-
-  return (
-    <div className="flex flex-col h-full bg-gray-900">
-      {/* Drag handle (mobile) */}
-      <div className="flex justify-center pt-2.5 pb-1 flex-shrink-0 md:hidden">
-        <div className="w-8 h-1 rounded-full bg-gray-700" />
-      </div>
-
-      {/* Header */}
-      <div className="flex items-start gap-3 px-4 py-3 border-b border-white/6 flex-shrink-0">
-        {item.image && (
-          <img
-            src={item.image}
-            alt={item.title}
-            className="w-10 h-14 rounded object-cover flex-shrink-0 shadow"
-          />
-        )}
-        <div className="flex-1 min-w-0 pt-0.5">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-0.5">
-            {item.type === 'show' ? 'TV Show' : item.type === 'game' ? 'Game' : item.type === 'book' ? 'Book' : 'Film'}
-            {item.year && ` · ${item.year}`}
-          </p>
-          <h2 className="text-base font-bold text-white leading-tight line-clamp-2">{item.title}</h2>
-        </div>
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 p-1 mt-0.5 rounded-full text-gray-600 hover:text-gray-300 hover:bg-white/8 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Episode toggle (shows only) */}
-      {isShow && (
-        <div className="px-4 pt-3 flex gap-2 flex-shrink-0">
           <button
-            onClick={exitEpisodeMode}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-              !episodeMode ? 'bg-white text-gray-900' : 'bg-gray-800/70 text-gray-500 hover:text-gray-300'
-            }`}
+            type="button"
+            aria-label="Close log; keep draft"
+            disabled={w.saving}
+            onClick={w.handleClose}
+            className="app-icon-button shrink-0 -mr-2 -mt-2"
           >
-            Overall
+            <X size={20} />
           </button>
-          <button
-            onClick={enterEpisodeMode}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all relative ${
-              episodeMode ? 'bg-white text-gray-900' : 'bg-gray-800/70 text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            Episodes
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
-        {isShow && episodeMode ? (
-          /* Episode rating panel */
-          <div className="px-4 pt-3 pb-4">
-            {loadingSeasons ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+        </header>
+        <div className="overflow-y-auto overscroll-contain p-5 space-y-6">
+          {item.type === 'show' && (
+            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-[#141517] p-1">
+              <button
+                className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-[#343332] text-white' : 'text-gray-400'}`}
+                aria-pressed={!w.episodeMode}
+                onClick={w.exitEpisodeMode}
+              >
+                Whole show
+              </button>
+              <button
+                className={`min-h-11 rounded-lg text-sm ${w.episodeMode ? 'bg-[#343332] text-white' : 'text-gray-400'}`}
+                aria-pressed={w.episodeMode}
+                onClick={w.enterEpisodeMode}
+              >
+                By episode
+              </button>
+            </div>
+          )}
+          {w.episodeMode ? (
+            <>
+              <div>
+                <label htmlFor="season" className="auth-label">
+                  Season
+                </label>
+                <select
+                  id="season"
+                  value={w.selectedSeason}
+                  onChange={(e) => w.setSelectedSeason(Number(e.target.value))}
+                  className="app-input"
+                  disabled={w.loadingSeasons || w.saving}
+                >
+                  {w.seasons.map((season) => (
+                    <option
+                      value={season.season_number}
+                      key={season.season_number}
+                    >
+                      {season.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <>
-                <SeasonTabs seasons={seasons} selected={selectedSeason} onSelect={setSelectedSeason} />
-                <div className="mt-3">
-                  {loadingEpisodes ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
-                    </div>
-                  ) : episodes.length > 0 ? (
-                    episodes.map((ep) => (
-                      <EpisodeRow
-                        key={ep.episode_number}
-                        episode={ep}
-                        rating={getPendingEpisodeRating(selectedSeason, ep.episode_number)}
-                        onRate={(r) => setPendingEpisodeRating(selectedSeason, ep.episode_number, ep.name, r)}
-                      />
-                    ))
-                  ) : (
-                    <p className="text-center text-gray-600 text-sm py-8">No episodes found</p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          /* Overall form */
-          <div className="px-4 pt-3 pb-4 space-y-4">
-            {/* Status */}
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">Status</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {statusOptions.map((s) => (
-                  <button
-                    key={s.value}
-                    onClick={() => setStatus(s.value)}
-                    className={`py-2 rounded-lg text-xs font-semibold transition-all text-center ${
-                      status === s.value
-                        ? 'bg-white text-gray-900'
-                        : 'bg-gray-800/60 text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    {s.label}
+              {w.seasonError && (
+                <p role="alert" className="text-sm text-rose-200">
+                  {w.seasonError}{' '}
+                  <button onClick={w.retrySeasons} className="underline">
+                    Retry seasons
                   </button>
+                </p>
+              )}
+              {w.episodeError && (
+                <p role="alert" className="text-sm text-rose-200">
+                  {w.episodeError}{' '}
+                  <button onClick={w.retryEpisodes} className="underline">
+                    Retry episodes
+                  </button>
+                </p>
+              )}
+              {(w.loadingSeasons || w.loadingEpisodes) && (
+                <p role="status" className="text-sm text-gray-400">
+                  Loading episodes…
+                </p>
+              )}
+              <div className="space-y-3">
+                {w.episodes.map((episode) => (
+                  <div
+                    key={episode.episode_number}
+                    className="flex items-center gap-3 rounded-xl border border-white/10 p-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="app-kicker">
+                        Episode {episode.episode_number}
+                      </p>
+                      <p className="text-sm mt-1 truncate">{episode.name}</p>
+                    </div>
+                    <label className="flex items-center gap-1 text-xs text-gray-400">
+                      <span className="sr-only">Rating for {episode.name}</span>
+                      <input
+                        className="app-input !w-20 !min-h-11 text-center !p-2"
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        max="10"
+                        step="0.5"
+                        disabled={w.saving}
+                        value={
+                          w.getPendingEpisodeRating(
+                            w.selectedSeason,
+                            episode.episode_number
+                          ) || ''
+                        }
+                        placeholder="—"
+                        onChange={(e) =>
+                          w.setPendingEpisodeRating(
+                            w.selectedSeason,
+                            episode.episode_number,
+                            episode.name,
+                            Number(e.target.value)
+                          )
+                        }
+                      />
+                      <span>/10</span>
+                    </label>
+                  </div>
                 ))}
               </div>
-            </div>
-
-            {/* Rating */}
-            {(status === 'completed' || status === 'logged') && (
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">
-                  Rating <span className="normal-case font-normal text-gray-700">/ 10</span>
-                </p>
-                <SharedDecimalRating value={rating} onChange={setRating} />
-              </div>
-            )}
-
-            {/* Date watched */}
-            {status === 'completed' && (
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">Date Watched</p>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={watchedDate}
-                    onChange={(e) => setWatchedDate(e.target.value)}
-                    className="w-full bg-gray-800/60 border border-gray-700/60 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-white/15 [color-scheme:dark]"
-                  />
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600 pointer-events-none" />
+              {!w.loadingEpisodes &&
+                !w.loadingSeasons &&
+                !w.seasonError &&
+                !w.episodeError &&
+                !w.episodes.length && (
+                  <p className="text-sm text-gray-400">
+                    There are no episodes available for this season yet.
+                  </p>
+                )}
+              <p className="text-xs text-gray-400">
+                {w.pendingRatings.length} episode ratings ready. Your show is
+                also added to your collection.
+              </p>
+            </>
+          ) : (
+            <>
+              <fieldset disabled={w.saving}>
+                <legend className="auth-label">
+                  Where are you with this one?
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {statuses.map((status) => (
+                    <button
+                      key={status.value}
+                      type="button"
+                      onClick={() => w.setStatus(status.value)}
+                      aria-pressed={w.status === status.value}
+                      className={`min-h-[78px] rounded-xl border p-3 text-left ${w.status === status.value ? 'border-[#ff8175] bg-[#ff655b]/10' : 'border-white/10 bg-[#141517]'}`}
+                    >
+                      <span
+                        className={`block text-sm font-semibold ${w.status === status.value ? 'text-[#ff9b8e]' : 'text-gray-200'}`}
+                      >
+                        {status.title}
+                      </span>
+                      <span className="block text-[10px] leading-relaxed text-gray-400 mt-1">
+                        {status.detail}
+                      </span>
+                    </button>
+                  ))}
                 </div>
-              </div>
-            )}
-
-            {/* Review */}
-            {(status === 'completed' || status === 'logged') && (
+              </fieldset>
+              {(w.status === 'completed' || w.status === 'logged') && (
+                <div>
+                  <p className="auth-label">
+                    Your rating{' '}
+                    <span className="text-gray-400 text-xs font-normal">
+                      · optional
+                    </span>
+                  </p>
+                  <DecimalRating value={w.rating} onChange={w.setRating} />
+                </div>
+              )}
+              {w.status === 'completed' && (
+                <div>
+                  <label htmlFor="finished-date" className="auth-label">
+                    Finished on
+                  </label>
+                  <input
+                    id="finished-date"
+                    type="date"
+                    className="app-input"
+                    max={localDateString()}
+                    value={w.watchedDate}
+                    onChange={(e) => w.setWatchedDate(e.target.value)}
+                    disabled={w.saving}
+                    required
+                  />
+                </div>
+              )}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-2">Review</p>
+                <label htmlFor="entry-notes" className="auth-label">
+                  A few thoughts{' '}
+                  <span className="text-gray-400 text-xs font-normal">
+                    · optional
+                  </span>
+                </label>
                 <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  id="entry-notes"
                   rows={3}
-                  placeholder="Add a review…"
-                  className="w-full bg-gray-800/60 border border-gray-700/60 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-white/15 resize-none leading-relaxed"
+                  className="app-input resize-none"
+                  placeholder="The scene that stayed with you. The way it made you feel."
+                  value={w.notes}
+                  onChange={(e) => w.setNotes(e.target.value)}
+                  disabled={w.saving}
+                  maxLength={10000}
                 />
               </div>
-            )}
-
-            {duplicateError && (
-              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                Already in your library with this status.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Save */}
-      <div className="px-4 py-3 border-t border-white/6 flex-shrink-0 space-y-2">
-        {saveError && (
-          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-            {saveError}
-          </p>
-        )}
-        <button
-          onClick={handleSave}
-          disabled={saving || (isShow && episodeMode && pendingCount === 0)}
-          className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white text-sm font-bold py-3 rounded-xl shadow-lg shadow-red-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98]"
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : isShow && episodeMode ? (
-            `Save ${pendingCount} Episode${pendingCount !== 1 ? 's' : ''}`
-          ) : (
-            'Add to Library'
+            </>
           )}
-        </button>
+          {w.duplicateError && (
+            <p
+              role="alert"
+              className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200"
+            >
+              This title is already in your collection. You can edit it from
+              your library, or log another finished viewing.
+            </p>
+          )}
+          {w.saveError && (
+            <p
+              role="alert"
+              className="rounded-xl bg-rose-400/10 p-3 text-sm text-rose-200"
+            >
+              {w.saveError}
+            </p>
+          )}
+        </div>
+        <footer className="shrink-0 border-t border-white/10 px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] bg-[#1a1b1e]">
+          <button
+            className="app-button-primary w-full"
+            onClick={() => void w.handleSave()}
+            disabled={w.saving || (w.episodeMode && !w.pendingRatings.length)}
+          >
+            {w.saving ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Saving your story…
+              </>
+            ) : (
+              <>
+                <Check size={18} />
+                {w.episodeMode ? 'Save episode ratings' : 'Save this story'}
+              </>
+            )}
+          </button>
+          <p className="text-[10px] mt-2 text-center text-gray-400">
+            Your collection is yours. Share a post with friends anytime.
+          </p>
+        </footer>
       </div>
-    </div>
+    </dialog>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function AddEntryPage() {
-  const hook = useAddEntryPage()
-  const {
-    activeTab, setActiveTab,
-    query, setQuery,
-    results,
-    selectedItem, selectItem, handleClose,
-    searching,
-  } = hook
-
-  // Lock body scroll when sheet is open
-  useEffect(() => {
-    if (selectedItem) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [selectedItem])
-
-  const tabs: { id: MediaType; label: string; Icon: typeof Film }[] = [
-    { id: 'movie', label: 'Films', Icon: Film },
-    { id: 'show', label: 'TV', Icon: Tv },
-    { id: 'game', label: 'Games', Icon: Gamepad2 },
-    { id: 'book', label: 'Books', Icon: Book },
-  ]
-
-  const activeIcon = tabs.find((t) => t.id === activeTab)!.Icon
-
+  const w = useAddEntryPage()
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-      <div className="max-w-xl mx-auto px-4 pt-5 pb-28">
-
-        {/* Tab selector */}
-        <div className="flex gap-1 mb-4 p-1 bg-gray-900/60 rounded-xl">
-          {tabs.map(({ id, label, Icon }) => (
+    <main className="app-page">
+      <div className="mx-auto max-w-4xl px-5 pt-8 md:pt-10">
+        <p className="app-kicker mb-3 flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#ff8175]" />
+          Roll the credits
+        </p>
+        <h1 className="app-title">
+          What’s your latest<span className="text-[#ff8175]">?</span>
+        </h1>
+        <p className="app-muted text-sm leading-relaxed mt-3 max-w-sm">
+          A movie night. One more episode. A new favorite.
+          <br />
+          Give it a place in your story.
+        </p>
+        <div
+          className="flex gap-2 mt-7 mb-5 overflow-x-auto no-scrollbar"
+          role="group"
+          aria-label="Media type"
+        >
+          {categories.map(({ type, label, Icon }) => (
             <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold flex-1 transition-all ${
-                activeTab === id
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
+              key={type}
+              aria-pressed={w.activeTab === type}
+              onClick={() => w.setActiveTab(type)}
+              className={`inline-flex shrink-0 min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium border ${w.activeTab === type ? 'bg-[#f3ece2] text-[#23201e] border-[#f3ece2]' : 'border-[#353537] text-gray-400'}`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon size={16} />
               {label}
             </button>
           ))}
         </div>
-
-        {/* Search */}
-        <div className="relative mb-5">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            {searching
-              ? <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />
-              : <Search className="w-4 h-4 text-gray-600" />
-            }
-          </div>
+        <div className="relative">
+          <Search className="absolute left-4 top-4 text-gray-400" size={20} />
           <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${tabs.find((t) => t.id === activeTab)?.label.toLowerCase()}…`}
-            autoFocus
-            className="w-full bg-gray-900/70 border border-gray-800 rounded-xl pl-10 pr-9 py-3 text-white text-sm placeholder-gray-700 focus:outline-none focus:border-gray-700 transition-colors"
+            aria-label="Search titles"
+            type="search"
+            className="app-input !pl-12 !pr-12 !min-h-14"
+            placeholder={`Find ${w.activeTab === 'movie' ? 'a movie' : w.activeTab === 'show' ? 'a show' : w.activeTab === 'game' ? 'a game' : 'a book'}…`}
+            value={w.query}
+            onChange={(e) => w.setQuery(e.target.value)}
+            autoComplete="off"
           />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-600 hover:text-gray-400 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+          {w.searching && (
+            <Loader2
+              className="absolute top-4 right-4 animate-spin text-[#ff8175]"
+              size={20}
+            />
           )}
         </div>
-
-        {/* Skeleton */}
-        {searching && results.length === 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 animate-pulse">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i}>
-                <div className="aspect-[2/3] rounded-lg bg-gray-800/60" />
-                <div className="h-2 bg-gray-800/40 rounded mt-1.5 mx-1" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Results */}
-        {results.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-            {results.map((item) => (
-              <PosterCard key={item.id} item={item} onSelect={selectItem} />
-            ))}
-          </div>
-        )}
-
-        {/* Empty states */}
-        {results.length === 0 && query && !searching && (
-          <div className="text-center py-16">
-            <p className="text-gray-500 text-sm font-semibold">No results for "{query}"</p>
-            <p className="text-gray-700 text-xs mt-1">Try different keywords</p>
-          </div>
-        )}
-
-        {results.length === 0 && !query && !searching && (
-          <div className="text-center py-16">
-            {React.createElement(activeIcon, { className: 'w-8 h-8 text-gray-800 mx-auto mb-3' })}
-            <p className="text-gray-600 text-sm">
-              Search for {tabs.find((t) => t.id === activeTab)?.label.toLowerCase()} to log
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Sheet overlay */}
-      {selectedItem && (
-        <>
+        {w.saveFeedback && (
           <div
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
-            onClick={handleClose}
-          />
-          <div className="fixed z-50 inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center md:p-6">
-            <div className="w-full md:w-[400px] md:rounded-2xl overflow-hidden shadow-2xl flex flex-col rounded-t-2xl max-h-[88dvh] md:max-h-[80vh] bg-gray-900">
-              <LogPanel item={selectedItem} hook={hook} onClose={handleClose} />
+            role="status"
+            className="mt-5 rounded-2xl border border-[#9bb180]/30 bg-[#9bb180]/10 p-4"
+          >
+            <div className="flex justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#d3e5bb]">
+                  {w.saveFeedback.title}
+                </p>
+                <p className="text-xs text-gray-300 mt-1">
+                  {w.saveFeedback.detail}
+                </p>
+              </div>
+              <button
+                aria-label="Dismiss saved message"
+                className="app-icon-button -mr-2 -mt-2"
+                onClick={w.dismissSaveFeedback}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div className="flex gap-5 mt-4 text-xs">
+              <Link
+                className="text-[#d3e5bb] inline-flex items-center gap-1"
+                to="/feed"
+              >
+                Share your thoughts <ArrowRight size={13} />
+              </Link>
+              <Link to="/library" className="text-gray-300">
+                View collection
+              </Link>
             </div>
           </div>
-        </>
-      )}
-    </div>
+        )}
+        {w.draftItem && !w.selectedItem && (
+          <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-[#d6b78e]/20 bg-[#d6b78e]/5 p-4">
+            <div>
+              <p className="app-kicker mb-1">Your unfinished scene</p>
+              <p className="text-sm">{w.draftItem.title}</p>
+            </div>
+            <button
+              className="min-h-11 text-sm font-semibold text-[#e4c398]"
+              onClick={w.resumeDraft}
+            >
+              Continue
+            </button>
+            <button
+              className="app-icon-button"
+              aria-label="Discard entry draft"
+              onClick={w.discardDraft}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        {!w.draftStorageAvailable && (
+          <p role="status" className="mt-4 text-xs text-amber-200">
+            Your device couldn’t save this draft. Keep this page open until you
+            finish.
+          </p>
+        )}
+        {w.searchError ? (
+          <div role="alert" className="app-panel mt-6 p-6 rounded-2xl">
+            <h2 className="font-semibold">A brief intermission.</h2>
+            <p className="text-sm text-gray-400 mt-2">{w.searchError}</p>
+            <button onClick={w.retrySearch} className="app-button-primary mt-4">
+              Try search again
+            </button>
+          </div>
+        ) : w.query.trim() ? (
+          <section className="mt-7" aria-label="Search results">
+            <p className="app-kicker mb-4" aria-live="polite">
+              {w.searching
+                ? 'Finding your story…'
+                : `${w.results.length} titles found`}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-6">
+              {w.results.map((item) => (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  className="text-left group min-w-0"
+                  aria-label={`Log ${item.title}`}
+                  onClick={() => w.selectItem(item)}
+                >
+                  <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-[#232326] border border-white/10">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-opacity group-hover:opacity-80"
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center">
+                        <Clapperboard size={36} className="text-gray-500" />
+                      </div>
+                    )}
+                  </div>
+                  <h2 className="mt-3 font-semibold text-sm leading-snug line-clamp-2">
+                    {item.title}
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {item.year || 'Release date unknown'}
+                  </p>
+                </button>
+              ))}
+            </div>
+            {!w.searching && !w.results.length && (
+              <p className="py-12 text-sm text-gray-400 text-center">
+                No matches this time. Try a different title or spelling.
+              </p>
+            )}
+          </section>
+        ) : (
+          <section className="log-empty mt-8 rounded-3xl border border-[#3c3830] p-7 md:p-10">
+            <div className="flex items-center justify-between">
+              <span className="app-kicker">Every story counts</span>
+              <Star className="text-[#c2a57e]" size={20} strokeWidth={1.3} />
+            </div>
+            <h2 className="font-serif italic text-[#e2c7a5] text-[29px] leading-tight mt-8">
+              Some stories
+              <br />
+              stay with you.
+            </h2>
+            <p className="text-sm text-[#b8b0a5] mt-4 leading-relaxed max-w-xs">
+              Find a title above to rate it, remember it, or save it for your
+              next movie night.
+            </p>
+            <div className="flex items-center gap-3 mt-8 border-t border-[#d5b787]/15 pt-5 text-[10px] uppercase tracking-[.16em] text-[#c7b79f]">
+              <span>Find it</span>
+              <span className="opacity-30">/</span>
+              <span>Make it yours</span>
+              <span className="opacity-30">/</span>
+              <span>Pass it on</span>
+            </div>
+          </section>
+        )}
+      </div>
+      <LogSheet workflow={w} />
+    </main>
   )
 }
-

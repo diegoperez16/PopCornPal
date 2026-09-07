@@ -1,19 +1,6 @@
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY;
-const GOOGLE_BOOKS_API_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY;
-
-// Unified in-memory cache — keyed by type:id strings
-const cache = new Map<string, unknown>()
-const MAX_CACHE = 100
-
-function getCached<T>(key: string): T | undefined {
-  return cache.get(key) as T | undefined
-}
-
-function setCached(key: string, value: unknown): void {
-  if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value!)
-  cache.set(key, value)
-}
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY
+const RAWG_API_KEY = import.meta.env.VITE_RAWG_API_KEY
+const GOOGLE_BOOKS_API_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
 
 export interface SearchResult {
   id: string | number
@@ -24,7 +11,6 @@ export interface SearchResult {
   description?: string
   tmdbId?: number
 }
-
 export interface Season {
   season_number: number
   name: string
@@ -32,7 +18,6 @@ export interface Season {
   poster_path?: string
   air_date?: string
 }
-
 export interface Episode {
   episode_number: number
   name: string
@@ -42,147 +27,205 @@ export interface Episode {
   runtime?: number
 }
 
+type CatalogRecord = Record<string, unknown>
+const isRecord = (value: unknown): value is CatalogRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+const string = (value: unknown) =>
+  typeof value === 'string' ? value : undefined
+const year = (value: unknown) => string(value)?.split('-')[0]
+const image = (path: unknown, size: string) =>
+  typeof path === 'string' && path
+    ? `https://image.tmdb.org/t/p/${size}${path}`
+    : undefined
+
+/** Query caching and cancellation belong to the query layer. Transport errors are never empty results. */
+async function request(
+  url: string,
+  signal?: AbortSignal
+): Promise<CatalogRecord> {
+  let response: Response
+  try {
+    response = await fetch(url, { signal })
+  } catch (error) {
+    if (signal?.aborted) throw error
+    throw new Error(
+      'Couldn’t reach the catalog. Check your connection and try again.'
+    )
+  }
+  if (!response.ok) {
+    if (response.status === 429)
+      throw new Error('The catalog is busy. Give it a moment, then try again.')
+    throw new Error(
+      'The catalog is temporarily unavailable. Please try again later.'
+    )
+  }
+  const data: unknown = await response.json()
+  if (!isRecord(data))
+    throw new Error(
+      'The catalog returned an unexpected response. Please try again.'
+    )
+  return data
+}
+
+function records(
+  data: CatalogRecord,
+  key: string,
+  optional = false
+): CatalogRecord[] {
+  if (optional && data[key] === undefined) return []
+  if (!Array.isArray(data[key]))
+    throw new Error(
+      'The catalog returned an unexpected response. Please try again.'
+    )
+  return data[key].filter(isRecord)
+}
+
+function requireKey(key: string | undefined, catalog: string): string {
+  if (!key)
+    throw new Error(
+      `${catalog} search isn’t available yet. Please try another category.`
+    )
+  return key
+}
+
+async function searchTmdb(
+  query: string,
+  type: 'movie' | 'show',
+  signal?: AbortSignal
+): Promise<SearchResult[]> {
+  const key = requireKey(TMDB_API_KEY, type === 'movie' ? 'Film' : 'TV')
+  const data = await request(
+    `https://api.themoviedb.org/3/search/${type === 'show' ? 'tv' : 'movie'}?api_key=${key}&query=${encodeURIComponent(query)}`,
+    signal
+  )
+  return records(data, 'results').flatMap((item) => {
+    const title = string(type === 'show' ? item.name : item.title)
+    if (typeof item.id !== 'number' || !title) return []
+    return [
+      {
+        id: item.id,
+        title,
+        type,
+        tmdbId: item.id,
+        image: image(item.poster_path, 'w342'),
+        description: string(item.overview),
+        year: year(type === 'show' ? item.first_air_date : item.release_date),
+      },
+    ]
+  })
+}
+
 export const api = {
-  async searchMovies(query: string): Promise<SearchResult[]> {
-    if (!TMDB_API_KEY) { console.warn('TMDB API Key missing'); return [] }
-    const key = `movie:${query}`
-    const hit = getCached<SearchResult[]>(key)
-    if (hit) return hit
-    try {
-      const res = await fetch(
-        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`
+  searchMovies: (query: string, signal?: AbortSignal) =>
+    searchTmdb(query, 'movie', signal),
+  searchShows: (query: string, signal?: AbortSignal) =>
+    searchTmdb(query, 'show', signal),
+
+  async searchBooks(
+    query: string,
+    signal?: AbortSignal
+  ): Promise<SearchResult[]> {
+    const key = GOOGLE_BOOKS_API_KEY ? `&key=${GOOGLE_BOOKS_API_KEY}` : ''
+    const data = await request(
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}${key}`,
+      signal
+    )
+    return records(data, 'items', true).flatMap((item) => {
+      if (
+        typeof item.id !== 'string' ||
+        !isRecord(item.volumeInfo) ||
+        typeof item.volumeInfo.title !== 'string'
       )
-      const data = await res.json()
-      const results: SearchResult[] = data.results.map((m: any) => ({
-        id: m.id,
-        title: m.title,
-        image: m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : undefined,
-        year: m.release_date ? m.release_date.split('-')[0] : undefined,
-        type: 'movie' as const,
-        description: m.overview,
-        tmdbId: m.id,
-      }))
-      setCached(key, results)
-      return results
-    } catch { return [] }
+        return []
+      const info = item.volumeInfo
+      const thumbnail = isRecord(info.imageLinks)
+        ? string(info.imageLinks.thumbnail)
+        : undefined
+      return [
+        {
+          id: item.id,
+          title: item.volumeInfo.title,
+          type: 'book' as const,
+          image: thumbnail?.replace('http://', 'https://'),
+          year: year(info.publishedDate),
+          description: string(info.description),
+        },
+      ]
+    })
   },
 
-  async searchShows(query: string): Promise<SearchResult[]> {
-    if (!TMDB_API_KEY) { console.warn('TMDB API Key missing'); return [] }
-    const key = `show:${query}`
-    const hit = getCached<SearchResult[]>(key)
-    if (hit) return hit
-    try {
-      const res = await fetch(
-        `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`
-      )
-      const data = await res.json()
-      const results: SearchResult[] = data.results.map((s: any) => ({
-        id: s.id,
-        title: s.name,
-        image: s.poster_path ? `https://image.tmdb.org/t/p/w342${s.poster_path}` : undefined,
-        year: s.first_air_date ? s.first_air_date.split('-')[0] : undefined,
-        type: 'show' as const,
-        description: s.overview,
-        tmdbId: s.id,
-      }))
-      setCached(key, results)
-      return results
-    } catch { return [] }
+  async searchGames(
+    query: string,
+    signal?: AbortSignal
+  ): Promise<SearchResult[]> {
+    const key = requireKey(RAWG_API_KEY, 'Game')
+    const data = await request(
+      `https://api.rawg.io/api/games?key=${key}&search=${encodeURIComponent(query)}`,
+      signal
+    )
+    return records(data, 'results').flatMap((item) => {
+      if (typeof item.id !== 'number' || typeof item.name !== 'string')
+        return []
+      return [
+        {
+          id: item.id,
+          title: item.name,
+          type: 'game' as const,
+          image: string(item.background_image),
+          year: year(item.released),
+        },
+      ]
+    })
   },
 
-  async searchBooks(query: string): Promise<SearchResult[]> {
-    const key = `book:${query}`
-    const hit = getCached<SearchResult[]>(key)
-    if (hit) return hit
-    try {
-      const keyParam = GOOGLE_BOOKS_API_KEY ? `&key=${GOOGLE_BOOKS_API_KEY}` : ''
-      const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}${keyParam}`
-      )
-      const data = await res.json()
-      const results: SearchResult[] = (data.items || []).map((b: any) => ({
-        id: b.id,
-        title: b.volumeInfo.title,
-        image: b.volumeInfo.imageLinks?.thumbnail?.replace('http://', 'https://'),
-        year: b.volumeInfo.publishedDate ? b.volumeInfo.publishedDate.split('-')[0] : undefined,
-        type: 'book' as const,
-        description: b.volumeInfo.description,
-      }))
-      setCached(key, results)
-      return results
-    } catch { return [] }
+  async getShowSeasons(
+    tmdbId: number,
+    signal?: AbortSignal
+  ): Promise<Season[]> {
+    const key = requireKey(TMDB_API_KEY, 'TV')
+    const data = await request(
+      `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${key}`,
+      signal
+    )
+    return records(data, 'seasons').flatMap((season) => {
+      if (typeof season.season_number !== 'number' || season.season_number <= 0)
+        return []
+      return [
+        {
+          season_number: season.season_number,
+          name: string(season.name) ?? `Season ${season.season_number}`,
+          episode_count:
+            typeof season.episode_count === 'number' ? season.episode_count : 0,
+          poster_path: image(season.poster_path, 'w185'),
+          air_date: string(season.air_date),
+        },
+      ]
+    })
   },
 
-  async searchGames(query: string): Promise<SearchResult[]> {
-    if (!RAWG_API_KEY) { console.warn('RAWG API Key missing'); return [] }
-    const key = `game:${query}`
-    const hit = getCached<SearchResult[]>(key)
-    if (hit) return hit
-    try {
-      const res = await fetch(
-        `https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(query)}`
-      )
-      const data = await res.json()
-      const results: SearchResult[] = data.results.map((g: any) => ({
-        id: g.id,
-        title: g.name,
-        image: g.background_image,
-        year: g.released ? g.released.split('-')[0] : undefined,
-        type: 'game' as const,
-        description: '',
-      }))
-      setCached(key, results)
-      return results
-    } catch { return [] }
-  },
-
-  /** Fetch all non-special seasons for a TMDB show. */
-  async getShowSeasons(tmdbId: number): Promise<Season[]> {
-    if (!TMDB_API_KEY) return []
-    const key = `seasons:${tmdbId}`
-    const hit = getCached<Season[]>(key)
-    if (hit) return hit
-    try {
-      const res = await fetch(
-        `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}`
-      )
-      const data = await res.json()
-      const seasons: Season[] = (data.seasons || [])
-        .filter((s: any) => s.season_number > 0)
-        .map((s: any) => ({
-          season_number: s.season_number,
-          name: s.name,
-          episode_count: s.episode_count,
-          poster_path: s.poster_path ? `https://image.tmdb.org/t/p/w185${s.poster_path}` : undefined,
-          air_date: s.air_date,
-        }))
-      setCached(key, seasons)
-      return seasons
-    } catch { return [] }
-  },
-
-  /** Fetch all episodes for a given season of a TMDB show. */
-  async getSeasonEpisodes(tmdbId: number, seasonNumber: number): Promise<Episode[]> {
-    if (!TMDB_API_KEY) return []
-    const key = `episodes:${tmdbId}:${seasonNumber}`
-    const hit = getCached<Episode[]>(key)
-    if (hit) return hit
-    try {
-      const res = await fetch(
-        `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}?api_key=${TMDB_API_KEY}`
-      )
-      const data = await res.json()
-      const episodes: Episode[] = (data.episodes || []).map((e: any) => ({
-        episode_number: e.episode_number,
-        name: e.name,
-        overview: e.overview,
-        still_path: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : undefined,
-        air_date: e.air_date,
-        runtime: e.runtime,
-      }))
-      setCached(key, episodes)
-      return episodes
-    } catch { return [] }
+  async getSeasonEpisodes(
+    tmdbId: number,
+    seasonNumber: number,
+    signal?: AbortSignal
+  ): Promise<Episode[]> {
+    const key = requireKey(TMDB_API_KEY, 'TV')
+    const data = await request(
+      `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}?api_key=${key}`,
+      signal
+    )
+    return records(data, 'episodes').flatMap((episode) => {
+      if (typeof episode.episode_number !== 'number') return []
+      return [
+        {
+          episode_number: episode.episode_number,
+          name: string(episode.name) ?? `Episode ${episode.episode_number}`,
+          overview: string(episode.overview),
+          still_path: image(episode.still_path, 'w300'),
+          air_date: string(episode.air_date),
+          runtime:
+            typeof episode.runtime === 'number' ? episode.runtime : undefined,
+        },
+      ]
+    })
   },
 }

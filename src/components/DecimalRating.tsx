@@ -26,14 +26,17 @@ export default function DecimalRating({ value, onChange }: DecimalRatingProps) {
     <div className="flex items-center gap-3">
       <button
         type="button"
+        aria-label="Decrease rating"
         onClick={() => step(-0.1)}
-        className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-colors active:scale-95 flex-shrink-0"
+        className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-colors active:scale-95 flex-shrink-0"
       >
         <Minus className="w-3.5 h-3.5" />
       </button>
 
       {editing ? (
         <input
+          aria-label="Your rating out of 10"
+          inputMode="decimal"
           ref={inputRef}
           type="number"
           step="0.1"
@@ -49,32 +52,34 @@ export default function DecimalRating({ value, onChange }: DecimalRatingProps) {
       ) : (
         <button
           type="button"
+          aria-label="Set rating out of 10"
           onClick={() => { setDraft(value > 0 ? String(value) : ''); setEditing(true) }}
-          className="w-16 text-center text-2xl font-bold tabular-nums"
+          className="min-h-11 w-16 text-center text-2xl font-bold tabular-nums"
         >
           {value > 0 ? (
             <span className="text-white">{value.toFixed(1)}</span>
           ) : (
-            <span className="text-gray-700">—</span>
+            <span className="text-gray-400">—</span>
           )}
         </button>
       )}
 
       <button
         type="button"
+        aria-label="Increase rating"
         onClick={() => step(0.1)}
-        className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-colors active:scale-95 flex-shrink-0"
+        className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-colors active:scale-95 flex-shrink-0"
       >
         <Plus className="w-3.5 h-3.5" />
       </button>
 
-      <span className="text-xs text-gray-700 font-medium">/ 10</span>
+      <span className="text-xs text-gray-400 font-medium">/ 10</span>
 
       {value > 0 && (
         <button
           type="button"
           onClick={() => onChange(0)}
-          className="text-xs text-gray-700 hover:text-gray-500 transition-colors"
+          className="min-h-11 text-xs text-gray-400 hover:text-gray-500 transition-colors"
         >
           Clear
         </button>

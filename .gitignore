@@ -33,3 +33,7 @@ workbox-*.js
 *.njsproj
 *.sln
 *.sw?
+
+# Browser validation outputs
+test-results/
+playwright-report/

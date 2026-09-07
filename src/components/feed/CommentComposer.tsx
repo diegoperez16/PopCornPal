@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { createDraftStorage } from '../../lib/draftStorage'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowUp, Image as ImageIcon, X } from 'lucide-react'
 import GifPicker from '../GifPicker'
 import MentionDropdown from '../MentionDropdown'
@@ -13,14 +14,6 @@ const DRAFT_KEYS = {
   upload: 'popcorn_comment_upload',
 }
 
-const loadDraft = (key: string) => {
-  try {
-    return localStorage.getItem(key) ?? ''
-  } catch {
-    return ''
-  }
-}
-
 type CommentComposerProps = {
   postId: string
   userId: string
@@ -32,6 +25,8 @@ type CommentComposerProps = {
  * re-renders this small subtree — not the whole feed route.
  */
 export default function CommentComposer({ postId, userId }: CommentComposerProps) {
+  const storage = useMemo(() => createDraftStorage(`${userId}:${postId}`), [userId, postId])
+  const loadDraft = (key: string) => storage.getItem(key) ?? ''
   const { mutateAsync: createComment, isPending: posting } = useCreateComment(userId)
   const mention = useMentionAutocomplete()
 
@@ -45,17 +40,17 @@ export default function CommentComposer({ postId, userId }: CommentComposerProps
   useEffect(() => {
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(DRAFT_KEYS.text, text)
-        if (imageUrl) localStorage.setItem(DRAFT_KEYS.imageUrl, imageUrl)
-        else localStorage.removeItem(DRAFT_KEYS.imageUrl)
-        if (uploadedImage) localStorage.setItem(DRAFT_KEYS.upload, uploadedImage)
-        else localStorage.removeItem(DRAFT_KEYS.upload)
+        storage.setItem(DRAFT_KEYS.text, text)
+        if (imageUrl) storage.setItem(DRAFT_KEYS.imageUrl, imageUrl)
+        else storage.removeItem(DRAFT_KEYS.imageUrl)
+        if (uploadedImage) storage.setItem(DRAFT_KEYS.upload, uploadedImage)
+        else storage.removeItem(DRAFT_KEYS.upload)
       } catch {
         // quota — drop the draft silently
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [text, imageUrl, uploadedImage])
+  }, [text, imageUrl, uploadedImage, storage])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
@@ -89,9 +84,9 @@ export default function CommentComposer({ postId, userId }: CommentComposerProps
     setText('')
     setImageUrl('')
     setUploadedImage(null)
-    localStorage.removeItem(DRAFT_KEYS.text)
-    localStorage.removeItem(DRAFT_KEYS.imageUrl)
-    localStorage.removeItem(DRAFT_KEYS.upload)
+    storage.removeItem(DRAFT_KEYS.text)
+    storage.removeItem(DRAFT_KEYS.imageUrl)
+    storage.removeItem(DRAFT_KEYS.upload)
   }
 
   const handleSubmit = async () => {
@@ -174,8 +169,8 @@ export default function CommentComposer({ postId, userId }: CommentComposerProps
               Uploading image...
             </div>
           ) : (
-            <div className="relative inline-block group">
-              <img loading="lazy" decoding="async" src={uploadedImage || imageUrl} alt="Comment attachment" className="h-20 rounded-lg border border-gray-700" />
+            <div className="relative inline-block max-w-full group">
+              <img loading="lazy" decoding="async" src={uploadedImage || imageUrl} alt="Comment attachment" className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700" />
               <button
                 onClick={() => { setUploadedImage(null); setImageUrl('') }}
                 className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"

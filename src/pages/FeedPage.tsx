@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState, useLayoutEffect } from 'react'
+import { createDraftStorage } from '../lib/draftStorage'
+import { useCallback, useEffect, useState, useLayoutEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/authStore'
 import { type Post, useSocialStore } from '../store/socialStore'
-import { useNavigate } from 'react-router-dom'
-import { ArrowUp, RefreshCw, WifiOff } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowUp, RefreshCw, WifiOff, Clapperboard, Plus, Users, ArrowRight } from 'lucide-react'
 
 import { supabase } from '../lib/supabase'
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query'
@@ -89,6 +90,7 @@ export default function FeedPage() {
   })))
 
   const navigate = useNavigate()
+  const storage = useMemo(() => createDraftStorage(user?.id ?? ''), [user?.id])
   const queryClient = useQueryClient()
 
   // Feed data from TQ
@@ -151,27 +153,27 @@ export default function FeedPage() {
 
   // Restore reply drafts on mount (top-level comment drafts are owned by CommentComposer)
   useEffect(() => {
-    const savedReply = localStorage.getItem('popcorn_reply_draft')
+    const savedReply = storage.getItem('popcorn_reply_draft')
     if (savedReply) setReplyText(savedReply)
-    const savedReplyTo = localStorage.getItem('popcorn_reply_to')
+    const savedReplyTo = storage.getItem('popcorn_reply_to')
     if (savedReplyTo) setReplyingTo(savedReplyTo)
-    const savedReplyImgUrl = localStorage.getItem('popcorn_reply_img_url')
+    const savedReplyImgUrl = storage.getItem('popcorn_reply_img_url')
     if (savedReplyImgUrl) setReplyImageUrl(savedReplyImgUrl)
-    const savedReplyUpload = localStorage.getItem('popcorn_reply_upload')
+    const savedReplyUpload = storage.getItem('popcorn_reply_upload')
     if (savedReplyUpload) setUploadedReplyImage(savedReplyUpload)
-  }, [])
+  }, [storage])
 
   // Save Reply Draft
   useEffect(() => {
-    localStorage.setItem('popcorn_reply_draft', replyText)
-    if (replyingTo) localStorage.setItem('popcorn_reply_to', replyingTo)
-    else localStorage.removeItem('popcorn_reply_to')
-    if (replyImageUrl) localStorage.setItem('popcorn_reply_img_url', replyImageUrl)
-    else localStorage.removeItem('popcorn_reply_img_url')
+    storage.setItem('popcorn_reply_draft', replyText)
+    if (replyingTo) storage.setItem('popcorn_reply_to', replyingTo)
+    else storage.removeItem('popcorn_reply_to')
+    if (replyImageUrl) storage.setItem('popcorn_reply_img_url', replyImageUrl)
+    else storage.removeItem('popcorn_reply_img_url')
     if (uploadedReplyImage) {
-      try { localStorage.setItem('popcorn_reply_upload', uploadedReplyImage) } catch { console.warn('Image too large to persist') }
-    } else localStorage.removeItem('popcorn_reply_upload')
-  }, [replyText, replyingTo, replyImageUrl, uploadedReplyImage])
+      try { storage.setItem('popcorn_reply_upload', uploadedReplyImage) } catch { console.warn('Image too large to persist') }
+    } else storage.removeItem('popcorn_reply_upload')
+  }, [replyText, replyingTo, replyImageUrl, uploadedReplyImage, storage])
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false)
@@ -553,10 +555,10 @@ export default function FeedPage() {
       setReplyingTo(null)
       setReplyImageUrl('')
       setUploadedReplyImage(null)
-      localStorage.removeItem('popcorn_reply_draft')
-      localStorage.removeItem('popcorn_reply_to')
-      localStorage.removeItem('popcorn_reply_img_url')
-      localStorage.removeItem('popcorn_reply_upload')
+      storage.removeItem('popcorn_reply_draft')
+      storage.removeItem('popcorn_reply_to')
+      storage.removeItem('popcorn_reply_img_url')
+      storage.removeItem('popcorn_reply_upload')
     } catch (error) {
       console.error('Error creating comment:', error)
       alert('Failed to post comment. Your draft is saved.')
@@ -637,7 +639,7 @@ export default function FeedPage() {
 
   if (feedIsError && posts.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white flex flex-col items-center justify-center gap-4 pb-20">
+      <div className="min-h-screen bg-[#101113] text-white flex flex-col items-center justify-center gap-4 pb-20">
         <RefreshCw className="w-8 h-8 text-gray-500" />
         <p className="text-gray-400 text-sm">Something went wrong.</p>
         <button
@@ -651,7 +653,7 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
+    <div className="app-page bg-[#101113] text-white">
       {/* Loading Bar */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
@@ -668,21 +670,29 @@ export default function FeedPage() {
       )}
 
 
-<div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+<div className="max-w-3xl mx-auto px-5 py-7 sm:py-10">
+        <header className="mb-7">
+          <p className="app-kicker mb-3">The good stuff is better together</p>
+          <div className="flex items-end justify-between gap-4"><h1 className="app-title">Your front row<span className="text-[#ff8175]">.</span></h1><Link to="/people" className="app-icon-button" aria-label="Find your people"><Users size={20} /></Link></div>
+          <p className="app-muted mt-3 text-sm leading-relaxed">A little less endless scrolling.<br className="sm:hidden" /> A few more stories worth sharing.</p>
+        </header>
+        <section className="feed-ticket mb-7 flex items-center gap-4 rounded-2xl p-5">
+          <div className="hidden sm:flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#c4a980]/25 text-[#dcc59e]"><Clapperboard size={27} strokeWidth={1.3} /></div>
+          <div className="flex-1"><p className="app-kicker text-[#cbb895]">Fresh out of the credits?</p><h2 className="font-serif text-xl text-[#ede0c9] mt-1.5">Make the movie night last.</h2><p className="text-xs text-[#b7afa3] mt-2">Log it. Rate it. Start a conversation.</p></div>
+          <Link to="/add" aria-label="Log a title" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#dfc59f] text-[#33271e]"><Plus size={22} /></Link>
+        </section>
         {user ? <FeedComposer userId={user.id} profile={profile} /> : null}
 
         {/* Feed section label */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-px bg-white/5" />
-          <span className="text-[10px] text-gray-700 font-semibold uppercase tracking-widest">Your Feed</span>
-          <div className="flex-1 h-px bg-white/5" />
-        </div>
+        <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5 mt-8"><h2 className="text-lg font-semibold tracking-tight">Around your circle</h2><span className="text-[10px] tracking-wide text-gray-400">THE LATEST</span></div>
 
         {/* Feed */}
         {posts.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-2xl font-bold text-gray-500 mb-2">Nothing here yet</p>
-            <p className="text-gray-600">Follow people or create your first post above.</p>
+          <div className="app-panel text-center rounded-2xl px-6 py-12">
+            <Users className="mx-auto mb-4 text-[#e4c398]" size={30} strokeWidth={1.3} />
+            <h3 className="text-xl font-semibold mb-3">Every great story needs an audience.</h3>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">Find your friends, share a favorite, and let the conversation begin.</p>
+            <Link to="/people" className="app-button-primary mt-6">Find your people <ArrowRight size={16} /></Link>
           </div>
         ) : (
           <div className="space-y-4">

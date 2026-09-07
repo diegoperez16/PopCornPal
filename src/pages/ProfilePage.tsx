@@ -141,7 +141,7 @@ export default function ProfilePage() {
 
   return (
 
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
+    <div className="app-page text-white">
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
         {/* Profile Header — banner + avatar overlap */}

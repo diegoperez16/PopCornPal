@@ -1,0 +1,84 @@
+import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
+
+export type MediaType = MediaEntry['media_type']
+export type LibrarySort = 'recent' | 'title' | 'rating'
+export type EntryDraft = Pick<MediaEntry, 'status'> & {
+  rating: number
+  notes: string
+}
+
+/** A logged entry is the durable library record; activity entries are tracked separately. */
+export function collectLibraryEntries(
+  entries: readonly MediaEntry[]
+): MediaEntry[] {
+  const collection = new Map<string, MediaEntry>()
+  for (const entry of entries) {
+    if (entry.status !== 'logged') continue
+    const key = `${entry.media_type}:${entry.title.trim().toLocaleLowerCase()}`
+    const existing = collection.get(key)
+    if (
+      !existing ||
+      Date.parse(entry.updated_at) > Date.parse(existing.updated_at)
+    ) {
+      collection.set(key, entry)
+    }
+  }
+  return [...collection.values()]
+}
+
+export function selectLibraryEntries(
+  entries: readonly MediaEntry[],
+  {
+    type,
+    search,
+    sort,
+  }: { type: MediaType | null; search: string; sort: LibrarySort }
+): MediaEntry[] {
+  const query = search.trim().toLocaleLowerCase()
+  return entries
+    .filter(
+      (entry) =>
+        (!type || entry.media_type === type) &&
+        (!query || entry.title.toLocaleLowerCase().includes(query))
+    )
+    .sort((a, b) => {
+      if (sort === 'title') return a.title.localeCompare(b.title)
+      if (sort === 'rating')
+        return (
+          (b.rating ?? -1) - (a.rating ?? -1) || a.title.localeCompare(b.title)
+        )
+      return (
+        Date.parse(b.updated_at) - Date.parse(a.updated_at) ||
+        a.title.localeCompare(b.title)
+      )
+    })
+}
+
+export function countLibraryEntries(
+  entries: readonly MediaEntry[]
+): Record<MediaType, number> {
+  return entries.reduce(
+    (counts, entry) => {
+      counts[entry.media_type] += 1
+      return counts
+    },
+    { movie: 0, show: 0, game: 0, book: 0 }
+  )
+}
+
+export function buildEntryUpdates(
+  entry: MediaEntry,
+  draft: EntryDraft,
+  today = new Date().toISOString().slice(0, 10)
+): Partial<MediaEntry> {
+  return {
+    status: draft.status,
+    rating:
+      draft.rating > 0
+        ? Math.min(10, Math.round(draft.rating * 10) / 10)
+        : null,
+    notes: draft.notes.trim() || null,
+    completed_date:
+      draft.status === 'completed' ? entry.completed_date || today : null,
+  }
+}

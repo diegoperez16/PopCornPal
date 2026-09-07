@@ -1,417 +1,320 @@
-import { useEffect, useState } from 'react'
-import { useShallow } from 'zustand/react/shallow'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  ArrowUpDown,
+  BookOpen,
+  Film,
+  Gamepad2,
+  Grid2X2,
+  Library,
+  List,
+  Plus,
+  Search,
+  Tv,
+  X,
+} from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { useMediaEntries, useUpdateEntry, useDeleteEntry } from '../hooks/queries/useMediaQueries'
+import { useMediaEntries } from '../hooks/queries/useMediaQueries'
 import type { MediaEntry } from '../hooks/queries/useMediaQueries'
-import ProgressiveImg from '../components/ProgressiveImg'
-import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Edit2, X, Trash2, Loader2, Search, Calendar, Tag, Clock } from 'lucide-react'
-import DecimalRating from '../components/DecimalRating'
+import LibraryEntryCard from '../features/library/LibraryEntryCard'
+import EntryEditor from '../features/library/EntryEditor'
+import {
+  collectLibraryEntries,
+  countLibraryEntries,
+  selectLibraryEntries,
+} from '../features/library/libraryModel'
+import type { LibrarySort, MediaType } from '../features/library/libraryModel'
+
+const mediaTypes = [
+  { type: 'movie', label: 'Movies', icon: Film },
+  { type: 'show', label: 'Series', icon: Tv },
+  { type: 'game', label: 'Games', icon: Gamepad2 },
+  { type: 'book', label: 'Books', icon: BookOpen },
+] as const
+const emptyEntries: MediaEntry[] = []
 
 export default function LibraryPage() {
-  const { user } = useAuthStore(useShallow(s => ({ user: s.user })))
-  const { data: entries = [] } = useMediaEntries(user?.id ?? '')
-  const { mutate: updateEntry } = useUpdateEntry(user?.id ?? '')
-  const { mutate: deleteEntry } = useDeleteEntry(user?.id ?? '')
-  const navigate = useNavigate()
-
+  const user = useAuthStore((state) => state.user)
+  const {
+    data: entries = emptyEntries,
+    isPending,
+    isError,
+    refetch,
+  } = useMediaEntries(user?.id ?? '')
   const [selectedEntry, setSelectedEntry] = useState<MediaEntry | null>(null)
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [filterType, setFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
+  const [filterType, setFilterType] = useState<MediaType | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [sort, setSort] = useState<LibrarySort>('recent')
+  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const collection = useMemo(() => collectLibraryEntries(entries), [entries])
+  const counts = useMemo(() => countLibraryEntries(collection), [collection])
+  const libraryEntries = useMemo(
+    () =>
+      selectLibraryEntries(collection, {
+        type: filterType,
+        search: searchQuery,
+        sort,
+      }),
+    [collection, filterType, searchQuery, sort]
+  )
+  const hasFilters = filterType !== null || searchQuery.trim().length > 0
+  const selectedTypeLabel = mediaTypes.find(
+    (type) => type.type === filterType
+  )?.label
 
-  // Edit Entry Form State
-  const [editRating, setEditRating] = useState(0)
-  const [editStatus, setEditStatus] = useState<'completed' | 'in-progress' | 'planned' | 'logged'>('logged')
-  const [editNotes, setEditNotes] = useState('')
-
-  // Initialize edit form when entry is selected
-  useEffect(() => {
-    if (selectedEntry) {
-      setEditRating(selectedEntry.rating || 0)
-      setEditStatus(selectedEntry.status)
-      setEditNotes(selectedEntry.notes || '')
-    }
-  }, [selectedEntry])
-
-  const handleUpdateEntry = async () => {
-    if (!selectedEntry) return
-    setIsUpdating(true)
-    updateEntry(
-      {
-        id: selectedEntry.id,
-        updates: {
-          rating: editRating || null,
-          status: editStatus,
-          notes: editNotes.trim() || null,
-          completed_date: editStatus === 'completed' && selectedEntry.status !== 'completed'
-            ? new Date().toISOString().split('T')[0]
-            : selectedEntry.completed_date,
-        },
-      },
-      {
-        onSuccess: () => { setSelectedEntry(null); setIsUpdating(false) },
-        onError: (error) => { console.error('Error updating entry:', error); setIsUpdating(false) },
-      }
-    )
-  }
-
-  const handleDeleteEntry = async () => {
-    if (!selectedEntry || !confirm('Are you sure you want to delete this entry?')) return
-    deleteEntry(selectedEntry.id, {
-      onSuccess: () => setSelectedEntry(null),
-      onError: (error) => console.error('Error deleting entry:', error),
-    })
-  }
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'movie': return Film
-      case 'show': return Tv
-      case 'game': return Gamepad2
-      case 'book': return Book
-      default: return Film
-    }
-  }
-
-  // Filter and deduplicate library entries
-  const libraryEntries = (() => {
-    let filtered = entries.filter(e => e.status === 'logged')
-
-    if (filterType) {
-      filtered = filtered.filter(e => e.media_type === filterType)
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(e => e.title.toLowerCase().includes(query))
-    }
-    
-    const uniqueEntries = new Map<string, MediaEntry>()
-    filtered.forEach(entry => {
-      const key = `${entry.media_type}-${entry.title.toLowerCase()}`
-      const existing = uniqueEntries.get(key)
-      if (!existing || new Date(entry.updated_at) > new Date(existing.updated_at)) {
-        uniqueEntries.set(key, entry)
-      }
-    })
-    
-    return Array.from(uniqueEntries.values())
-  })()
-
-  const getUniqueLoggedCount = (mediaType: 'movie' | 'show' | 'game' | 'book') => {
-    const loggedEntries = entries.filter(e => e.media_type === mediaType && e.status === 'logged')
-    const uniqueEntries = new Set(loggedEntries.map(e => `${e.media_type}-${e.title.toLowerCase()}`))
-    return uniqueEntries.size
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-red-500 animate-spin mx-auto mb-4" />
-          <div className="text-white text-xl">Loading library...</div>
-        </div>
-      </div>
-    )
+  function clearFilters() {
+    setSearchQuery('')
+    setFilterType(null)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8">
-        
-        {/* Search Bar */}
-        <div className="relative mb-8 group">
-          <div className="bg-gray-800/50 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-500 transition-colors">
-            <div className="pl-4 text-gray-500 group-focus-within:text-red-400 transition-colors">
-              <Search className="w-5 h-5" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search your library…"
-              className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+    <div className="app-page min-h-screen bg-[#101113] text-[#f4f0e8]">
+      <main className="mx-auto max-w-6xl px-5 pb-10 pt-7 sm:px-8 sm:pt-10">
+        <header className="mb-7 flex items-start justify-between gap-4 sm:mb-9">
+          <div>
+            <p className="app-kicker mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#f2cc8f]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#f2cc8f]" />
+              Made of your favorites
+            </p>
+            <h1 className="app-title text-4xl font-semibold leading-[1.06] tracking-[-0.045em] sm:text-5xl">
+              Your collection<span className="text-[#ff655b]">.</span>
+            </h1>
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#aba7a1]">
+              The worlds you’ve visited. The stories that stayed.
+            </p>
           </div>
+          <Link
+            to="/add"
+            aria-label="Add to your library"
+            className="mt-7 flex h-12 w-12 shrink-0 items-center justify-center gap-2 rounded-full bg-[#ff655b] text-[#181311] transition-colors hover:bg-[#ff827a] sm:w-auto sm:rounded-xl sm:px-4"
+          >
+            <Plus className="h-5 w-5" />
+            <span className="hidden text-sm font-semibold sm:inline">
+              Add entry
+            </span>
+          </Link>
+        </header>
+
+        <div className="mb-5 flex h-14 items-center rounded-2xl border border-[#34363a] bg-[#191b1e] px-4 transition-colors focus-within:border-[#ff655b]/70 focus-within:ring-1 focus-within:ring-[#ff655b]/30">
+          <Search
+            className="h-5 w-5 shrink-0 text-[#aba7a1]"
+            aria-hidden="true"
+          />
+          <input
+            aria-label="Search your library"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Find something in your collection"
+            className="h-full min-w-0 flex-1 bg-transparent px-3 text-base text-[#f4f0e8] placeholder:text-[#908d87] focus:outline-none [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear library search"
+              onClick={() => setSearchQuery('')}
+              className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#aba7a1] hover:bg-[#26282c]"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
-        {/* Stats Filter Tabs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          {[
-            { label: 'Movies', count: getUniqueLoggedCount('movie'), icon: Film, type: 'movie' as const, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
-            { label: 'Shows', count: getUniqueLoggedCount('show'), icon: Tv, type: 'show' as const, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-            { label: 'Games', count: getUniqueLoggedCount('game'), icon: Gamepad2, type: 'game' as const, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-            { label: 'Books', count: getUniqueLoggedCount('book'), icon: Book, type: 'book' as const, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-          ].map((stat) => (
-            <button
-              key={stat.label}
-              onClick={() => setFilterType(filterType === stat.type ? null : stat.type)}
-              className={`
-                relative overflow-hidden rounded-2xl p-4 transition-all duration-300 group text-left border
-                ${filterType === stat.type 
-                  ? `${stat.bg} ${stat.border} ring-1 ring-white/10 shadow-lg scale-[1.02]` 
-                  : 'bg-gray-800/40 border-gray-700/50 hover:bg-gray-800/80 hover:border-gray-600'}
-              `}
+        <div
+          className="-mx-5 mb-7 flex gap-2 overflow-x-auto px-5 pb-2 sm:mx-0 sm:flex-wrap sm:px-0"
+          role="group"
+          aria-label="Filter collection by media type"
+        >
+          <button
+            type="button"
+            aria-pressed={filterType === null}
+            onClick={() => setFilterType(null)}
+            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filterType === null ? 'border-[#f4f0e8] bg-[#f4f0e8] text-[#191b1e]' : 'border-[#34363a] bg-[#191b1e] text-[#aba7a1] hover:text-[#f4f0e8]'}`}
+          >
+            All
+            <span
+              className={`text-xs tabular-nums ${filterType === null ? 'text-[#5e5c58]' : 'text-[#aba7a1]'}`}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className={`p-2.5 rounded-xl ${filterType === stat.type ? 'bg-black/20' : 'bg-gray-700/50 group-hover:bg-gray-700'} transition-colors`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-                <span className="text-3xl font-bold text-white tracking-tight">{stat.count}</span>
-              </div>
-              <div className={`text-sm font-medium ${filterType === stat.type ? 'text-white' : 'text-gray-400'}`}>
-                {stat.label}
-              </div>
+              {collection.length}
+            </span>
+          </button>
+          {mediaTypes.map(({ type, label, icon: Icon }) => (
+            <button
+              key={type}
+              type="button"
+              aria-pressed={filterType === type}
+              onClick={() => setFilterType(filterType === type ? null : type)}
+              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filterType === type ? 'border-[#f4f0e8] bg-[#f4f0e8] text-[#191b1e]' : 'border-[#34363a] bg-[#191b1e] text-[#aba7a1] hover:text-[#f4f0e8]'}`}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              {label}
+              <span
+                className={`text-xs tabular-nums ${filterType === type ? 'text-[#5e5c58]' : 'text-[#aba7a1]'}`}
+              >
+                {counts[type]}
+              </span>
             </button>
           ))}
         </div>
 
-        {/* Library Grid */}
-        {libraryEntries.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-10 animate-in fade-in duration-500">
-            {libraryEntries.map((entry) => {
-              const Icon = getIcon(entry.media_type)
-              return (
-                <div
-                  key={entry.id}
-                  onClick={() => setSelectedEntry(entry)}
-                  className="group relative flex flex-col cursor-pointer"
-                >
-                  <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-black/50 group-hover:-translate-y-2 ring-1 ring-white/10 group-hover:ring-white/20">
-                    {entry.cover_image_url ? (
-                      <ProgressiveImg
-                        src={entry.cover_image_url}
-                        alt={entry.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 gap-3 bg-gradient-to-br from-gray-800 to-gray-900">
-                        <Icon className="w-12 h-12 opacity-30" />
-                        <span className="text-xs uppercase font-bold tracking-widest opacity-30">{entry.media_type}</span>
-                      </div>
-                    )}
-                    
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300 backdrop-blur-[2px]">
-                      <div className="bg-white/10 p-3.5 rounded-full border border-white/20 transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                        <Edit2 className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-x-2 gap-y-3 border-t border-[#2b2d31] pt-5">
+          <div aria-live="polite">
+            <h2 className="text-lg font-semibold tracking-tight">
+              {searchQuery.trim()
+                ? 'Search results'
+                : selectedTypeLabel || 'On your shelf'}
+            </h2>
+            <p className="mt-0.5 text-xs text-[#aba7a1]">
+              {isPending
+                ? 'Finding your stories…'
+                : `${libraryEntries.length} ${libraryEntries.length === 1 ? 'title' : 'titles'}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <label className="relative flex min-h-11 items-center gap-1.5 text-xs text-[#c6c2bb]">
+              <ArrowUpDown
+                className="h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="sr-only">Sort collection</span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as LibrarySort)}
+                className="min-h-11 max-w-[110px] cursor-pointer appearance-none rounded-lg border-0 bg-transparent pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#ff655b]"
+              >
+                <option value="recent">Recently updated</option>
+                <option value="title">Title A–Z</option>
+                <option value="rating">Highest rated</option>
+              </select>
+            </label>
+            <div
+              className="flex rounded-xl border border-[#34363a] bg-[#191b1e] p-0.5"
+              role="group"
+              aria-label="Collection view"
+            >
+              <button
+                type="button"
+                aria-label="Poster grid view"
+                aria-pressed={view === 'grid'}
+                onClick={() => setView('grid')}
+                className={`flex h-11 w-11 items-center justify-center rounded-lg ${view === 'grid' ? 'bg-[#34363a] text-[#f4f0e8]' : 'text-[#aba7a1]'}`}
+              >
+                <Grid2X2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="List view"
+                aria-pressed={view === 'list'}
+                onClick={() => setView('list')}
+                className={`flex h-11 w-11 items-center justify-center rounded-lg ${view === 'list' ? 'bg-[#34363a] text-[#f4f0e8]' : 'text-[#aba7a1]'}`}
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
 
-                    {entry.rating && (
-                      <div className="absolute top-2 right-2 bg-black/70 px-2 py-0.5 rounded-md">
-                        <span className="text-xs font-bold text-white tabular-nums">{entry.rating}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 px-1">
-                    <h4 className="text-base font-bold text-gray-100 line-clamp-1 group-hover:text-red-400 transition-colors" title={entry.title}>
-                      {entry.title}
-                    </h4>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <span className="capitalize">{entry.media_type}</span>
-                      {entry.year && (
-                        <>
-                          <span>•</span>
-                          <span>{entry.year}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+        {isPending ? (
+          <div
+            role="status"
+            aria-label="Loading your collection"
+            className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+          >
+            {Array.from({ length: 6 }, (_, index) => (
+              <div
+                key={index}
+                aria-hidden="true"
+                className="motion-safe:animate-pulse"
+              >
+                <div className="aspect-[2/3] rounded-2xl bg-[#222428]" />
+                <div className="mt-3 h-4 w-4/5 rounded bg-[#222428]" />
+                <div className="mt-2 h-3 w-2/5 rounded bg-[#222428]" />
+              </div>
+            ))}
+          </div>
+        ) : isError ? (
+          <div
+            role="alert"
+            className="rounded-3xl border border-[#34363a] bg-[#191b1e] px-6 py-12 text-center"
+          >
+            <h3 className="text-xl font-semibold">
+              Your shelf is taking a moment
+            </h3>
+            <p className="mx-auto mb-6 mt-2 max-w-xs text-sm leading-relaxed text-[#aba7a1]">
+              We couldn’t load your collection. Try again to pick up where you
+              left off.
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="min-h-12 rounded-xl bg-[#ff655b] px-6 text-sm font-semibold text-[#181311]"
+            >
+              Try again
+            </button>
+          </div>
+        ) : libraryEntries.length ? (
+          <div
+            className={
+              view === 'grid'
+                ? 'grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 md:grid-cols-4 lg:grid-cols-5'
+                : 'grid gap-3 md:grid-cols-2'
+            }
+          >
+            {libraryEntries.map((entry) => (
+              <LibraryEntryCard
+                key={entry.id}
+                entry={entry}
+                view={view}
+                onSelect={setSelectedEntry}
+              />
+            ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-32 px-4 text-center">
-            <div className="w-24 h-24 bg-gray-800/50 rounded-full flex items-center justify-center mb-6 ring-4 ring-gray-800">
-              {searchQuery ? <Search className="w-10 h-10 text-gray-500" /> : <Book className="w-10 h-10 text-gray-500" />}
+          <div className="rounded-3xl border border-[#2b2d31] bg-[#191b1e] px-6 py-14 text-center sm:py-20">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#f2cc8f]/20 bg-[#f2cc8f]/5 text-[#f2cc8f]">
+              {hasFilters ? (
+                <Search className="h-7 w-7" strokeWidth={1.5} />
+              ) : (
+                <Library className="h-7 w-7" strokeWidth={1.5} />
+              )}
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">
-              {searchQuery ? `No matches for "${searchQuery}"` : 'Your library is looking empty'}
+            <h3 className="text-2xl font-semibold tracking-tight">
+              {hasFilters
+                ? 'No stories on this shelf. Yet.'
+                : 'Every collection starts somewhere.'}
             </h3>
-            <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
-              {searchQuery 
-                ? 'Try checking your spelling or use different keywords.' 
-                : 'Start logging movies, shows, games, and books to build your collection.'}
+            <p className="mx-auto mb-7 mt-3 max-w-xs text-sm leading-relaxed text-[#aba7a1]">
+              {hasFilters
+                ? 'Try another title or explore the rest of your collection.'
+                : 'A film you can’t stop thinking about. A book you stayed up for. Make this space yours.'}
             </p>
-            {!searchQuery && (
+            {hasFilters ? (
               <button
-                onClick={() => navigate('/add')}
-                className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-red-600/20 hover:shadow-red-600/30 hover:-translate-y-0.5 active:translate-y-0"
+                type="button"
+                onClick={clearFilters}
+                className="min-h-12 rounded-xl border border-[#45474b] px-6 text-sm font-semibold text-[#f4f0e8]"
               >
-                Add Your First Entry
+                Clear filters
               </button>
-            )}
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="text-red-400 hover:text-red-300 font-medium hover:underline underline-offset-4"
+            ) : (
+              <Link
+                to="/add"
+                className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#ff655b] px-6 text-sm font-semibold text-[#181311]"
               >
-                Clear search criteria
-              </button>
+                <Plus className="h-4 w-4" />
+                Add your first entry
+              </Link>
             )}
           </div>
         )}
       </main>
-
-      {/* --- RESPONSIVE SPLIT-VIEW MODAL --- */}
-      {selectedEntry && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-gray-900 border border-white/8 w-full max-w-5xl rounded-2xl relative shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[calc(100vh-40px)]">
-            
-            {/* Close Button */}
-            <button
-              onClick={() => setSelectedEntry(null)}
-              className="absolute top-3 right-3 z-30 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white/90 hover:text-white transition-colors border border-white/10 shadow-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* --- LEFT (Desktop) / TOP (Mobile): Poster & Backdrop --- */}
-            <div className="w-full h-48 md:h-auto md:w-2/5 bg-black relative flex-shrink-0">
-              {selectedEntry.cover_image_url ? (
-                <>
-                  {/* Blurred Backdrop */}
-                  <div className="absolute inset-0 overflow-hidden">
-                    <img loading="lazy" decoding="async" src={selectedEntry.cover_image_url} className="w-full h-full object-cover blur-2xl opacity-60 scale-125" alt="" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent md:bg-gradient-to-r" />
-                  </div>
-                  
-                  {/* Actual Poster Image */}
-                  <div className="relative h-full w-full flex items-center justify-center p-6 md:p-8">
-                    <img loading="lazy" decoding="async" 
-                      src={selectedEntry.cover_image_url} 
-                      alt={selectedEntry.title} 
-                      className="h-full w-auto object-contain rounded-lg shadow-2xl border border-white/10 md:max-h-[80%] max-h-36" 
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 bg-gray-800">
-                  <Film className="w-16 h-16 opacity-20" />
-                </div>
-              )}
-            </div>
-
-            {/* --- RIGHT (Desktop) / BOTTOM (Mobile): Details & Form --- */}
-            <div className="flex-1 overflow-y-auto bg-gray-900 p-5 md:p-8 flex flex-col">
-              
-              {/* Media Information Section */}
-              <div className="mb-8 border-b border-gray-800 pb-6">
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <span className="px-2.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider">
-                    {selectedEntry.media_type}
-                  </span>
-                  {selectedEntry.year && (
-                    <span className="flex items-center gap-1 text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-800 rounded-md">
-                      <Calendar className="w-3 h-3" />
-                      {selectedEntry.year}
-                    </span>
-                  )}
-                  {selectedEntry.genre && (
-                    <span className="flex items-center gap-1 text-xs text-gray-400 font-medium px-2 py-0.5 bg-gray-800 rounded-md">
-                      <Tag className="w-3 h-3" />
-                      {selectedEntry.genre}
-                    </span>
-                  )}
-                </div>
-                
-                <h2 className="text-2xl md:text-4xl font-bold text-white leading-tight mb-3">
-                  {selectedEntry.title}
-                </h2>
-              </div>
-
-              {/* User Input Section */}
-              <div className="space-y-6">
-                
-                {/* Status Selector */}
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Status</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { value: 'completed', label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-                      { value: 'in-progress', label: 'In-progress', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-                      { value: 'planned', label: 'Plan to Watch', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-                      { value: 'logged', label: 'Logged', color: 'text-gray-400', bg: 'bg-gray-800', border: 'border-gray-700' },
-                    ].map((s) => (
-                      <button
-                        key={s.value}
-                        onClick={() => setEditStatus(s.value as any)}
-                        className={`
-                          px-3 py-2 rounded-lg text-xs md:text-sm font-medium border transition-all duration-200 flex-1 md:flex-none text-center
-                          ${editStatus === s.value
-                            ? `${s.bg} ${s.border} ${s.color} shadow-sm ring-1 ring-inset ring-white/10`
-                            : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white'}
-                        `}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Rating */}
-                {(editStatus === 'completed' || editStatus === 'logged') && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3 block">Rating</label>
-                    <DecimalRating value={editRating} onChange={setEditRating} />
-                  </div>
-                )}
-
-                {/* Notes / Review */}
-                {(editStatus === 'completed' || editStatus === 'logged') && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 block">Your Review</label>
-                    <textarea
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      rows={4}
-                      className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all resize-none text-sm leading-relaxed"
-                      placeholder="What did you think about it?"
-                    />
-                  </div>
-                )}
-
-                {/* Metadata Footer */}
-                <div className="flex items-center gap-4 text-xs text-gray-500 border-t border-gray-800 pt-4">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    Updated: {new Date(selectedEntry.updated_at).toLocaleDateString()}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-2 mt-auto">
-                  <button
-                    onClick={handleDeleteEntry}
-                    disabled={isUpdating}
-                    className="px-4 py-3 rounded-xl border border-red-900/30 text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors disabled:opacity-50"
-                    title="Delete Entry"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={handleUpdateEntry}
-                    disabled={isUpdating}
-                    className="flex-1 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-900/20"
-                  >
-                    {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Edit2 className="w-4 h-4" /> Save Changes</>}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {selectedEntry && user && (
+        <EntryEditor
+          key={selectedEntry.id}
+          entry={selectedEntry}
+          userId={user.id}
+          onClose={() => setSelectedEntry(null)}
+        />
       )}
     </div>
   )

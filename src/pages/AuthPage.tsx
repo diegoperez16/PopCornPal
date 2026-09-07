@@ -1,310 +1,395 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  ArrowRight,
+  BookOpen,
+  Check,
+  Clapperboard,
+  Eye,
+  EyeOff,
+  Gamepad2,
+  Loader2,
+  Tv,
+} from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { useNavigate } from 'react-router-dom'
-import { Check, X, Eye, EyeOff, Popcorn } from 'lucide-react'
+import Brand from '../components/brand/Brand'
+
+type AuthMode = 'signin' | 'signup' | 'forgot'
+const copy = {
+  signin: {
+    title: 'Welcome back.',
+    detail: 'Your next great conversation starts here.',
+    action: 'Take your seat',
+  },
+  signup: {
+    title: 'There’s a seat for you.',
+    detail: 'Start a collection. Find your people. Share the good stuff.',
+    action: 'Create your account',
+  },
+  forgot: {
+    title: 'Let’s get you back in.',
+    detail: 'We’ll send a password reset link to your email.',
+    action: 'Send reset link',
+  },
+}
 
 export default function AuthPage() {
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin')
+  const [mode, setMode] = useState<AuthMode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
   const [username, setUsername] = useState('')
-  const [error, setError] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
-  const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-
-  const { signIn, signUp, resetPasswordForEmail, sessionExpired, clearSessionExpired } = useAuthStore()
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const {
+    signIn,
+    signUp,
+    resetPasswordForEmail,
+    sessionExpired,
+    clearSessionExpired,
+  } = useAuthStore()
   const navigate = useNavigate()
-
+  const location = useLocation()
+  const checks = [
+    { label: '8+ characters', valid: password.length >= 8 },
+    { label: 'Uppercase', valid: /[A-Z]/.test(password) },
+    { label: 'Lowercase', valid: /[a-z]/.test(password) },
+    { label: 'A number', valid: /[0-9]/.test(password) },
+  ]
   useEffect(() => () => clearSessionExpired(), [clearSessionExpired])
-
-  const getPasswordStrength = (pass: string) => {
-    const checks = {
-      length: pass.length >= 8,
-      uppercase: /[A-Z]/.test(pass),
-      lowercase: /[a-z]/.test(pass),
-      number: /[0-9]/.test(pass),
-      special: /[!@#$%^&*(),.?":{}|<>]/.test(pass),
-    }
-    const strength = Object.values(checks).filter(Boolean).length
-    return { strength, checks }
-  }
-
-  const validatePassword = (pass: string): string | null => {
-    if (pass.length < 8) return 'At least 8 characters required'
-    if (!/[A-Z]/.test(pass)) return 'Needs an uppercase letter'
-    if (!/[a-z]/.test(pass)) return 'Needs a lowercase letter'
-    if (!/[0-9]/.test(pass)) return 'Needs a number'
-    return null
-  }
-
-  const validateUsername = (u: string): string | null => {
-    if (u.length < 3) return 'Username must be at least 3 characters'
-    if (u.length > 30) return 'Username must be under 30 characters'
-    if (!/^[a-z0-9_]+$/.test(u)) return 'Lowercase letters, numbers, and underscores only'
-    return null
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const switchMode = (value: AuthMode) => {
+    setMode(value)
     setError('')
-    setSuccessMsg('')
+    setMessage('')
+  }
 
-    if (mode === 'forgot') {
-      if (!email) { setError('Please enter your email'); return }
-      setLoading(true)
-      try {
-        await resetPasswordForEmail(email)
-        setSuccessMsg('Check your email for the reset link.')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setLoading(false)
-      }
-      return
-    }
-
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (busy) return
+    setError('')
+    setMessage('')
     if (mode === 'signup') {
-      const usernameError = validateUsername(username)
-      if (usernameError) { setError(usernameError); return }
-      const passwordError = validatePassword(password)
-      if (passwordError) { setError(passwordError); return }
-      if (password !== confirmPassword) { setError('Passwords do not match'); return }
-    }
-
-    setLoading(true)
-    try {
-      if (mode === 'signup') {
-        await signUp(email, password, username.toLowerCase())
-      } else {
-        await signIn(email, password)
+      if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+        setError(
+          'Choose a username with 3–30 lowercase letters, numbers, or underscores.'
+        )
+        return
       }
-      navigate('/profile')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      if (checks.some((check) => !check.valid)) {
+        setError('Please meet each password requirement below.')
+        return
+      }
+      if (password !== confirmation) {
+        setError('Your passwords don’t match yet.')
+        return
+      }
+    }
+    setBusy(true)
+    try {
+      if (mode === 'forgot') {
+        await resetPasswordForEmail(email.trim())
+        setMessage('Check your inbox for a link to reset your password.')
+      } else {
+        if (mode === 'signup') {
+          const result = await signUp(email.trim(), password, username)
+          if (result === 'confirmation-required') {
+            setMessage(
+              'You’re on the list! Check your email to confirm your account, then sign in.'
+            )
+            return
+          }
+        } else await signIn(email.trim(), password)
+        const from = (location.state as { from?: string } | null)?.from
+        navigate(
+          from?.startsWith('/') && !from.startsWith('//') ? from : '/feed',
+          { replace: true }
+        )
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'We couldn’t connect. Please try again.'
+      )
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
-
-  const switchMode = (newMode: typeof mode) => {
-    setMode(newMode)
-    setError('')
-    setSuccessMsg('')
-  }
-
-  const passwordStrength = getPasswordStrength(password)
-  const passwordsMatch = password && confirmPassword && password === confirmPassword
-
-  const inputClass = 'w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-white/20 focus:bg-white/[0.07] transition-colors'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 items-center justify-center shadow-lg shadow-red-500/20 mb-4">
-            <Popcorn className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">PopcornPal</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {mode === 'forgot' ? 'Reset your password' : 'Track what you watch, play, and read'}
+    <main className="auth-page">
+      <div className="auth-brand">
+        <Brand />
+        <span className="app-kicker hidden sm:block">
+          Good stories. Better company.
+        </span>
+      </div>
+      <div className="auth-layout">
+        <section className="auth-story" aria-label="Welcome to Popcorn Pal">
+          <p className="app-kicker">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ff8175] mr-2" />
+            Your own little cinema club
           </p>
-        </div>
-
-        {/* Session expired */}
-        {sessionExpired && (
-          <div className="mb-4 px-4 py-2.5 bg-yellow-500/8 border border-yellow-500/20 rounded-xl text-yellow-400/80 text-xs text-center">
-            Your session expired — please sign in again.
+          <h1>
+            For the love
+            <br />
+            of a <em>good story.</em>
+          </h1>
+          <p className="auth-description">
+            The films you can’t stop thinking about.
+            <br className="hidden lg:block" /> The friends who get it. Keep them
+            all here.
+          </p>
+          <div className="cinema-ticket" aria-hidden="true">
+            <div className="ticket-sky">
+              <span className="ticket-orbit" />
+              <span className="ticket-sun" />
+              <div className="ticket-hills" />
+              <div className="ticket-art-caption">
+                <span>POPCORN PAL PRESENTS</span>
+                <strong>
+                  Your next
+                  <br />
+                  obsession.
+                </strong>
+                <small>WATCH · LOG · SHARE · REPEAT</small>
+              </div>
+            </div>
+            <div className="ticket-stub">
+              <span>ADMIT ONE</span>
+              <Clapperboard size={27} strokeWidth={1.2} />
+              <span>GOOD COMPANY INCLUDED</span>
+            </div>
           </div>
-        )}
-
-        {/* Mode tabs (sign in / sign up) */}
-        {mode !== 'forgot' && (
-          <div className="flex gap-1 p-1 bg-white/4 rounded-xl mb-6">
-            {(['signin', 'signup'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => switchMode(m)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {m === 'signin' ? 'Sign In' : 'Sign Up'}
-              </button>
+          <div className="auth-categories">
+            {[
+              { Icon: Clapperboard, text: 'Movies' },
+              { Icon: Tv, text: 'Shows' },
+              { Icon: Gamepad2, text: 'Games' },
+              { Icon: BookOpen, text: 'Books' },
+            ].map(({ Icon, text }) => (
+              <span key={text}>
+                <Icon size={15} />
+                {text}
+              </span>
             ))}
           </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {mode === 'signup' && (
-            <div>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                className={inputClass}
-                placeholder="Username"
-                required
-              />
-              <p className="mt-1.5 text-[11px] text-gray-700 px-1">
-                3–30 characters · lowercase, numbers, underscores
-              </p>
+        </section>
+        <section className="auth-form-panel">
+          <p className="app-kicker mb-3">
+            {mode === 'signin'
+              ? 'The next scene is yours'
+              : mode === 'signup'
+                ? 'Join the club'
+                : 'Password recovery'}
+          </p>
+          <h2 className="text-[30px] font-semibold tracking-[-1px] leading-tight">
+            {copy[mode].title}
+          </h2>
+          <p className="app-muted text-sm mt-3 mb-7 leading-relaxed">
+            {copy[mode].detail}
+          </p>
+          {sessionExpired && (
+            <p
+              role="status"
+              className="mb-4 rounded-xl bg-amber-500/10 p-3 text-sm text-amber-200"
+            >
+              Your session ended. Sign in to pick up where you left off.
+            </p>
+          )}
+          {mode !== 'forgot' && (
+            <div className="grid grid-cols-2 gap-1 mb-6 rounded-xl border border-white/10 p-1 bg-[#111214]">
+              {(['signin', 'signup'] as const).map((value) => (
+                <button
+                  disabled={busy}
+                  type="button"
+                  key={value}
+                  aria-pressed={value === mode}
+                  onClick={() => switchMode(value)}
+                  className={`min-h-11 rounded-lg text-sm font-semibold ${mode === value ? 'bg-[#343332] text-[#f8f4ed]' : 'text-gray-400'}`}
+                >
+                  {value === 'signin' ? 'Sign in' : 'Create account'}
+                </button>
+              ))}
             </div>
           )}
-
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
-            placeholder="Email"
-            required={mode !== 'forgot'}
-          />
-
-          {mode !== 'forgot' && (
-            <div className="space-y-3">
-              <div className="relative">
+          <form onSubmit={submit} className="space-y-5">
+            {mode === 'signup' && (
+              <div>
+                <label htmlFor="username" className="auth-label">
+                  Username
+                </label>
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={`${inputClass} pr-11`}
-                  placeholder="Password"
+                  id="username"
+                  className="app-input"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  placeholder="your_screen_name"
                   required
-                  minLength={mode === 'signup' ? 8 : 6}
+                  minLength={3}
+                  maxLength={30}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                <p className="mt-2 text-xs text-gray-400">
+                  Lowercase letters, numbers, and underscores.
+                </p>
               </div>
-
-              {mode === 'signin' && (
-                <div className="text-right">
+            )}
+            <div>
+              <label htmlFor="email" className="auth-label">
+                Email address
+              </label>
+              <input
+                id="email"
+                className="app-input"
+                type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+              />
+            </div>
+            {mode !== 'forgot' && (
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </label>
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => switchMode('forgot')}
+                      className="text-xs text-[#d9bfb1] min-h-6"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    className="app-input pr-12"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete={
+                      mode === 'signin' ? 'current-password' : 'new-password'
+                    }
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={
+                      mode === 'signup' ? 'Make it a good one' : 'Your password'
+                    }
+                    required
+                    minLength={mode === 'signup' ? 8 : 6}
+                  />
                   <button
                     type="button"
-                    onClick={() => switchMode('forgot')}
-                    className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                    className="app-icon-button absolute right-1 top-1"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={
+                      showPassword ? 'Hide password' : 'Show password'
+                    }
                   >
-                    Forgot password?
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-              )}
-
-              {/* Password strength (signup only) */}
-              {mode === 'signup' && password && (
-                <div className="space-y-2 px-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <div
-                        key={level}
-                        className={`h-0.5 flex-1 rounded-full transition-colors ${
-                          level <= passwordStrength.strength
-                            ? passwordStrength.strength <= 2 ? 'bg-red-500'
-                              : passwordStrength.strength <= 3 ? 'bg-yellow-500'
-                              : 'bg-green-500'
-                            : 'bg-white/8'
-                        }`}
-                      />
+                {mode === 'signup' && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {checks.map((check) => (
+                      <span
+                        key={check.label}
+                        className={`text-xs flex gap-1 items-center ${check.valid ? 'text-[#c7dbb1]' : 'text-gray-400'}`}
+                      >
+                        <Check
+                          size={12}
+                          className={check.valid ? '' : 'opacity-30'}
+                        />
+                        {check.label}
+                      </span>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-1">
-                    {[
-                      { key: 'length', label: '8+ chars' },
-                      { key: 'uppercase', label: 'Uppercase' },
-                      { key: 'lowercase', label: 'Lowercase' },
-                      { key: 'number', label: 'Number' },
-                    ].map(({ key, label }) => (
-                      <div key={key} className={`flex items-center gap-1.5 text-[11px] ${passwordStrength.checks[key as keyof typeof passwordStrength.checks] ? 'text-green-500' : 'text-gray-700'}`}>
-                        {passwordStrength.checks[key as keyof typeof passwordStrength.checks]
-                          ? <Check className="w-3 h-3" />
-                          : <X className="w-3 h-3" />
-                        }
-                        {label}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {mode === 'signup' && (
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`${inputClass} pr-11 ${
-                  confirmPassword
-                    ? passwordsMatch ? 'border-green-500/30' : 'border-red-500/30'
-                    : ''
-                }`}
-                placeholder="Confirm password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors"
+                )}
+              </div>
+            )}
+            {mode === 'signup' && (
+              <div>
+                <label htmlFor="confirm-password" className="auth-label">
+                  Confirm password
+                </label>
+                <input
+                  id="confirm-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="app-input"
+                  autoComplete="new-password"
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  placeholder="One more time"
+                  required
+                />
+              </div>
+            )}
+            {error && (
+              <p
+                role="alert"
+                className="rounded-xl border border-rose-400/25 bg-rose-400/10 p-3 text-sm text-rose-200"
               >
-                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-              {confirmPassword && (
-                <p className={`mt-1.5 text-[11px] px-1 flex items-center gap-1 ${passwordsMatch ? 'text-green-500' : 'text-gray-600'}`}>
-                  {passwordsMatch ? <><Check className="w-3 h-3" /> Passwords match</> : 'Passwords don\'t match yet'}
-                </p>
+                {error}
+              </p>
+            )}
+            {message && (
+              <p
+                role="status"
+                className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-3 text-sm text-emerald-200"
+              >
+                {message}
+              </p>
+            )}
+            <button
+              disabled={busy || !!message}
+              type="submit"
+              className="app-button-primary w-full"
+            >
+              {busy ? (
+                <Loader2 className="animate-spin" size={18} />
+              ) : (
+                <>
+                  {copy[mode].action}
+                  <ArrowRight size={17} />
+                </>
               )}
-            </div>
-          )}
-
-          {error && (
-            <div className="px-3 py-2.5 bg-red-500/8 border border-red-500/20 rounded-xl text-red-400 text-xs">
-              {error}
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="px-3 py-2.5 bg-green-500/8 border border-green-500/20 rounded-xl text-green-400 text-xs flex items-center gap-2">
-              <Check className="w-3.5 h-3.5 flex-shrink-0" />
-              {successMsg}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || (mode === 'forgot' && !!successMsg)}
-            className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white font-semibold py-3 rounded-xl text-sm shadow-lg shadow-red-500/20 disabled:opacity-40 transition-opacity mt-1"
-          >
-            {loading
-              ? 'Please wait…'
-              : mode === 'signup' ? 'Create Account'
-              : mode === 'forgot' ? 'Send Reset Link'
-              : 'Sign In'}
-          </button>
-        </form>
-
-        {mode === 'forgot' && (
-          <div className="mt-5 text-center">
+            </button>
+          </form>
+          {mode === 'forgot' ? (
             <button
               type="button"
+              disabled={busy}
               onClick={() => switchMode('signin')}
-              className="text-sm text-gray-600 hover:text-gray-300 transition-colors"
+              className="mt-5 w-full min-h-11 text-sm text-gray-300"
             >
-              ← Back to Sign In
+              Back to sign in
             </button>
-          </div>
-        )}
+          ) : (
+            <p className="mt-6 text-center text-xs text-gray-400">
+              A home for everything you watch, play, and read.
+            </p>
+          )}
+          {mode === 'signup' && message && (
+            <button
+              className="mt-4 w-full min-h-11 text-sm text-[#ff9b84]"
+              onClick={() => switchMode('signin')}
+            >
+              Continue to sign in
+            </button>
+          )}
+        </section>
       </div>
-    </div>
+      <p className="auth-footer">Less scrolling. More stories worth sharing.</p>
+    </main>
   )
 }

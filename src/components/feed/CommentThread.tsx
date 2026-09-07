@@ -94,7 +94,7 @@ export default function CommentThread({
             </span>
           )}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="bg-gray-800/50 rounded-lg p-3 max-w-full overflow-x-auto">
             <Link
               to={`/profile/${comment.profiles.username}`}
@@ -288,11 +288,11 @@ export default function CommentThread({
                       Uploading image...
                     </div>
                   ) : (
-                    <div className="relative inline-block group">
+                    <div className="relative inline-block max-w-full group">
                       <img loading="lazy" decoding="async"
                         src={replyImageUrl}
                         alt="Reply attachment"
-                        className="h-20 rounded-lg border border-gray-700"
+                        className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700"
                       />
                       <button
                         onClick={() => setReplyImageUrl('')}

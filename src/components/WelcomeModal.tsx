@@ -16,11 +16,11 @@ import {
 const WELCOME_VERSION = '3'
 
 export function shouldShowWelcome(): boolean {
-  return localStorage.getItem('popcorn_welcome_v') !== WELCOME_VERSION
+  try { return localStorage.getItem('popcorn_welcome_v') !== WELCOME_VERSION } catch { return false }
 }
 
 export function dismissWelcome(): void {
-  localStorage.setItem('popcorn_welcome_v', WELCOME_VERSION)
+  try { localStorage.setItem('popcorn_welcome_v', WELCOME_VERSION) } catch { /* Onboarding is optional. */ }
 }
 
 interface WelcomeModalProps {
