@@ -1,8 +1,9 @@
 -- Top tens per media type, alongside the overall one.
 --
--- Favourites gain a `list`: 'all' is the existing overall top ten, and each
--- media type gets its own. Every current row becomes 'all', so the list people
--- already built is untouched and keeps behaving exactly as it does now.
+-- Favourites gain a `list`: 'all' is the existing overall top ten, each media
+-- type gets its own, and every year gets one too ('year-2026'). Every current
+-- row becomes 'all', so the list people already built is untouched and keeps
+-- behaving exactly as it does now.
 --
 -- The existing UNIQUE (user_id, media_entry_id) has to widen. It allowed a
 -- title in one list only, so a film in your overall top ten could never also
@@ -16,13 +17,17 @@ alter table public.profile_favorites
   add column if not exists list text not null default 'all';
 
 comment on column public.profile_favorites.list is
-  'all | movie | show | game | book. "all" is the overall top ten.';
+  'all | movie | show | game | book | year-YYYY. "all" is the overall top ten.';
 
 alter table public.profile_favorites
   drop constraint if exists profile_favorites_list_check;
 alter table public.profile_favorites
   add constraint profile_favorites_list_check
-  check (list in ('all','movie','show','game','book'));
+  check (
+    list in ('all','movie','show','game','book')
+    -- A top ten per year: year-2026, year-2027, and so on.
+    or list ~ '^year-[0-9]{4}$'
+  );
 
 -- Widen the uniqueness to include the list.
 alter table public.profile_favorites

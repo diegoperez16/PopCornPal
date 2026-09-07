@@ -47,8 +47,9 @@ export default function HouseCard({
   const { sorting, thinking, usedFallback, sort } = useSorting(entries)
   if (themeId !== 'wizarding') return null
 
-  const sorted = isHouseId(house) ? HOUSES[house] : null
-  const proposal = sorted ? null : sorting
+  // A fresh proposal outranks the saved house until it is accepted or dismissed.
+  const sorted = sorting ? null : isHouseId(house) ? HOUSES[house] : null
+  const proposal = sorting
   const enoughShelf = entries.length >= SORTING_MINIMUM
   const shelfSize = entries.length
 
@@ -174,6 +175,25 @@ export default function HouseCard({
       )}
 
       {picking && (
+        <>
+        {/* Being sorted once should not be final — the shelf keeps growing. */}
+        {enoughShelf && (
+          <button
+            type="button"
+            disabled={thinking}
+            onClick={() => {
+              setPicking(false)
+              void sort({ includeNotes: readNotes })
+            }}
+            className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-accent/60 bg-accent/10 text-sm font-semibold text-accent-soft disabled:opacity-60"
+          >
+            {thinking ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Reading your shelf…</>
+            ) : (
+              <><Sparkles className="h-4 w-4" /> Sort me again</>
+            )}
+          </button>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {HOUSE_LIST.map((option) => (
             <button
@@ -196,6 +216,7 @@ export default function HouseCard({
             </button>
           ))}
         </div>
+        </>
       )}
     </section>
   )

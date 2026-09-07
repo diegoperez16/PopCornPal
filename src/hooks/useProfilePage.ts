@@ -17,7 +17,8 @@ type FavoriteRow = {
   list?: string | null
   media_entry?: MediaEntry | null
 }
-type FavoriteList = 'all' | 'movie' | 'show' | 'game' | 'book'
+/** 'all', a media type, or 'year-YYYY'. */
+type FavoriteList = string
 import { supabase, type UserBadge } from '../lib/supabase'
 import { authedQuery } from '../lib/queryClient'
 import { persistProfileImage } from '../lib/profileImages'
@@ -65,6 +66,19 @@ export function useProfilePage() {
     counts[list] = (counts[list] ?? 0) + 1
     return counts
   }, {})
+
+  // This year always has a tab; earlier years appear once they hold something,
+  // so a list someone built in 2026 never quietly disappears in 2027.
+  const thisYear = new Date().getFullYear()
+  const favoriteYears = [
+    ...new Set([
+      thisYear,
+      ...Object.keys(favoriteCounts)
+        .map((list) => /^year-(\d{4})$/.exec(list)?.[1])
+        .filter((year): year is string => Boolean(year))
+        .map(Number),
+    ]),
+  ].sort((a, b) => b - a)
 
   /** Replaces the visible list in place, leaving the other lists alone. */
   const setFavorites = (next: FavoriteRow[]) =>
@@ -949,6 +963,7 @@ export function useProfilePage() {
     favoriteList,
     setFavoriteList,
     favoriteCounts,
+    favoriteYears,
     userBadges,
     availableBadges,
     // State

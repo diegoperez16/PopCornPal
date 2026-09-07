@@ -30,6 +30,7 @@ export default function ProfilePage() {
     favoriteList,
     setFavoriteList,
     favoriteCounts,
+    favoriteYears,
     userBadges,
     availableBadges,
     initialLoading,
@@ -590,7 +591,13 @@ export default function ProfilePage() {
             role="tablist"
             aria-label="Which top ten"
           >
-            {favoriteLists.map(({ id, label }) => {
+            {[
+              ...favoriteLists,
+              ...favoriteYears.map((year) => ({
+                id: `year-${year}` as const,
+                label: String(year),
+              })),
+            ].map(({ id, label }) => {
               const count = favoriteCounts[id] ?? 0
               const current = favoriteList === id
               return (
@@ -959,8 +966,13 @@ export default function ProfilePage() {
                 <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
               ) : (() => {
                 const filteredEntries = collectUniqueMedia(entries).filter(entry => {
-                  // A type-specific top ten can only hold that type.
-                  if (favoriteList !== 'all' && entry.media_type !== favoriteList) return false
+                  // A type list only holds that type. A year list takes
+                  // anything: a best-of-the-year is about what you watched,
+                  // not about what the thing is.
+                  const typeLists = ['movie', 'show', 'game', 'book']
+                  if (typeLists.includes(favoriteList) && entry.media_type !== favoriteList) {
+                    return false
+                  }
                   const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
                   const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
                   const notInFavorites = !favorites.some(f => f.media_entry_id === entry.id)
