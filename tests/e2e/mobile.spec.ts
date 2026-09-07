@@ -1,7 +1,15 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { mockBackend, navigateWheel } from './fixtures'
 import { mkdir } from 'node:fs/promises'
 const output = process.env.POPCORN_SCREENSHOT_DIR || 'test-results/review'
+
+
+/** Notes are written in a full-screen composer, not in the sheet itself. */
+async function writeNote(page: Page, text: string) {
+  await page.getByRole('button', { name: /Write notes|Edit your notes/ }).click()
+  await page.locator('.note-composer textarea').fill(text)
+  await page.getByRole('button', { name: 'Done' }).click()
+}
 
 test('radial navigation, collection controls, and editor save work on a phone', async ({
   page,
@@ -74,16 +82,14 @@ test('search, recoverable errors, draft restore, save and sharing form a complet
   await page
     .getByRole('button', { name: 'Log Dune: Part Two', exact: true })
     .click()
-  await page
-    .getByLabel('Notes')
-    .fill('An enormous screen kind of movie.')
+  await writeNote(page, 'An enormous screen kind of movie.')
   await page.screenshot({ path: `${output}/04-mobile-log.png` })
   await page.getByRole('button', { name: 'Close log; keep draft' }).click()
   await page.reload()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('Notes')).toHaveValue(
-    'An enormous screen kind of movie.'
-  )
+  await expect(
+    page.getByRole('button', { name: /Edit your notes/ })
+  ).toContainText('An enormous screen kind of movie.')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('Saved to your library')
   expect(fixture.writes.some((write) => write.table === 'media_entries')).toBe(
@@ -192,7 +198,7 @@ test('library edits save, failures stay visible, and removal requires a delibera
   const fixture = await mockBackend(context)
   await page.goto('/library')
   await page.getByRole('button', { name: 'View and edit Past Lives' }).click()
-  await page.getByLabel('Notes').fill('Quietly unforgettable.')
+  await writeNote(page, 'Quietly unforgettable.')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByRole('dialog')).not.toBeVisible()
   expect(

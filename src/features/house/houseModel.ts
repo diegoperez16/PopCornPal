@@ -83,10 +83,18 @@ export function sortByShelf(entries: readonly MediaEntry[]): Sorting | null {
   const extremes =
     ratings.filter((rating) => rating >= 8.5 || rating <= 3).length /
     (ratings.length || 1)
-  // Anyone who bothers with a decimal is measuring, not reacting.
-  const precise =
-    ratings.filter((rating) => Math.round(rating) !== rating).length /
+  // Deliberately NOT scored on decimals: the rating control steps by 0.1, so
+  // almost every rating has one. It says nothing about the person, and
+  // weighting it sent nearly everybody to Ravenclaw.
+  // Rounding to whole numbers is the choice worth noticing.
+  const rounds =
+    ratings.filter((rating) => Math.round(rating) === rating).length /
     (ratings.length || 1)
+  // Breadth across media is the real curiosity signal.
+  const breadth =
+    new Set(entries.map((entry) => entry.media_type)).size / 4
+  const writes =
+    entries.filter((entry) => entry.notes?.trim()).length / (entries.length || 1)
   const bookish =
     entries.filter(
       (entry) => entry.media_type === 'book' || entry.media_type === 'game'
@@ -94,8 +102,8 @@ export function sortByShelf(entries: readonly MediaEntry[]): Sorting | null {
   const harsh = dumpsters / (rated.length + dumpsters || 1)
 
   const scores: Record<HouseId, number> = {
-    ravenclaw: precise * 1.9 + bookish * 1.5,
-    gryffindor: extremes * 2.1 + (average >= 7.5 ? 0.4 : 0),
+    ravenclaw: bookish * 1.8 + breadth * 1.3 + writes * 1.2,
+    gryffindor: extremes * 2.1 + rounds * 0.9 + (average >= 7.5 ? 0.4 : 0),
     hufflepuff: (average >= 7.8 ? 1.6 : 0) + (1 - extremes) * 1.2,
     slytherin: (average <= 6.2 ? 1.7 : 0) + harsh * 2.2,
   }
@@ -106,7 +114,7 @@ export function sortByShelf(entries: readonly MediaEntry[]): Sorting | null {
   ]
 
   const because: Record<HouseId, string> = {
-    ravenclaw: `You rate in decimals and your shelf leans to books and games — you are measuring these, not just reacting to them.`,
+    ravenclaw: `Your shelf reaches across ${new Set(entries.map((e) => e.media_type)).size} kinds of thing, and you write about what you finish. You are studying these, not just watching them.`,
     gryffindor: `${Math.round(extremes * 100)}% of your ratings sit near the top or the bottom. You do not do lukewarm.`,
     hufflepuff: `Your average is ${average.toFixed(1)}. You find something to love in almost everything you pick up.`,
     slytherin: `Your average is ${average.toFixed(1)}${dumpsters ? ` and you have sent ${dumpsters} to the dumpster` : ''}. The bar is high and everybody knows it.`,

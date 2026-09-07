@@ -476,3 +476,29 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   display: flex; align-items: center; justify-content: center;
   width: 17px; height: 17px; border-radius: 50%;
 }
+
+/* The writing surface takes the whole screen. Sized in dvh with the viewport's
+   interactive-widget rule, so the keyboard shrinks it rather than covering it. */
+.note-composer {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--pp-bg);
+  color: var(--pp-text);
+  overflow: hidden;
+}
+.note-composer::backdrop { background: rgb(var(--pp-bg-rgb)); }
+@media (min-width: 768px) {
+  .note-composer {
+    width: min(680px, 92vw);
+    height: min(80dvh, 760px);
+    margin: auto;
+    border: 1px solid rgb(var(--pp-line-soft-rgb));
+    border-radius: 20px;
+  }
+  .note-composer::backdrop { background: rgb(var(--pp-gray-950-rgb) / 0.8); backdrop-filter: blur(6px); }
+}

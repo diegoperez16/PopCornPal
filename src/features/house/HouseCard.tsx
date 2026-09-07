@@ -76,7 +76,16 @@ export default function HouseCard({
         Your house
       </h3>
 
-      {sorted && !picking && (
+      {thinking && (
+        <div className="flex items-center gap-3 py-1">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-accent" />
+          <p className="text-sm text-gray-300">
+            The Sorting is reading your shelf…
+          </p>
+        </div>
+      )}
+
+      {sorted && !picking && !thinking && (
         <div className="flex items-center gap-3">
           <Crest house={sorted.id} size={54} />
           <div className="min-w-0 flex-1">
@@ -95,7 +104,7 @@ export default function HouseCard({
         </div>
       )}
 
-      {!sorted && !picking && proposal && (
+      {!sorted && !picking && !thinking && proposal && (
         <div>
           <div className="flex items-center gap-3">
             <Crest house={proposal.house.id} />
@@ -132,7 +141,7 @@ export default function HouseCard({
         </div>
       )}
 
-      {!sorted && !picking && !proposal && (
+      {!sorted && !picking && !thinking && !proposal && (
         <div>
           <p className="text-xs leading-relaxed text-gray-400">
             {enoughShelf
@@ -185,7 +194,7 @@ export default function HouseCard({
         </div>
       )}
 
-      {picking && (
+      {picking && !thinking && (
         <>
         {/* Being sorted once should not be final — the shelf keeps growing. */}
         {enoughShelf && (

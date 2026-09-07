@@ -16,7 +16,7 @@ import {
 import DecimalRating from '../components/DecimalRating'
 import VerdictMark from '../features/verdict/VerdictMark'
 import VerdictBadge from '../features/verdict/VerdictBadge'
-import AutoGrowTextarea from '../components/AutoGrowTextarea'
+import NoteField from '../components/NoteField'
 import PalMark from '../components/brand/PalMark'
 import { useAddEntryPage, type WatchStatus } from '../hooks/useAddEntryPage'
 import { localDateString } from '../lib/addEntryDraft'
@@ -287,25 +287,16 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                   />
                 </div>
               )}
-              <div>
-                <label htmlFor="entry-notes" className="auth-label">
-                  Notes{' '}
-                  <span className="text-gray-400 text-xs font-normal">
-                    · optional
-                  </span>
-                </label>
-                <AutoGrowTextarea
-                  id="entry-notes"
-                  minRows={4}
-                  maxRows={14}
-                  className="app-input leading-relaxed"
-                  placeholder="Any thoughts?"
-                  value={w.notes}
-                  onChange={(e) => w.setNotes(e.target.value)}
-                  disabled={w.saving}
-                  maxLength={10000}
-                />
-              </div>
+              <NoteField
+                id="entry-notes"
+                label="Notes"
+                title={item.title}
+                subtitle={`${item.type}${item.year ? ` · ${item.year}` : ''}`}
+                placeholder="What stayed with you?"
+                value={w.notes}
+                onChange={w.setNotes}
+                disabled={w.saving}
+              />
             </>
           )}
           {w.duplicateError && (

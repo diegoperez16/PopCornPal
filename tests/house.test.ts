@@ -49,9 +49,16 @@ test('rating from the extremes reads as Gryffindor', () => {
   assert.equal(sorting?.house.id, 'gryffindor')
 })
 
-test('decimals and a bookish shelf read as Ravenclaw', () => {
+test('a bookish, wide-ranging shelf reads as Ravenclaw', () => {
   const sorting = sortByShelf(shelf([7.4, 6.8, 8.2, 7.1, 6.3, 8.4], { type: 'book' }))
   assert.equal(sorting?.house.id, 'ravenclaw')
+})
+
+test('decimals alone do not decide a house', () => {
+  // The rating control steps by 0.1, so nearly every shelf is full of
+  // decimals. Weighting that sent everyone to Ravenclaw.
+  const decimalHeavy = sortByShelf(shelf([8.1, 7.9, 8.3, 7.7, 8.2, 7.8]))
+  assert.notEqual(decimalHeavy?.house.id, 'ravenclaw')
 })
 
 test('a generous, even-handed shelf reads as Hufflepuff', () => {

@@ -14,7 +14,7 @@ import {
   useUpdateEntry,
 } from '../../hooks/queries/useMediaQueries'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
-import AutoGrowTextarea from '../../components/AutoGrowTextarea'
+import NoteField from '../../components/NoteField'
 import VerdictMark from '../verdict/VerdictMark'
 import VerdictBadge from '../verdict/VerdictBadge'
 import { buildEntryUpdates } from './libraryModel'
@@ -294,32 +294,16 @@ export default function EntryEditor({
               </button>
             </fieldset>
           )}
-          <div>
-            <label
-              htmlFor="entry-review"
-              className="mb-3 block text-sm font-medium"
-            >
-              Notes{' '}
-              <span className="ml-1 font-normal text-muted">
-                (optional)
-              </span>
-            </label>
-            <AutoGrowTextarea
-              id="entry-review"
-              value={draft.notes}
-              disabled={isPending}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  notes: event.target.value,
-                }))
-              }
-              minRows={4}
-              maxRows={14}
-              className="w-full rounded-xl border border-line-soft bg-gray-900 px-4 py-3 text-base leading-relaxed placeholder:text-[#817e79] focus:outline-none focus:ring-2 focus:ring-accent"
-              placeholder="The moment that stayed with you…"
-            />
-          </div>
+          <NoteField
+            id="entry-review"
+            label="Notes"
+            title={entry.title}
+            subtitle={`${entry.media_type}${entry.year ? ` · ${entry.year}` : ''}`}
+            placeholder="The moment that stayed with you…"
+            value={draft.notes}
+            onChange={(notes) => setDraft((current) => ({ ...current, notes }))}
+            disabled={isPending}
+          />
           <p className="text-xs text-muted">
             Last updated{' '}
             {new Date(entry.updated_at).toLocaleDateString(undefined, {
