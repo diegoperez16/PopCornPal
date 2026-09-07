@@ -1,6 +1,7 @@
 import { Film, Tv, Gamepad2, Book, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus } from 'lucide-react'
 import DecimalRating from '../components/DecimalRating'
 import PalMark from '../components/brand/PalMark'
+import { collectUniqueMedia } from '../features/library/libraryModel'
 import GifPicker from '../components/GifPicker'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import ImageCropper from '../components/ImageCropper'
@@ -873,14 +874,10 @@ export default function ProfilePage() {
               {entries.length === 0 ? (
                 <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
               ) : (() => {
-                const seen = new Set<string>()
-                const filteredEntries = entries.filter(entry => {
+                const filteredEntries = collectUniqueMedia(entries).filter(entry => {
                   const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
                   const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
                   const notInFavorites = !favorites.some(f => f.media_entry_id === entry.id)
-                  const key = `${entry.media_type}:${entry.title.trim().toLowerCase()}`
-                  if (seen.has(key)) return false
-                  seen.add(key)
                   return matchesType && matchesSearch && notInFavorites
                 })
                 if (filteredEntries.length === 0) return <div className="text-center py-8 text-gray-500"><p>No matches found.</p></div>

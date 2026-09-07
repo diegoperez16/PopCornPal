@@ -26,6 +26,38 @@ export function collectLibraryEntries(
   return [...collection.values()]
 }
 
+/**
+ * One row per title, for pickers that attach a title to something else.
+ *
+ * A title accumulates a row per event — the durable `logged` record plus any
+ * completed/in-progress/planned activity — so the raw list repeats titles.
+ * Pickers want the title itself, represented by its library record when one
+ * exists and otherwise by the most recently touched activity record.
+ */
+export function collectUniqueMedia(
+  entries: readonly MediaEntry[]
+): MediaEntry[] {
+  const byTitle = new Map<string, MediaEntry>()
+  for (const entry of entries) {
+    const key = `${entry.media_type}:${entry.title.trim().toLocaleLowerCase()}`
+    const existing = byTitle.get(key)
+    if (!existing) {
+      byTitle.set(key, entry)
+      continue
+    }
+    const preferred =
+      existing.status === 'logged'
+        ? existing
+        : entry.status === 'logged'
+          ? entry
+          : Date.parse(entry.updated_at) > Date.parse(existing.updated_at)
+            ? entry
+            : existing
+    byTitle.set(key, preferred)
+  }
+  return [...byTitle.values()]
+}
+
 export function selectLibraryEntries(
   entries: readonly MediaEntry[],
   {

@@ -8,6 +8,7 @@ import MediaSelectorModal from './MediaSelectorModal'
 import { findImageLink } from './feedTypes'
 import { useCreatePost } from '../../hooks/queries/useFeedQueries'
 import { useMediaEntries } from '../../hooks/queries/useMediaQueries'
+import { collectUniqueMedia } from '../../features/library/libraryModel'
 import { useMentionAutocomplete } from '../../hooks/useMentionAutocomplete'
 import { uploadPostImage } from '../../lib/postImages'
 import type { Profile } from '../../lib/supabase'
@@ -46,6 +47,9 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
   // Lazy: only fetch the user's library when the selector is opened or a
   // previously-selected media entry needs to be resolved for display.
   const { data: entries = [] } = useMediaEntries(userId, showMediaSelector || !!selectedMediaEntry)
+  // The picker lists titles, so collapse the per-event rows. The full list is
+  // kept for resolving an already-selected entry by id.
+  const pickableEntries = useMemo(() => collectUniqueMedia(entries), [entries])
   const [imageUrl, setImageUrl] = useState(() => loadDraft('popcorn_post_img_url'))
   const [uploadedImage, setUploadedImage] = useState<string | null>(() =>
     loadDraft('popcorn_post_upload') || null
@@ -369,7 +373,7 @@ export default function FeedComposer({ userId, profile }: FeedComposerProps) {
 
       {showMediaSelector && (
         <MediaSelectorModal
-          entries={entries}
+          entries={pickableEntries}
           mediaSearchQuery={mediaSearchQuery}
           setMediaSearchQuery={setMediaSearchQuery}
           mediaFilterType={mediaFilterType}

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildEntryUpdates,
   collectLibraryEntries,
+  collectUniqueMedia,
   countLibraryEntries,
   selectLibraryEntries,
 } from './libraryModel.ts'
@@ -100,4 +101,32 @@ test('entry updates normalize ratings and notes, set completion date, and clear 
     }).completed_date,
     '2026-01-01'
   )
+})
+
+test('unique media collapses a title to one row and prefers the library record', () => {
+  const rows = [
+    entry({ id: 'activity', status: 'completed', updated_at: '2026-03-01' }),
+    entry({ id: 'library', status: 'logged', updated_at: '2026-01-01' }),
+    entry({ id: 'dup-activity', status: 'in-progress', updated_at: '2026-02-01' }),
+  ]
+  const unique = collectUniqueMedia(rows)
+  assert.equal(unique.length, 1)
+  assert.equal(unique[0].id, 'library')
+})
+
+test('unique media falls back to the newest activity when nothing is logged', () => {
+  const unique = collectUniqueMedia([
+    entry({ id: 'older', status: 'planned', updated_at: '2026-01-01' }),
+    entry({ id: 'newer', status: 'completed', updated_at: '2026-05-01' }),
+  ])
+  assert.deepEqual(unique.map((e) => e.id), ['newer'])
+})
+
+test('unique media keeps different titles and types apart', () => {
+  const unique = collectUniqueMedia([
+    entry({ id: 'movie', title: 'Dune' }),
+    entry({ id: 'book', title: 'Dune', media_type: 'book' }),
+    entry({ id: 'spaced', title: '  dune  ' }),
+  ])
+  assert.equal(unique.length, 2)
 })
