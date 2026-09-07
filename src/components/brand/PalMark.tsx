@@ -32,6 +32,7 @@ export default function PalMark({
     none: { body: '#f6efe3', stripe: '#ff655b', rim: '#ff655b' },
     lantern: { body: '#0f7a3f', stripe: '#eafff2', rim: '#5cff9d' },
     wizarding: { body: '#f6efe3', stripe: '#7b1e26', rim: '#7b1e26' },
+    spider: { body: '#1f3a93', stripe: '#d6282e', rim: '#d6282e' },
   }[worn]
 
   return (
@@ -71,6 +72,27 @@ export default function PalMark({
         />
       )}
 
+      {worn === 'spider' && (
+        <>
+          {/* The mask covers the kernel; the eyes do all the work. */}
+          <path
+            d="M158 150 q98 -34 196 0 q16 76 -22 116 q-36 34 -76 34 q-40 0 -76 -34 q-38 -40 -22 -116 Z"
+            fill="#d6282e"
+          />
+          <path
+            d="M182 176 q92 -22 148 0 M170 214 q86 -18 172 0 M256 146 l0 128 M206 158 q12 60 42 108 M306 158 q-12 60 -42 108"
+            stroke="#8f1418"
+            strokeWidth="5"
+            fill="none"
+            opacity=".75"
+          />
+          <path d="M186 214 q34 -34 62 -6 q-24 44 -58 34 q-10 -14 -4 -28 Z" fill="#f2f5ff" />
+          <path d="M326 214 q-34 -34 -62 -6 q24 44 58 34 q10 -14 4 -28 Z" fill="#f2f5ff" />
+          <path d="M186 214 q34 -34 62 -6 q-24 44 -58 34 q-10 -14 -4 -28 Z" fill="none" stroke="#8f1418" strokeWidth="6" />
+          <path d="M326 214 q-34 -34 -62 -6 q24 44 58 34 q10 -14 4 -28 Z" fill="none" stroke="#8f1418" strokeWidth="6" />
+        </>
+      )}
+
       {worn === 'lantern' ? (
         <>
           <path
@@ -87,7 +109,7 @@ export default function PalMark({
             strokeLinecap="round"
           />
         </>
-      ) : (
+      ) : worn === 'spider' ? null : (
         <>
           <circle cx="219" cy="212" r="14" fill="#2b1c0e" />
           <circle cx="293" cy="212" r="14" fill="#2b1c0e" />
@@ -117,6 +139,13 @@ export default function PalMark({
       <path d={bucketBody} fill={palette.body} />
       <path d={bucketStripes} fill={palette.stripe} />
       <rect x="118" y="288" width="276" height="30" rx="15" fill={palette.rim} />
+
+      {worn === 'spider' && (
+        <g stroke="#f2f5ff" strokeWidth="7" fill="none" opacity=".85">
+          <path d="M256 306 l0 154 M180 316 l60 144 M332 316 l-60 144" />
+          <path d="M166 352 q90 -18 180 0 M176 396 q80 -16 160 0 M186 438 q70 -14 140 0" />
+        </g>
+      )}
 
       {worn === 'lantern' && (
         <g fill="none" stroke="#eafff2" strokeWidth="12">

@@ -534,7 +534,7 @@ export default function ProfilePage() {
           onChoose={(house) => void updateProfile({ house })}
         />
         <div className="mb-7">
-          <ThemePicker compact />
+          <ThemePicker />
         </div>
 
           <div className="flex items-center justify-between mb-3">

@@ -419,3 +419,60 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   transform-origin: 50% 90%;
   animation: verdictWobble 4.4s ease-in-out infinite;
 }
+
+/* The season picker as a strip of film. Frames scroll-snap so a flick lands on
+   one, and the sprocket holes are a repeating gradient rather than markup. */
+.filmstrip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 6px;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.filmstrip-frame {
+  position: relative;
+  flex: 0 0 auto;
+  width: 104px;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px 12px;
+  border: 1.5px solid;
+  border-radius: 10px;
+  transition: transform .16s ease-out, box-shadow .16s ease-out;
+}
+.filmstrip-frame.is-selected { transform: translateY(-3px); box-shadow: 0 6px 20px #0007; }
+.filmstrip-frame:not(.is-selected) { opacity: .78; }
+.filmstrip-frame:hover:not(.is-selected) { opacity: 1; }
+/* Perforations along the top and bottom edge of every frame. The overlay must
+   stay transparent: it is positioned, so a fill would paint over the frame's
+   own content rather than behind it. */
+.filmstrip-sprocket-row { position: absolute; inset: 0; border-radius: 9px; pointer-events: none; background: none; z-index: 0; }
+.filmstrip-sprocket-row::before,
+.filmstrip-sprocket-row::after {
+  content: '';
+  position: absolute;
+  left: 5px; right: 5px;
+  height: 6px;
+  background-image: repeating-linear-gradient(
+    to right,
+    currentColor 0 6px,
+    transparent 6px 13px
+  );
+  opacity: .9;
+}
+.filmstrip-sprocket-row::before { top: 4px; }
+.filmstrip-sprocket-row::after { bottom: 4px; }
+.filmstrip-frame > :not(.filmstrip-sprocket-row) { position: relative; z-index: 1; }
+.filmstrip-name { font-size: 11px; font-weight: 700; letter-spacing: .01em; }
+.filmstrip-swatches { display: flex; gap: 3px; }
+.filmstrip-swatches span { width: 12px; height: 4px; border-radius: 2px; }
+.filmstrip-check {
+  position: absolute; top: 8px; right: 8px;
+  display: flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 50%;
+}

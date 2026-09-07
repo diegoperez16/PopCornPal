@@ -6,7 +6,7 @@
 // Its values are the exact colours the app shipped with; a visual regression
 // test pins them, so it can always be returned to unchanged.
 
-export type PoppyCostume = 'none' | 'lantern' | 'wizarding'
+export type PoppyCostume = 'none' | 'lantern' | 'wizarding' | 'spider'
 
 export type Theme = {
   id: string
@@ -163,7 +163,49 @@ export const WIZARDING = season(
   }
 )
 
-export const THEMES: Theme[] = [CINEMA, LANTERN, WIZARDING]
+export const SPIDER = season(
+  'spider',
+  'Web-Slinger',
+  'Night over the city, and a red suit on the skyline.',
+  'spider',
+  {
+    'gray-900': '10 14 34',
+    'gray-800': '18 25 54',
+    'gray-700': '38 50 96',
+    'gray-600': '58 74 130',
+    'gray-500': '104 122 176',
+    'gray-400': '146 162 208',
+    'gray-300': '188 200 232',
+
+    bg: '10 14 34',
+    surface: '18 25 54',
+    'surface-strong': '27 37 74',
+    'surface-sunken': '13 18 42',
+    'surface-raised': '44 58 108',
+    line: '38 50 96',
+    'line-soft': '46 60 112',
+    'line-strong': '68 86 146',
+
+    text: '236 240 255',
+    parchment: '226 232 250',
+    muted: '146 162 208',
+
+    accent: '214 40 46',
+    'accent-soft': '236 62 68',
+    'accent-warm': '226 54 54',
+    'accent-bright': '255 94 98',
+    'accent-deep': '255 240 240',
+    'on-accent': '255 240 240',
+
+    'butter-300': '182 200 255',
+    'butter-400': '124 152 255',
+    'butter-500': '86 116 232',
+    'butter-600': '58 86 190',
+    'butter-gold': '158 182 255',
+  }
+)
+
+export const THEMES: Theme[] = [CINEMA, LANTERN, WIZARDING, SPIDER]
 
 /**
  * The season everyone starts on. Separate from CINEMA on purpose: CINEMA is
