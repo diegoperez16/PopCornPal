@@ -46,7 +46,15 @@ export default function LibraryPage() {
   const [filterType, setFilterType] = useState<MediaType | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [sort, setSort] = useState<LibrarySort>('recent')
-  const [minRating, setMinRating] = useState(0)
+  // A band rather than a floor, so "the 9s" is as easy to ask for as "9 and up".
+  const [ratingBand, setRatingBand] = useState('any')
+  const [minRating, maxRating] = useMemo(() => {
+    if (ratingBand === 'any') return [0, 10]
+    if (ratingBand.startsWith('min-')) return [Number(ratingBand.slice(4)), 10]
+    const only = Number(ratingBand.slice(5))
+    // "the 9s" means 9 up to but not including 10; 10 stands alone.
+    return only === 10 ? [10, 10] : [only, only + 0.9]
+  }, [ratingBand])
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const collection = useMemo(() => collectLibraryEntries(entries), [entries])
   const counts = useMemo(() => countLibraryEntries(collection), [collection])
@@ -57,11 +65,12 @@ export default function LibraryPage() {
         search: searchQuery,
         sort,
         minRating,
+        maxRating,
       }),
-    [collection, filterType, searchQuery, sort, minRating]
+    [collection, filterType, searchQuery, sort, minRating, maxRating]
   )
   const hasFilters =
-    filterType !== null || searchQuery.trim().length > 0 || minRating > 0
+    filterType !== null || searchQuery.trim().length > 0 || ratingBand !== 'any'
   const selectedTypeLabel = mediaTypes.find(
     (type) => type.type === filterType
   )?.label
@@ -69,7 +78,7 @@ export default function LibraryPage() {
   function clearFilters() {
     setSearchQuery('')
     setFilterType(null)
-    setMinRating(0)
+    setRatingBand('any')
   }
 
   return (
@@ -171,15 +180,25 @@ export default function LibraryPage() {
               <Star className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="sr-only">Only show titles rated at least</span>
               <select
-                value={minRating}
-                onChange={(event) => setMinRating(Number(event.target.value))}
+                value={ratingBand}
+                onChange={(event) => setRatingBand(event.target.value)}
                 className="min-h-11 cursor-pointer appearance-none rounded-lg border-0 bg-transparent pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <option value={0}>Any rating</option>
-                <option value={9}>9 and up</option>
-                <option value={8}>8 and up</option>
-                <option value={7}>7 and up</option>
-                <option value={5}>5 and up</option>
+                <option value="any">Any rating</option>
+                <optgroup label="At least">
+                  <option value="min-9">9 and up</option>
+                  <option value="min-8">8 and up</option>
+                  <option value="min-7">7 and up</option>
+                  <option value="min-5">5 and up</option>
+                </optgroup>
+                <optgroup label="Only">
+                  <option value="only-10">10s</option>
+                  <option value="only-9">9s</option>
+                  <option value="only-8">8s</option>
+                  <option value="only-7">7s</option>
+                  <option value="only-6">6s</option>
+                  <option value="only-5">5s</option>
+                </optgroup>
               </select>
             </label>
             <label className="relative flex min-h-11 items-center gap-1.5 text-xs text-[#c6c2bb]">

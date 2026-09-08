@@ -628,6 +628,8 @@ export default function FeedPage() {
   const [highlightedPost, setHighlightedPost] = useState<string | null>(null)
   const requestedPost = searchParams.get('post')
   const requestedComments = searchParams.get('comments') === '1'
+  const requestedComment = searchParams.get('comment')
+  const [highlightedComment, setHighlightedComment] = useState<string | null>(null)
   const handledRequest = useRef<string | null>(null)
 
   useEffect(() => {
@@ -637,15 +639,28 @@ export default function FeedPage() {
 
     if (requestedComments) setExpandedComments(requestedPost)
     setHighlightedPost(requestedPost)
+    if (requestedComment) setHighlightedComment(requestedComment)
 
     const node = document.getElementById(`post-${requestedPost}`)
     node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 
     // Drop the params so a refresh does not keep re-triggering this.
     setSearchParams({}, { replace: true })
-    const clear = setTimeout(() => setHighlightedPost(null), 2600)
+    const clear = setTimeout(() => {
+      setHighlightedPost(null)
+      setHighlightedComment(null)
+    }, 4000)
     return () => clearTimeout(clear)
-  }, [requestedPost, requestedComments, posts, setSearchParams])
+  }, [requestedPost, requestedComments, requestedComment, posts, setSearchParams])
+
+  // The comment is only in the DOM once its thread has loaded, which is after
+  // the effect above runs — so scroll to it when it actually appears.
+  useEffect(() => {
+    if (!highlightedComment) return
+    const node = document.getElementById(`comment-${highlightedComment}`)
+    if (!node) return
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [highlightedComment, activeComments])
 
   const toggleComments = useCallback((postId: string) => {
     setExpandedComments((current) => {
@@ -745,6 +760,7 @@ export default function FeedPage() {
                             comment={comment}
                             postId={post.id}
                             depth={0}
+                            highlightedId={highlightedComment}
                             onReply={(commentId) => setReplyingTo(commentId)}
                             replyingTo={replyingTo}
                             replyText={replyText}

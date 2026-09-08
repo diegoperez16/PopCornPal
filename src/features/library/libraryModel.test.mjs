@@ -197,3 +197,21 @@ test('no floor leaves everything, including the unrated', () => {
   const shelf = [entry({ id: 'a', rating: null }), entry({ id: 'b', title: 'B', rating: 3 })]
   assert.equal(selectLibraryEntries(shelf, { type: null, search: '', sort: 'recent' }).length, 2)
 })
+
+test('a band keeps only the titles inside it', () => {
+  const shelf = [
+    entry({ id: 'a', title: 'Ten', rating: 10 }),
+    entry({ id: 'b', title: 'NineFive', rating: 9.5 }),
+    entry({ id: 'c', title: 'Nine', rating: 9 }),
+    entry({ id: 'd', title: 'EightNine', rating: 8.9 }),
+  ]
+  const nines = selectLibraryEntries(shelf, {
+    type: null, search: '', sort: 'recent', minRating: 9, maxRating: 9.9,
+  })
+  assert.deepEqual(nines.map((e) => e.title).sort(), ['Nine', 'NineFive'])
+
+  const tens = selectLibraryEntries(shelf, {
+    type: null, search: '', sort: 'recent', minRating: 10, maxRating: 10,
+  })
+  assert.deepEqual(tens.map((e) => e.title), ['Ten'])
+})

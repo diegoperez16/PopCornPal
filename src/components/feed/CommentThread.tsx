@@ -10,6 +10,8 @@ export type CommentThreadProps = {
   comment: Comment
   postId: string
   depth: number
+  /** Comment arrived at from a notification; ringed so it is findable. */
+  highlightedId?: string | null
   onReply: (commentId: string) => void
   replyingTo: string | null
   replyText: string
@@ -36,6 +38,7 @@ export default function CommentThread({
   comment,
   postId,
   depth,
+  highlightedId,
   onReply,
   replyingTo,
   replyText,
@@ -84,7 +87,14 @@ export default function CommentThread({
   }
 
   return (
-    <div className={`${depth > 0 ? 'ml-6 mt-3' : ''}`}>
+    <div
+      id={`comment-${comment.id}`}
+      className={`${depth > 0 ? 'ml-6 mt-3' : ''} ${
+        highlightedId === comment.id
+          ? 'rounded-xl ring-2 ring-accent ring-offset-2 ring-offset-gray-800 transition-shadow'
+          : ''
+      }`}
+    >
       <div className="flex gap-3">
         <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
           <UserAvatar avatarUrl={comment.profiles.avatar_url} avatarCrop={comment.profiles.avatar_crop} username={comment.profiles.username} />
@@ -319,6 +329,7 @@ export default function CommentThread({
                   comment={reply}
                   postId={postId}
                   depth={1}
+                  highlightedId={highlightedId}
                   onReply={onReply}
                   replyingTo={replyingTo}
                   replyText={replyText}

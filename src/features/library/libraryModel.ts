@@ -67,16 +67,21 @@ export function selectLibraryEntries(
     search,
     sort,
     minRating = 0,
+    maxRating = 10,
   }: {
     type: MediaType | null
     search: string
     sort: LibrarySort
     /**
-     * Only titles rated at least this. Dumpstered entries are excluded from
-     * any rating floor above zero: refusing to rate something is not a low
-     * score, so it cannot satisfy "7 and up".
+     * Keep only titles rated within [minRating, maxRating]. Defaults span the
+     * whole scale, so an untouched filter changes nothing.
+     *
+     * A band narrower than the full scale also excludes dumpstered and unrated
+     * titles: refusing to rate something is not a score, so it can satisfy
+     * neither "7 and up" nor "the 9s".
      */
     minRating?: number
+    maxRating?: number
   }
 ): MediaEntry[] {
   const query = search.trim().toLocaleLowerCase()
@@ -85,10 +90,11 @@ export function selectLibraryEntries(
       (entry) =>
         (!type || entry.media_type === type) &&
         (!query || entry.title.toLocaleLowerCase().includes(query)) &&
-        (minRating <= 0 ||
+        ((minRating <= 0 && maxRating >= 10) ||
           (!entry.dumpstered &&
             entry.rating !== null &&
-            entry.rating >= minRating))
+            entry.rating >= minRating &&
+            entry.rating <= maxRating))
     )
     .sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title)

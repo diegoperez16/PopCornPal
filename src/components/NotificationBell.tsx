@@ -11,6 +11,8 @@ type AppNotification = {
   type: 'like' | 'comment' | 'reply' | 'follow' | 'system' | 'mention'
   from_user_id: string
   related_id: string | null
+  /** The comment a comment/reply refers to; null on older rows. */
+  comment_id?: string | null
   read: boolean
   created_at: string
   from_profile: {
@@ -151,7 +153,11 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
       // for it defeats the notification — say which post, and for a comment or
       // reply open the thread so the thing being replied to is on screen.
       const wantsThread = n.type === 'comment' || n.type === 'reply'
-      navigate(`/feed?post=${n.related_id}${wantsThread ? '&comments=1' : ''}`)
+      const params = new URLSearchParams({ post: n.related_id })
+      if (wantsThread) params.set('comments', '1')
+      // Older notifications predate comment_id and simply open the thread.
+      if (wantsThread && n.comment_id) params.set('comment', n.comment_id)
+      navigate(`/feed?${params}`)
     } else if (n.type === 'follow' && n.from_profile) {
       navigate(`/profile/${n.from_profile.username}`)
     }
