@@ -189,7 +189,7 @@ export default function CommentThread({
                       </button>
                     </>
                   )}
-                  {hasReplies && depth === 0 && (
+                  {hasReplies && (
                     <button
                       onClick={() => {
                         const event = new CustomEvent('openThread', { detail: { comment, postId } })
@@ -307,7 +307,10 @@ export default function CommentThread({
             </div>
           )}
 
-          {/* Inline replies — depth capped at 1 to avoid infinite nesting */}
+          {/* Inline nesting stops at one level so the thread stays readable.
+              Deeper replies are reachable through the reply count above, which
+              now shows at every depth — before, a reply to a reply was
+              invisible in the feed with nothing hinting it was there. */}
           {comment.replies && comment.replies.length > 0 && depth === 0 && (
             <div className="mt-3 space-y-3">
               {comment.replies.map((reply) => (

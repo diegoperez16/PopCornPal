@@ -66,14 +66,29 @@ export function selectLibraryEntries(
     type,
     search,
     sort,
-  }: { type: MediaType | null; search: string; sort: LibrarySort }
+    minRating = 0,
+  }: {
+    type: MediaType | null
+    search: string
+    sort: LibrarySort
+    /**
+     * Only titles rated at least this. Dumpstered entries are excluded from
+     * any rating floor above zero: refusing to rate something is not a low
+     * score, so it cannot satisfy "7 and up".
+     */
+    minRating?: number
+  }
 ): MediaEntry[] {
   const query = search.trim().toLocaleLowerCase()
   return entries
     .filter(
       (entry) =>
         (!type || entry.media_type === type) &&
-        (!query || entry.title.toLocaleLowerCase().includes(query))
+        (!query || entry.title.toLocaleLowerCase().includes(query)) &&
+        (minRating <= 0 ||
+          (!entry.dumpstered &&
+            entry.rating !== null &&
+            entry.rating >= minRating))
     )
     .sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title)

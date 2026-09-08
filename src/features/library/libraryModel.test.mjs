@@ -168,3 +168,32 @@ test('clearing a dumpster lets a rating stand again', () => {
   assert.equal(updates.rating, 7.3)
   assert.equal(updates.notes, null)
 })
+
+test('a rating floor keeps only titles that clear it', () => {
+  const shelf = [
+    entry({ id: 'high', title: 'High', rating: 9.2 }),
+    entry({ id: 'mid', title: 'Mid', rating: 6.5 }),
+    entry({ id: 'unrated', title: 'Unrated', rating: null }),
+  ]
+  const kept = selectLibraryEntries(shelf, {
+    type: null, search: '', sort: 'recent', minRating: 7,
+  })
+  assert.deepEqual(kept.map((e) => e.title), ['High'])
+})
+
+test('a dumpster never satisfies a rating floor', () => {
+  // Refusing to rate something is not a score, so it cannot clear "7 and up".
+  const shelf = [
+    entry({ id: 'dump', title: 'Dumped', rating: null, dumpstered: true }),
+    entry({ id: 'good', title: 'Good', rating: 8 }),
+  ]
+  const kept = selectLibraryEntries(shelf, {
+    type: null, search: '', sort: 'recent', minRating: 7,
+  })
+  assert.deepEqual(kept.map((e) => e.title), ['Good'])
+})
+
+test('no floor leaves everything, including the unrated', () => {
+  const shelf = [entry({ id: 'a', rating: null }), entry({ id: 'b', title: 'B', rating: 3 })]
+  assert.equal(selectLibraryEntries(shelf, { type: null, search: '', sort: 'recent' }).length, 2)
+})

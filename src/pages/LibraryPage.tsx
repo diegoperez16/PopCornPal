@@ -10,6 +10,7 @@ import {
   List,
   Plus,
   Search,
+  Star,
   Tv,
   X,
 } from 'lucide-react'
@@ -45,6 +46,7 @@ export default function LibraryPage() {
   const [filterType, setFilterType] = useState<MediaType | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [sort, setSort] = useState<LibrarySort>('recent')
+  const [minRating, setMinRating] = useState(0)
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const collection = useMemo(() => collectLibraryEntries(entries), [entries])
   const counts = useMemo(() => countLibraryEntries(collection), [collection])
@@ -54,10 +56,12 @@ export default function LibraryPage() {
         type: filterType,
         search: searchQuery,
         sort,
+        minRating,
       }),
-    [collection, filterType, searchQuery, sort]
+    [collection, filterType, searchQuery, sort, minRating]
   )
-  const hasFilters = filterType !== null || searchQuery.trim().length > 0
+  const hasFilters =
+    filterType !== null || searchQuery.trim().length > 0 || minRating > 0
   const selectedTypeLabel = mediaTypes.find(
     (type) => type.type === filterType
   )?.label
@@ -65,6 +69,7 @@ export default function LibraryPage() {
   function clearFilters() {
     setSearchQuery('')
     setFilterType(null)
+    setMinRating(0)
   }
 
   return (
@@ -162,6 +167,21 @@ export default function LibraryPage() {
             </p>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
+            <label className="relative flex min-h-11 items-center gap-1.5 text-xs text-[#c6c2bb]">
+              <Star className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="sr-only">Only show titles rated at least</span>
+              <select
+                value={minRating}
+                onChange={(event) => setMinRating(Number(event.target.value))}
+                className="min-h-11 cursor-pointer appearance-none rounded-lg border-0 bg-transparent pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value={0}>Any rating</option>
+                <option value={9}>9 and up</option>
+                <option value={8}>8 and up</option>
+                <option value={7}>7 and up</option>
+                <option value={5}>5 and up</option>
+              </select>
+            </label>
             <label className="relative flex min-h-11 items-center gap-1.5 text-xs text-[#c6c2bb]">
               <ArrowUpDown
                 className="h-3.5 w-3.5 shrink-0"

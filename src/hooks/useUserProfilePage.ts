@@ -50,6 +50,8 @@ export type MediaEntry = ProfileMediaEntry
 
 export type Favorite = {
   id: string
+  /** all | movie | show | game | book | year-YYYY. Absent on older rows. */
+  list?: string | null
   media_entry: MediaEntry
 }
 

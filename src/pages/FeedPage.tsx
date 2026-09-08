@@ -1,6 +1,7 @@
 import { createDraftStorage } from '../lib/draftStorage'
-import { useCallback, useEffect, useState, useLayoutEffect, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useLayoutEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { type Post, useSocialStore } from '../store/socialStore'
 import { Link, useNavigate } from 'react-router-dom'
@@ -620,6 +621,32 @@ export default function FeedPage() {
     })
   }, [deletePost, user])
 
+  // Arriving from a notification: bring the post into view, mark it briefly so
+  // it is obvious which one, and open its thread when the notification was
+  // about a comment or a reply.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [highlightedPost, setHighlightedPost] = useState<string | null>(null)
+  const requestedPost = searchParams.get('post')
+  const requestedComments = searchParams.get('comments') === '1'
+  const handledRequest = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!requestedPost || handledRequest.current === requestedPost) return
+    if (!posts.some((post) => post.id === requestedPost)) return
+    handledRequest.current = requestedPost
+
+    if (requestedComments) setExpandedComments(requestedPost)
+    setHighlightedPost(requestedPost)
+
+    const node = document.getElementById(`post-${requestedPost}`)
+    node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+
+    // Drop the params so a refresh does not keep re-triggering this.
+    setSearchParams({}, { replace: true })
+    const clear = setTimeout(() => setHighlightedPost(null), 2600)
+    return () => clearTimeout(clear)
+  }, [requestedPost, requestedComments, posts, setSearchParams])
+
   const toggleComments = useCallback((postId: string) => {
     setExpandedComments((current) => {
       if (current === postId) return null
@@ -690,8 +717,16 @@ export default function FeedPage() {
         ) : (
           <div className="space-y-4">
             {posts.slice(0, visiblePostsCount).map((post, index) => (
-              <FeedPostCard
+              <div
                 key={post.id}
+                id={`post-${post.id}`}
+                className={
+                  highlightedPost === post.id
+                    ? 'rounded-2xl ring-2 ring-accent transition-shadow'
+                    : undefined
+                }
+              >
+              <FeedPostCard
                 post={post}
                 index={index}
                 currentUserId={user?.id}
@@ -743,6 +778,7 @@ export default function FeedPage() {
                   </div>
                 ) : undefined}
               />
+              </div>
             ))}
           </div>
         )}

@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library } from 'lucide-react'
@@ -52,6 +53,26 @@ export default function UserProfilePage() {
     getFilteredLibrary,
     navigate,
   } = useUserProfilePage(username, currentUser)
+
+  // Which of their top tens is being viewed.
+  const [visitorList, setVisitorList] = useState('all')
+  const visitorLists = useMemo(() => {
+    const counts = favorites.reduce<Record<string, number>>((acc, fav) => {
+      const list = fav.list ?? 'all'
+      acc[list] = (acc[list] ?? 0) + 1
+      return acc
+    }, {})
+    const labels: Record<string, string> = {
+      all: 'All time', movie: 'Movies', show: 'Shows', game: 'Games', book: 'Books',
+    }
+    return Object.keys(counts)
+      .sort((a, b) => (a === 'all' ? -1 : b === 'all' ? 1 : a.localeCompare(b)))
+      .map((id) => ({ id, label: labels[id] ?? id.replace('year-', ''), count: counts[id] }))
+  }, [favorites])
+  const shownFavorites = useMemo(
+    () => favorites.filter((fav) => (fav.list ?? 'all') === visitorList),
+    [favorites, visitorList]
+  )
 
   const getMediaIcon = (type: string) => {
     switch (type) {
@@ -242,9 +263,33 @@ export default function UserProfilePage() {
           {/* Favorites */}
           {favorites.length > 0 && (
             <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Top Picks</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Top Picks</p>
+              </div>
+              {/* Their lists, not yours: only tabs they have actually filled
+                  are offered, so nobody browses a wall of empty shelves. */}
+              {visitorLists.length > 1 && (
+                <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1" role="tablist">
+                  {visitorLists.map(({ id, label, count }) => (
+                    <button
+                      key={id}
+                      role="tab"
+                      aria-selected={visitorList === id}
+                      onClick={() => setVisitorList(id)}
+                      className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
+                        visitorList === id
+                          ? 'border-accent bg-accent/10 text-accent-soft'
+                          : 'border-gray-700 text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      {label}
+                      <span className={visitorList === id ? 'text-accent-soft/70' : 'text-gray-600'}>{count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {favorites.map((fav, index) => (
+                {shownFavorites.map((fav, index) => (
                   <div key={fav.id} className="relative group flex-shrink-0 w-20 sm:w-24 cursor-pointer" onClick={() => setInspectedEntry(fav.media_entry)}>
                     <div className="aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden shadow-lg ring-1 ring-white/5 group-hover:ring-white/20 transition-all">
                       {fav.media_entry?.cover_image_url

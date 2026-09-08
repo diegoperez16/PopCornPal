@@ -147,7 +147,11 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
   const handleNotifClick = (n: AppNotification) => {
     if (!n.read) markRead(n.id)
     if (n.related_id && (n.type === 'like' || n.type === 'comment' || n.type === 'reply')) {
-      navigate('/feed')
+      // related_id is the post. Landing on the feed and leaving people to hunt
+      // for it defeats the notification — say which post, and for a comment or
+      // reply open the thread so the thing being replied to is on screen.
+      const wantsThread = n.type === 'comment' || n.type === 'reply'
+      navigate(`/feed?post=${n.related_id}${wantsThread ? '&comments=1' : ''}`)
     } else if (n.type === 'follow' && n.from_profile) {
       navigate(`/profile/${n.from_profile.username}`)
     }
