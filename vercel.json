@@ -1,6 +1,17 @@
 {
   "rewrites": [
     {
+      "source": "/profile/:username",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebookcatalog|twitterbot|slackbot|slack-imgproxy|discordbot|whatsapp|telegrambot|linkedinbot|redditbot|pinterest|skypeuripreview|bluesky|mastodon|embedly|iframely|applebot|googlebot|bingbot|vkshare|quora link preview).*"
+        }
+      ],
+      "destination": "/api/profile-preview?username=:username"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

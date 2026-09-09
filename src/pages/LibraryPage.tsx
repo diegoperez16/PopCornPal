@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ArrowUpDown,
   BookOpen,
+  CalendarDays,
   Film,
   Gamepad2,
   Grid2X2,
@@ -21,10 +22,16 @@ import LibraryEntryCard from '../features/library/LibraryEntryCard'
 import EntryEditor from '../features/library/EntryEditor'
 import {
   collectLibraryEntries,
+  collectLibraryYears,
   countLibraryEntries,
+  parseYearFilter,
   selectLibraryEntries,
 } from '../features/library/libraryModel'
-import type { LibrarySort, MediaType } from '../features/library/libraryModel'
+import type {
+  LibrarySort,
+  MediaType,
+  YearFilter,
+} from '../features/library/libraryModel'
 
 const mediaTypes = [
   { type: 'movie', label: 'Movies', icon: Film },
@@ -55,9 +62,17 @@ export default function LibraryPage() {
     // "the 9s" means 9 up to but not including 10; 10 stands alone.
     return only === 10 ? [10, 10] : [only, only + 0.9]
   }, [ratingBand])
+  // Two different questions a year can answer: when it reached your shelf,
+  // and when the thing itself came out.
+  const [yearFilter, setYearFilter] = useState<YearFilter>('any')
+  const { addedYear, releaseYear } = useMemo(
+    () => parseYearFilter(yearFilter),
+    [yearFilter]
+  )
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const collection = useMemo(() => collectLibraryEntries(entries), [entries])
   const counts = useMemo(() => countLibraryEntries(collection), [collection])
+  const years = useMemo(() => collectLibraryYears(collection), [collection])
   const libraryEntries = useMemo(
     () =>
       selectLibraryEntries(collection, {
@@ -66,11 +81,25 @@ export default function LibraryPage() {
         sort,
         minRating,
         maxRating,
+        addedYear,
+        releaseYear,
       }),
-    [collection, filterType, searchQuery, sort, minRating, maxRating]
+    [
+      collection,
+      filterType,
+      searchQuery,
+      sort,
+      minRating,
+      maxRating,
+      addedYear,
+      releaseYear,
+    ]
   )
   const hasFilters =
-    filterType !== null || searchQuery.trim().length > 0 || ratingBand !== 'any'
+    filterType !== null ||
+    searchQuery.trim().length > 0 ||
+    ratingBand !== 'any' ||
+    yearFilter !== 'any'
   const selectedTypeLabel = mediaTypes.find(
     (type) => type.type === filterType
   )?.label
@@ -79,6 +108,7 @@ export default function LibraryPage() {
     setSearchQuery('')
     setFilterType(null)
     setRatingBand('any')
+    setYearFilter('any')
   }
 
   return (
@@ -176,6 +206,33 @@ export default function LibraryPage() {
             </p>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
+            <label className="relative flex min-h-11 items-center gap-1.5 text-xs text-[#c6c2bb]">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="sr-only">Filter titles by year</span>
+              <select
+                value={yearFilter}
+                onChange={(event) => setYearFilter(event.target.value)}
+                className="min-h-11 max-w-[110px] cursor-pointer appearance-none rounded-lg border-0 bg-transparent pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="any">Any year</option>
+                <optgroup label="Added in">
+                  {years.added.map((year) => (
+                    <option key={`added-${year}`} value={`added-${year}`}>
+                      Added {year}
+                    </option>
+                  ))}
+                </optgroup>
+                {years.released.length > 0 && (
+                  <optgroup label="Released in">
+                    {years.released.map((year) => (
+                      <option key={`released-${year}`} value={`released-${year}`}>
+                        From {year}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </label>
             <label className="relative flex min-h-11 items-center gap-1.5 text-xs text-[#c6c2bb]">
               <Star className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="sr-only">Only show titles rated at least</span>

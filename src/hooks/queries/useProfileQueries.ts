@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { queryClient, profileKeys, peopleKeys } from '../../lib/queryClient'
 import type { UserBadge } from '../../lib/supabase'
+import type { CustomList } from '../../features/profile/favoriteLists'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
     followingResult,
     currentUserFollowResult,
     favoritesResult,
+    favoriteListsResult,
   ] = await Promise.all([
     supabase.from('user_badges').select('*, badges(*)').eq('user_id', profileId),
     supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', profileId),
@@ -113,6 +115,9 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
       ? supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', currentUserId).eq('following_id', profileId)
       : Promise.resolve({ count: 0, error: null }),
     supabase.from('profile_favorites').select('*, media_entry:media_entries(*)').eq('user_id', profileId).order('created_at', { ascending: true }),
+    // The names of their own lists, so their tabs read "Spider-Man" rather
+    // than "list-spider-man" to everyone who visits.
+    supabase.from('profile_favorite_lists').select('*').eq('user_id', profileId).order('position', { ascending: true }),
   ])
 
   return {
@@ -122,6 +127,7 @@ async function fetchUserProfile(username: string, currentUserId: string | null) 
     followingCount: followingResult.count ?? 0,
     isFollowing: (currentUserFollowResult.count ?? 0) > 0,
     favorites: (favoritesResult.data ?? []) as Favorite[],
+    favoriteLists: (favoriteListsResult.data ?? []) as CustomList[],
   }
 }
 

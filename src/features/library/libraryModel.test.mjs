@@ -3,8 +3,10 @@ import test from 'node:test'
 import {
   buildEntryUpdates,
   collectLibraryEntries,
+  collectLibraryYears,
   collectUniqueMedia,
   countLibraryEntries,
+  parseYearFilter,
   selectLibraryEntries,
 } from './libraryModel.ts'
 
@@ -214,4 +216,59 @@ test('a band keeps only the titles inside it', () => {
     type: null, search: '', sort: 'recent', minRating: 10, maxRating: 10,
   })
   assert.deepEqual(tens.map((e) => e.title), ['Ten'])
+})
+
+test('a year filter separates when a title was added from when it came out', () => {
+  const addedThisYear = entry({
+    id: 'added-now',
+    title: 'Sinners',
+    created_at: '2026-03-04T10:00:00Z',
+    year: 2019,
+  })
+  const oldAddition = entry({
+    id: 'added-before',
+    title: 'Heat',
+    created_at: '2024-11-02T10:00:00Z',
+    year: 2026,
+  })
+  const collection = [addedThisYear, oldAddition]
+  assert.deepEqual(
+    selectLibraryEntries(collection, {
+      type: null,
+      search: '',
+      sort: 'title',
+      ...parseYearFilter('added-2026'),
+    }),
+    [addedThisYear]
+  )
+  assert.deepEqual(
+    selectLibraryEntries(collection, {
+      type: null,
+      search: '',
+      sort: 'title',
+      ...parseYearFilter('released-2026'),
+    }),
+    [oldAddition]
+  )
+  assert.deepEqual(
+    selectLibraryEntries(collection, {
+      type: null,
+      search: '',
+      sort: 'title',
+      ...parseYearFilter('any'),
+    }).length,
+    2
+  )
+})
+
+test('year options always offer this year, then whatever the shelf earns', () => {
+  const years = collectLibraryYears(
+    [
+      entry({ created_at: '2024-05-05T00:00:00Z', year: 1999 }),
+      entry({ created_at: '2026-01-09T00:00:00Z' }),
+    ],
+    2026
+  )
+  assert.deepEqual(years, { added: [2026, 2024], released: [1999] })
+  assert.deepEqual(collectLibraryYears([], 2026), { added: [2026], released: [] })
 })

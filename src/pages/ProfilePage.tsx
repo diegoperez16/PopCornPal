@@ -1,4 +1,4 @@
-import { Film, Tv, Gamepad2, Book, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus, Share2, ListPlus, Pencil } from 'lucide-react'
 import DecimalRating from '../components/DecimalRating'
 import PalMark from '../components/brand/PalMark'
 import VerdictMark from '../features/verdict/VerdictMark'
@@ -6,15 +6,14 @@ import HouseRing from '../features/house/HouseRing'
 import HouseCard from '../features/house/HouseCard'
 import { verdictFor } from '../features/verdict/verdictModel'
 import ThemePicker from '../components/ThemePicker'
+import ProfileStats from '../features/profile/ProfileStats'
+import SectionHeader from '../features/profile/SectionHeader'
+import PillTabs from '../features/profile/PillTabs'
+import AuroraBanner from '../features/profile/AuroraBanner'
+import Reveal from '../components/motion/Reveal'
 
-const favoriteLists = [
-  { id: 'all', label: 'All time' },
-  { id: 'movie', label: 'Movies' },
-  { id: 'show', label: 'Shows' },
-  { id: 'game', label: 'Games' },
-  { id: 'book', label: 'Books' },
-] as const
-import { collectUniqueMedia } from '../features/library/libraryModel'
+import { addedYearOf, collectUniqueMedia, parseYearFilter } from '../features/library/libraryModel'
+import { isCustomList, labelForList, LIST_TITLE_MAX } from '../features/profile/favoriteLists'
 import GifPicker from '../components/GifPicker'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import ImageCropper from '../components/ImageCropper'
@@ -29,8 +28,8 @@ export default function ProfilePage() {
     favorites,
     favoriteList,
     setFavoriteList,
-    favoriteCounts,
-    favoriteYears,
+    favoriteTabs,
+    customLists,
     userBadges,
     availableBadges,
     initialLoading,
@@ -92,9 +91,11 @@ export default function ProfilePage() {
     setMediaSearchQuery,
     mediaFilterType,
     setMediaFilterType,
+    mediaFilterYear,
+    setMediaFilterYear,
+    mediaYears,
     isManagingFavorites,
     setIsManagingFavorites,
-    showAddButton,
     recentActivityRef,
     profileBgRef,
     isDesktop,
@@ -128,6 +129,15 @@ export default function ProfilePage() {
     handleDeleteEntry,
     handleAddFavorite,
     handleRemoveFavorite,
+    handleShareProfile,
+    shareStatus,
+    handleDeleteList,
+    listDraft,
+    setListDraft,
+    startNewList,
+    startRenameList,
+    cancelListDraft,
+    submitListDraft,
     handleDragStart,
     handleDragOver,
     handleDragEnd,
@@ -172,7 +182,7 @@ export default function ProfilePage() {
           {/* Banner */}
           <div
             ref={profileHeaderRef}
-            className="relative h-36 sm:h-48 rounded-2xl overflow-hidden"
+            className="relative h-40 sm:h-52 overflow-hidden rounded-2xl ring-1 ring-white/5"
           >
             {(pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl) ? (
               <div ref={profileBgRef} className="absolute inset-0 z-0">
@@ -198,10 +208,7 @@ export default function ProfilePage() {
                 })()}
               </div>
             ) : (
-              <div
-                className="absolute inset-0 z-0"
-                style={{ background: 'linear-gradient(to bottom right, #2c3440, #14181c)' }}
-              />
+              <AuroraBanner />
             )}
             {/* Bottom fade */}
             <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-900/60 to-transparent z-10 pointer-events-none" />
@@ -273,6 +280,29 @@ export default function ProfilePage() {
                       <Sparkles className="w-4 h-4" />
                     </button>
                   )}
+                  {/* The link this makes opens for anyone, account or not. */}
+                  <button
+                    onClick={handleShareProfile}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-all ${
+                      shareStatus === 'idle'
+                        ? 'border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white'
+                        : shareStatus === 'failed'
+                          ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                          : 'border-butter-400/50 bg-butter-400/15 text-butter-300'
+                    }`}
+                    title="Share your profile"
+                  >
+                    {shareStatus === 'idle' ? <Share2 className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                    <span className="hidden sm:inline">
+                      {shareStatus === 'idle'
+                        ? 'Share'
+                        : shareStatus === 'copied'
+                          ? 'Link copied'
+                          : shareStatus === 'shared'
+                            ? 'Shared'
+                            : 'Copy failed'}
+                    </span>
+                  </button>
                   <button
                     onClick={() => setIsEditing(true)}
                     className="p-2 bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-full transition-all text-gray-300 hover:text-white"
@@ -286,23 +316,33 @@ export default function ProfilePage() {
 
             {/* Name, bio, badges — always visible */}
             {!showBgGifPicker && (
-              <div className="mt-3 bg-gray-900/50 border border-gray-800/60 rounded-2xl px-4 py-4">
-                <h2 className="text-2xl font-bold">@{profile.username}</h2>
-                {profile.full_name && <p className="text-gray-400 mt-0.5 text-base">{profile.full_name}</p>}
-                <p className="text-gray-300 mt-2 text-sm leading-relaxed">
-                  {profile.bio ? profile.bio : <span className="text-gray-500 italic">No bio yet.</span>}
-                </p>
+              <div className="mt-3 space-y-4">
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                    <h2 className="name-shine text-[27px] font-bold leading-none tracking-tight">@{profile.username}</h2>
+                    {profile.full_name && (
+                      <p className="text-sm text-gray-500">{profile.full_name}</p>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-300">
+                    {profile.bio ? profile.bio : <span className="text-gray-500 italic">No bio yet.</span>}
+                  </p>
+                </div>
 
-                <div className="mt-3 flex gap-5">
-                  <button onClick={() => openPeopleTab('followers')} className="text-left group">
-                    <span className="text-lg font-bold text-white group-hover:text-butter-400 transition-colors">{followersCount}</span>
-                    <span className="text-gray-500 text-sm ml-1.5">Followers</span>
+                {/* Followers sit with the identity; the shelf numbers below are
+                    a different kind of fact and get their own strip. */}
+                <div className="flex gap-5">
+                  <button onClick={() => openPeopleTab('followers')} className="group text-left">
+                    <span className="text-base font-bold tabular-nums text-white transition-colors group-hover:text-accent">{followersCount}</span>
+                    <span className="ml-1.5 text-sm text-gray-500">Followers</span>
                   </button>
-                  <button onClick={() => openPeopleTab('following')} className="text-left group">
-                    <span className="text-lg font-bold text-white group-hover:text-butter-400 transition-colors">{followingCount}</span>
-                    <span className="text-gray-500 text-sm ml-1.5">Following</span>
+                  <button onClick={() => openPeopleTab('following')} className="group text-left">
+                    <span className="text-base font-bold tabular-nums text-white transition-colors group-hover:text-accent">{followingCount}</span>
+                    <span className="ml-1.5 text-sm text-gray-500">Following</span>
                   </button>
                 </div>
+
+                <ProfileStats entries={entries} />
 
                 {/* Badges */}
                 {userBadges.length > 0 && (
@@ -514,6 +554,22 @@ export default function ProfilePage() {
                       )}
                     </div>
                   )}
+
+                  {/* Theme. The house is not here: it is something the profile
+                      says about you, so it lives on the page itself. */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Preferences</p>
+                    <div className="space-y-6 bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+                      <ThemePicker />
+                    </div>
+                  </div>
+
+                  {/* Sign Out (Mobile only) */}
+                  <div className="pt-2 md:hidden">
+                    <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800/50 hover:bg-red-500/10 text-gray-400 hover:text-red-400 rounded-xl transition-colors border border-gray-800 hover:border-red-500/20">
+                      <LogOut className="w-4 h-4" /> <span className="text-sm font-semibold">Sign Out</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -537,22 +593,28 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* --- FAVORITES SHELF --- */}
-        <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* Your house, on the page where visitors and you can both see it —
+            choosing one is part of the profile, not a setting to go hunting
+            for. Renders only in the Wizarding season. */}
+        <Reveal className="mb-8">
+          <HouseCard
+            house={profile.house}
+            entries={entries}
+            onChoose={(house) => void updateProfile({ house })}
+          />
+        </Reveal>
 
-        <HouseCard
-          house={profile.house}
-          entries={entries}
-          onChoose={(house) => void updateProfile({ house })}
-        />
-        <div className="mb-7">
-          <ThemePicker />
-        </div>
+        {/* --- FAVORITES SHELF ---
+            The season picker used to sit above this, which meant the profile
+            opened on a preference control before it said anything about you;
+            it now lives in the edit sheet. */}
+        <Reveal className="mb-8">
 
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Top Picks</p>
-
-            <div className="flex items-center gap-2">
+          <SectionHeader
+            title="Top Picks"
+            count={favorites.length}
+            action={
+              <div className="flex shrink-0 items-center gap-2">
               {isManagingFavorites && favorites.length < 10 && (
                 <button
                   onClick={() => setShowMediaSelector(true)}
@@ -583,44 +645,84 @@ export default function ProfilePage() {
                   </>
                 )}
               </button>
-            </div>
-          </div>
+              </div>
+            }
+          />
 
-          <div
-            className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1"
-            role="tablist"
-            aria-label="Which top ten"
-          >
-            {[
-              ...favoriteLists,
-              ...favoriteYears.map((year) => ({
-                id: `year-${year}` as const,
-                label: String(year),
-              })),
-            ].map(({ id, label }) => {
-              const count = favoriteCounts[id] ?? 0
-              const current = favoriteList === id
-              return (
+          <div className="mb-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <PillTabs
+                  ariaLabel="Which top ten"
+                  value={favoriteList}
+                  onChange={setFavoriteList}
+                  tabs={favoriteTabs}
+                />
+              </div>
+              {/* A shelf you name yourself: "Favorite Spider-Man movies". */}
+              <button
+                onClick={startNewList}
+                title="New list"
+                aria-label="New list"
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-700 bg-gray-800/60 px-3 text-xs font-semibold text-gray-400 transition-colors hover:border-butter-400/50 hover:text-butter-300"
+              >
+                <ListPlus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">New list</span>
+              </button>
+            </div>
+
+            {listDraft && (
+              <div className="flex items-center gap-2 rounded-2xl border border-butter-400/30 bg-gray-900/60 p-2">
+                <input
+                  autoFocus
+                  value={listDraft.title}
+                  maxLength={LIST_TITLE_MAX}
+                  onChange={(e) => setListDraft({ ...listDraft, title: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void submitListDraft()
+                    if (e.key === 'Escape') cancelListDraft()
+                  }}
+                  placeholder={listDraft.mode === 'create' ? 'Favorite Spider-Man movies' : 'Rename this list'}
+                  className="min-w-0 flex-1 bg-transparent px-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                />
                 <button
-                  key={id}
-                  role="tab"
-                  aria-selected={current}
-                  onClick={() => setFavoriteList(id)}
-                  className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
-                    current
-                      ? 'border-accent bg-accent/10 text-accent-soft'
-                      : 'border-gray-700 text-gray-400 hover:text-gray-200'
-                  }`}
+                  onClick={() => void submitListDraft()}
+                  disabled={!listDraft.title.trim()}
+                  className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity disabled:opacity-40"
                 >
-                  {label}
-                  {count > 0 && (
-                    <span className={current ? 'text-accent-soft/70' : 'text-gray-600'}>
-                      {count}
-                    </span>
-                  )}
+                  {listDraft.mode === 'create' ? 'Create' : 'Save'}
                 </button>
-              )
-            })}
+                <button
+                  onClick={cancelListDraft}
+                  className="rounded-full border border-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Renaming and deleting belong to the list you are looking at, so
+                they only appear once you are standing on one. */}
+            {isCustomList(favoriteList) && !listDraft && (
+              <div className="flex items-center gap-2 px-1">
+                <span className="truncate text-xs text-gray-500">
+                  {labelForList(favoriteList, customLists)}
+                </span>
+                <span aria-hidden="true" className="h-px flex-1 bg-gray-800" />
+                <button
+                  onClick={() => startRenameList(favoriteList)}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-white"
+                >
+                  <Pencil className="h-3 w-3" /> Rename
+                </button>
+                <button
+                  onClick={() => void handleDeleteList(favoriteList)}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-400"
+                >
+                  <Trash2 className="h-3 w-3" /> Delete
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Favorites Grid / Carousel Container */}
@@ -706,9 +808,15 @@ export default function ProfilePage() {
                       }
                     }}
                   >
+                    {/* Carries the coverflow rotation written by the shelf's
+                        scroll handler. Kept separate from the card below so
+                        the card's own hover lift is not overwritten. */}
+                    <div data-poster className="poster-tilt">
                     <div className={`
-                      aspect-[2/3] bg-gray-800 rounded-lg overflow-hidden shadow-lg border relative transition-all
-                      ${isSelected ? 'border-red-500 ring-2 ring-red-500/50' : 'border-gray-700/50'}
+                      aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden shadow-lg border relative
+                      transition-transform duration-200 ease-out will-change-transform
+                      hover:-translate-y-1 hover:shadow-xl active:scale-[0.97]
+                      ${isSelected ? 'border-accent ring-2 ring-accent/50' : 'border-gray-700/50'}
                     `}>
                       {/* Draggable Indicator */}
                       {isManagingFavorites && isSelected && (
@@ -760,6 +868,7 @@ export default function ProfilePage() {
                     <p className="text-xs text-center mt-2 truncate text-gray-400 group-hover:text-white transition-colors px-1 select-none">
                       {fav.media_entry?.title}
                     </p>
+                    </div>
                   </div>
                 )
               })
@@ -786,52 +895,37 @@ export default function ProfilePage() {
                 className="relative mt-4 h-1.5 w-full px-2 transition-opacity duration-300 opacity-0"
               >
                 {/* Track */}
-                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 rounded-full bg-gray-800/60 w-full" />
+                <div className="absolute left-0 right-0 top-1/2 w-full -translate-y-1/2 h-0.5 rounded-full bg-gray-700/50" />
 
                 {/* Active Indicator (Direct DOM controlled) */}
                 <div
                   ref={progressBarRef}
-                  className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-accent shadow-sm shadow-butter-400/20"
+                  className="absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-gray-500"
                   style={{ width: '0%', left: '0%' }}
                 />
               </div>
             )}
           </div>
-        </div>
+        </Reveal>
 
         {/* Recent Activity */}
+        <Reveal>
         <div className="space-y-4" ref={recentActivityRef}>
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Your Collection</p>
+          <SectionHeader title="Your collection" />
 
-          {/* Quick nav */}
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => navigate('/library')} className="bg-gray-800/40 hover:bg-gray-800/70 border border-gray-700/50 hover:border-gray-600 rounded-2xl p-4 transition-all flex items-center justify-between group active:scale-[0.98]">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <Book className="w-4 h-4 text-emerald-400" />
-                </div>
-                <span className="text-gray-300 group-hover:text-white font-medium transition-colors text-sm">Library</span>
-              </div>
-              <span className="text-gray-600 group-hover:text-gray-400 transition-colors text-lg">→</span>
-            </button>
-            <button onClick={() => navigate('/activity')} className="bg-gray-800/40 hover:bg-gray-800/70 border border-gray-700/50 hover:border-gray-600 rounded-2xl p-4 transition-all flex items-center justify-between group active:scale-[0.98]">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <Calendar className="w-4 h-4 text-blue-400" />
-                </div>
-                <span className="text-gray-300 group-hover:text-white font-medium transition-colors text-sm">Timeline</span>
-              </div>
-              <span className="text-gray-600 group-hover:text-gray-400 transition-colors text-lg">→</span>
-            </button>
-          </div>
-
-          {/* Status filter */}
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-            <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'all' ? 'bg-accent text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>All</button>
-            <button onClick={() => setStatusFilter('completed')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Completed</button>
-            <button onClick={() => setStatusFilter('in-progress')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'in-progress' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>In Progress</button>
-            <button onClick={() => setStatusFilter('planned')} className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${statusFilter === 'planned' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm' : 'bg-gray-800/50 text-gray-400 hover:text-white hover:bg-gray-800'}`}>Planned</button>
-          </div>
+          {/* Status filter — the same strip as the top tens above, so the page
+              has one way of asking "which subset?" rather than two. */}
+          <PillTabs
+            ariaLabel="Filter your collection"
+            value={statusFilter}
+            onChange={(id) => setStatusFilter(id as typeof statusFilter)}
+            tabs={[
+              { id: 'all', label: 'All' },
+              { id: 'completed', label: 'Completed' },
+              { id: 'in-progress', label: 'In Progress' },
+              { id: 'planned', label: 'Planned' },
+            ]}
+          />
 
           {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).length > 0 ? (
             <div className="space-y-2">
@@ -892,24 +986,8 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Logout */}
-        <div className="mt-8 pb-24 md:hidden">
-          <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-800 hover:bg-red-500/10 border border-gray-700 text-gray-400 rounded-full transition-all"><LogOut className="w-5 h-5" /> <span className="font-medium">Sign Out</span></button>
-        </div>
+        </Reveal>
       </main>
-
-      {/* Floating Action Button (Add Entry) */}
-      <button
-        onClick={() => navigate('/add')}
-        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 md:bottom-8 md:right-8 z-[60] bg-accent hover:bg-accent-soft text-white p-3 rounded-full shadow-lg shadow-red-900/40 hover:shadow-red-900/60 hover:scale-110 active:scale-95 transition-all duration-300 group ${
-          showAddButton
-            ? 'translate-y-0 opacity-100'
-            : 'translate-y-20 opacity-0 pointer-events-none'
-        }`}
-        aria-label="Add New Entry"
-      >
-        <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
-      </button>
 
       {/* Modals and GIF Pickers */}
       {showGifPickerModal && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowGifPickerModal(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleGifPickerSelect} onClose={() => setShowGifPickerModal(false)} /></div></div>}
@@ -949,8 +1027,8 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-2xl p-4 relative shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-white">Select Favorite</h3>
-              <button onClick={() => { setShowMediaSelector(false); setMediaSearchQuery(''); }} className="p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+              <h3 className="truncate text-base font-bold text-white">Add to {labelForList(favoriteList, customLists)}</h3>
+              <button onClick={() => { setShowMediaSelector(false); setMediaSearchQuery(''); setMediaFilterYear('any'); }} className="p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3 mb-4">
               <div className="relative">
@@ -960,11 +1038,31 @@ export default function ProfilePage() {
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {[{ id: 'all', label: 'All' }, { id: 'movie', label: 'Movies', icon: Film }, { id: 'show', label: 'TV', icon: Tv }, { id: 'game', label: 'Games', icon: Gamepad2 }, { id: 'book', label: 'Books', icon: Book }].map((type) => { const Icon = type.icon; return ( <button key={type.id} onClick={() => setMediaFilterType(type.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${mediaFilterType === type.id ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'}`}>{Icon && <Icon className="w-3.5 h-3.5" />}{type.label}</button> )})}
               </div>
+              <label className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Calendar className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span className="sr-only">Filter your library by year</span>
+                <select value={mediaFilterYear} onChange={(e) => setMediaFilterYear(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500">
+                  <option value="any">Any year</option>
+                  <optgroup label="Added in">
+                    {mediaYears.added.map((year: number) => (
+                      <option key={`added-${year}`} value={`added-${year}`}>Added {year}</option>
+                    ))}
+                  </optgroup>
+                  {mediaYears.released.length > 0 && (
+                    <optgroup label="Released in">
+                      {mediaYears.released.map((year: number) => (
+                        <option key={`released-${year}`} value={`released-${year}`}>From {year}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </label>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
               {entries.length === 0 ? (
-                <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
+                <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); setMediaFilterYear('any'); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
               ) : (() => {
+                const { addedYear, releaseYear } = parseYearFilter(mediaFilterYear)
                 const filteredEntries = collectUniqueMedia(entries).filter(entry => {
                   // A type list only holds that type. A year list takes
                   // anything: a best-of-the-year is about what you watched,
@@ -975,8 +1073,11 @@ export default function ProfilePage() {
                   }
                   const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
                   const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
+                  const matchesYear =
+                    (!addedYear || addedYearOf(entry) === addedYear) &&
+                    (!releaseYear || entry.year === releaseYear)
                   const notInFavorites = !favorites.some(f => f.media_entry_id === entry.id)
-                  return matchesType && matchesSearch && notInFavorites
+                  return matchesType && matchesSearch && matchesYear && notInFavorites
                 })
                 if (filteredEntries.length === 0) return <div className="text-center py-8 text-gray-500"><p>No matches found.</p></div>
                 return filteredEntries.map(entry => {

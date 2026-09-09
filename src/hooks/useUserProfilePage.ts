@@ -13,6 +13,8 @@ import {
   useUserLibrary,
 } from './queries/useProfileQueries'
 import type { ProfileMediaEntry } from './queries/useProfileQueries'
+import type { CustomList } from '../features/profile/favoriteLists'
+import { profileShareUrl, shareLink } from '../lib/share'
 
 // --- TYPES ---
 // Re-export compatible type aliases so callers (UserProfilePage.tsx) keep working
@@ -89,6 +91,7 @@ export function useUserProfilePage(
   const [libraryFilterType, setLibraryFilterType] = useState<'movie' | 'show' | 'game' | 'book' | null>(null)
   const [inspectedEntry, setInspectedEntry] = useState<MediaEntry | null>(null)
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768)
+  const [shareStatus, setShareStatus] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 768)
@@ -164,6 +167,18 @@ export function useUserProfilePage(
     }
   }
 
+  const handleShareProfile = async () => {
+    if (!username) return
+    const outcome = await shareLink({
+      url: profileShareUrl(username),
+      title: `@${username} on PopcornPal`,
+      text: `See what @${username} is watching, playing and reading.`,
+    })
+    if (outcome === 'dismissed') return
+    setShareStatus(outcome === 'shared' ? 'shared' : outcome)
+    window.setTimeout(() => setShareStatus('idle'), 2500)
+  }
+
   const navigateToProfile = (targetUsername: string) => {
     const optimisticProfile =
       followersList.find((u: any) => u.username === targetUsername) ||
@@ -191,6 +206,8 @@ export function useUserProfilePage(
   const followingCount = profileData?.followingCount ?? 0
   const isFollowing = profileData?.isFollowing ?? false
   const favorites = (profileData?.favorites ?? []) as Favorite[]
+  // Their named shelves, so a visitor reads "Spider-Man", not "list-spider-man".
+  const favoriteLists = (profileData?.favoriteLists ?? []) as CustomList[]
   const posts = (postsQuery.data ?? []) as Post[]
   const recentActivity = (recentActivityQuery.data ?? []) as MediaEntry[]
 
@@ -211,6 +228,7 @@ export function useUserProfilePage(
     followingCount,
     isFollowing,
     favorites,
+    favoriteLists,
     recentActivity,
     fullLibrary,
     showLibraryModal,
@@ -242,6 +260,8 @@ export function useUserProfilePage(
     isOwnProfile,
     handleFollow,
     handleLike,
+    handleShareProfile,
+    shareStatus,
     handleFollowUser,
     navigateToProfile,
     getFilteredLibrary,

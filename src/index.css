@@ -508,3 +508,206 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   }
   .note-composer::backdrop { background: rgb(var(--pp-gray-950-rgb) / 0.8); backdrop-filter: blur(6px); }
 }
+
+/* ── Motion primitives ──────────────────────────────────────────────────────
+   Everything here is painted from theme tokens, so a season change re-colours
+   the motion as well as the surfaces. The prefers-reduced-motion rule further
+   up flattens every animation in this block. */
+
+/* A light that follows the pointer. Position comes in as --spot-x/--spot-y,
+   written directly onto the element by SpotlightCard. */
+.spotlight {
+  position: relative;
+  --spot-x: 50%;
+  --spot-y: 50%;
+  --spot-on: 0;
+}
+.spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    170px circle at var(--spot-x) var(--spot-y),
+    rgb(var(--pp-accent-rgb) / 0.18),
+    transparent 68%
+  );
+  opacity: var(--spot-on);
+  transition: opacity 0.3s ease;
+}
+
+/* The sliding pill behind the selected tab. Sits under the labels, which carry
+   z-10 themselves. */
+.pill-tabs-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 9999px;
+  background: rgb(var(--pp-accent-rgb));
+  box-shadow: 0 4px 18px rgb(var(--pp-accent-rgb) / 0.35);
+  will-change: transform, width;
+}
+
+/* Drifting lights behind an empty banner. */
+.aurora {
+  overflow: hidden;
+  background: linear-gradient(
+    to bottom right,
+    rgb(var(--pp-surface-strong-rgb)),
+    rgb(var(--pp-bg-rgb))
+  );
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(38px);
+  opacity: 0.7;
+  will-change: transform;
+}
+.aurora-a {
+  top: -45%;
+  left: -12%;
+  width: 62%;
+  padding-bottom: 62%;
+  background: rgb(var(--pp-accent-rgb));
+  animation: auroraDriftA 19s ease-in-out infinite alternate;
+}
+.aurora-b {
+  top: -30%;
+  right: -10%;
+  width: 55%;
+  padding-bottom: 55%;
+  background: rgb(var(--pp-butter-400-rgb));
+  opacity: 0.42;
+  animation: auroraDriftB 23s ease-in-out infinite alternate;
+}
+.aurora-c {
+  bottom: -55%;
+  left: 32%;
+  width: 48%;
+  padding-bottom: 48%;
+  background: rgb(var(--pp-accent-soft-rgb));
+  opacity: 0.38;
+  animation: auroraDriftC 27s ease-in-out infinite alternate;
+}
+@keyframes auroraDriftA {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(18%, 14%, 0) scale(1.18); }
+}
+@keyframes auroraDriftB {
+  from { transform: translate3d(0, 0, 0) scale(1.1); }
+  to   { transform: translate3d(-16%, 18%, 0) scale(0.92); }
+}
+@keyframes auroraDriftC {
+  from { transform: translate3d(0, 0, 0) scale(0.95); }
+  to   { transform: translate3d(-20%, -16%, 0) scale(1.2); }
+}
+/* A projector beam raking across the banner. The one piece of the default
+   banner that is about this app rather than about gradients. */
+.aurora-beam {
+  position: absolute;
+  top: -70%;
+  left: -18%;
+  width: 52%;
+  height: 240%;
+  transform-origin: top center;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--pp-butter-300-rgb) / 0.24),
+    transparent 72%
+  );
+  filter: blur(16px);
+  animation: auroraBeam 17s ease-in-out infinite alternate;
+}
+@keyframes auroraBeam {
+  from { transform: rotate(13deg) scaleX(1); opacity: 0.45; }
+  to   { transform: rotate(27deg) scaleX(1.3); opacity: 0.85; }
+}
+
+/* A grain of film over the whole thing, so the gradients read as light on a
+   surface rather than as a CSS gradient. */
+.aurora-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Posters on the shelf turn towards you as they pass the middle. The transform
+   is written per-frame from the carousel's scroll handler; the transition here
+   only smooths the moment the effect is switched on or off. */
+.poster-tilt {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* The handle reads as the title card of the page: a slow band of butter light
+   travels across it, the way a name looks on a marquee. Falls back to plain
+   text colour wherever background-clip: text is unavailable. */
+.name-shine {
+  background-image: linear-gradient(
+    100deg,
+    rgb(var(--pp-text-rgb)) 0%,
+    rgb(var(--pp-text-rgb)) 40%,
+    rgb(var(--pp-butter-300-rgb)) 50%,
+    rgb(var(--pp-text-rgb)) 60%,
+    rgb(var(--pp-text-rgb)) 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nameShine 7.5s linear infinite;
+}
+@keyframes nameShine {
+  from { background-position: 150% 0; }
+  to   { background-position: -50% 0; }
+}
+
+/* Premium Badge Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1.05); }
+  50% { transform: translateY(-4px) scale(1.05); }
+}
+
+.badge-premium-wrapper {
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  z-index: 1;
+}
+
+.badge-premium-wrapper:hover {
+  animation: float 2.5s ease-in-out infinite;
+  z-index: 10;
+}
+
+.badge-premium-border {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0%, rgba(255, 255, 255, 0.2) 20%, rgba(255, 255, 255, 0.9) 50%, rgba(255, 255, 255, 0.2) 80%, transparent 100%);
+  animation: spin 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.badge-premium-wrapper:hover .badge-premium-border {
+  opacity: 1;
+}
+
+.badge-premium-inner {
+  background-clip: padding-box;
+  position: relative;
+  border-radius: inherit;
+  z-index: 2;
+  overflow: hidden;
+}

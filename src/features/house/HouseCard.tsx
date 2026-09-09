@@ -10,6 +10,7 @@ import {
   type HouseId,
 } from './houseModel'
 import { useSorting } from './useSorting'
+import SectionHeader from '../profile/SectionHeader'
 
 function Crest({ house, size = 52 }: { house: HouseId; size?: number }) {
   return (
@@ -67,14 +68,9 @@ export default function HouseCard({
   return (
     <section
       aria-labelledby="house-heading"
-      className="mb-7 rounded-2xl border border-gray-700 bg-gray-800/50 p-4"
+      className="mb-7"
     >
-      <h3
-        id="house-heading"
-        className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-500"
-      >
-        Your house
-      </h3>
+      <SectionHeader title="Your house" />
 
       {thinking && (
         <div className="flex items-center gap-3 py-1">

@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { THEMES } from '../themes/themes'
 import PalMark from './brand/PalMark'
+import SectionHeader from '../features/profile/SectionHeader'
 
 /**
  * Seasons live on a strip of film rather than in a row of cards.
@@ -25,11 +26,7 @@ export default function ThemePicker({
 
   return (
     <section aria-label="Season">
-      {heading && (
-        <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-500">
-          {heading}
-        </h3>
-      )}
+      {heading && <SectionHeader title={heading} />}
       <div
         className="filmstrip no-scrollbar"
         role="radiogroup"

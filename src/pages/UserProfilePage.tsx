@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library, Share2, Check } from 'lucide-react'
 import ProfileSkeleton from '../components/ProfileSkeleton'
+import Brand from '../components/brand/Brand'
+import { buildVisitorTabs } from '../features/profile/favoriteLists'
 import { useUserProfilePage } from '../hooks/useUserProfilePage'
 import UserAvatar from '../components/UserAvatar'
 
@@ -18,6 +20,7 @@ export default function UserProfilePage() {
     followingCount,
     isFollowing,
     favorites,
+    favoriteLists,
     recentActivity,
     showLibraryModal,
     setShowLibraryModal,
@@ -48,6 +51,8 @@ export default function UserProfilePage() {
     isOwnProfile,
     handleFollow,
     handleLike,
+    handleShareProfile,
+    shareStatus,
     handleFollowUser,
     navigateToProfile,
     getFilteredLibrary,
@@ -56,22 +61,16 @@ export default function UserProfilePage() {
 
   // Which of their top tens is being viewed.
   const [visitorList, setVisitorList] = useState('all')
-  const visitorLists = useMemo(() => {
-    const counts = favorites.reduce<Record<string, number>>((acc, fav) => {
-      const list = fav.list ?? 'all'
-      acc[list] = (acc[list] ?? 0) + 1
-      return acc
-    }, {})
-    const labels: Record<string, string> = {
-      all: 'All time', movie: 'Movies', show: 'Shows', game: 'Games', book: 'Books',
-    }
-    return Object.keys(counts)
-      .sort((a, b) => (a === 'all' ? -1 : b === 'all' ? 1 : a.localeCompare(b)))
-      .map((id) => ({ id, label: labels[id] ?? id.replace('year-', ''), count: counts[id] }))
-  }, [favorites])
+  const visitorLists = useMemo(
+    () => buildVisitorTabs(favorites, favoriteLists),
+    [favorites, favoriteLists]
+  )
+  const activeList = visitorLists.some((tab) => tab.id === visitorList)
+    ? visitorList
+    : (visitorLists[0]?.id ?? 'all')
   const shownFavorites = useMemo(
-    () => favorites.filter((fav) => (fav.list ?? 'all') === visitorList),
-    [favorites, visitorList]
+    () => favorites.filter((fav) => (fav.list ?? 'all') === activeList),
+    [favorites, activeList]
   )
 
   const getMediaIcon = (type: string) => {
@@ -176,11 +175,21 @@ export default function UserProfilePage() {
       {loading && <div className="fixed top-0 left-0 right-0 h-0.5 bg-accent z-50 animate-pulse"/>}
 
       <div className="max-w-2xl mx-auto">
-        {/* Back button */}
+        {/* Signed in, this is a page you navigated to; signed out, it is the
+            whole app you have seen so far, so it introduces itself instead. */}
         <div className="px-4 pt-4 pb-2">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm font-medium">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
+          {currentUser ? (
+            <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm font-medium">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <Brand />
+              <Link to="/auth" className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-accent-deep transition-transform active:scale-95">
+                Join PopcornPal
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* ── PROFILE HEADER ─────────────────────────── */}
@@ -215,6 +224,23 @@ export default function UserProfilePage() {
                 <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
                 {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
               </div>
+              <div className="flex items-center gap-2">
+              <button
+                onClick={handleShareProfile}
+                title={`Share @${profile.username}'s profile`}
+                className={`h-9 px-3 rounded-full text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 border ${
+                  shareStatus === 'idle'
+                    ? 'bg-gray-800 text-gray-300 border-gray-600 hover:text-white'
+                    : shareStatus === 'failed'
+                      ? 'bg-red-500/10 text-red-300 border-red-500/40'
+                      : 'bg-butter-400/15 text-butter-300 border-butter-400/50'
+                }`}
+              >
+                {shareStatus === 'idle' ? <Share2 className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                <span className="hidden sm:inline">
+                  {shareStatus === 'idle' ? 'Share' : shareStatus === 'copied' ? 'Link copied' : shareStatus === 'shared' ? 'Shared' : 'Copy failed'}
+                </span>
+              </button>
               {!isOwnProfile && currentUser && (
                 <button onClick={handleFollow} disabled={followLoading}
                   className={`h-9 px-5 rounded-full font-bold text-sm transition-all active:scale-95 flex items-center gap-2 ${
@@ -231,6 +257,7 @@ export default function UserProfilePage() {
                   Edit profile
                 </button>
               )}
+              </div>
             </div>
 
             {/* Name / bio / stats */}
@@ -274,16 +301,16 @@ export default function UserProfilePage() {
                     <button
                       key={id}
                       role="tab"
-                      aria-selected={visitorList === id}
+                      aria-selected={activeList === id}
                       onClick={() => setVisitorList(id)}
                       className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
-                        visitorList === id
+                        activeList === id
                           ? 'border-accent bg-accent/10 text-accent-soft'
                           : 'border-gray-700 text-gray-400 hover:text-gray-200'
                       }`}
                     >
                       {label}
-                      <span className={visitorList === id ? 'text-accent-soft/70' : 'text-gray-600'}>{count}</span>
+                      <span className={activeList === id ? 'text-accent-soft/70' : 'text-gray-600'}>{count}</span>
                     </button>
                   ))}
                 </div>
@@ -381,7 +408,7 @@ export default function UserProfilePage() {
                       </div>
                     )}
                     <div className="flex items-center gap-5 pt-2 border-t border-gray-700/30">
-                      <button onClick={() => handleLike(post.id)} className={`flex items-center gap-1.5 text-sm font-medium transition-colors active:scale-95 ${post.user_liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400'}`}>
+                      <button onClick={() => (currentUser ? handleLike(post.id) : navigate('/auth'))} className={`flex items-center gap-1.5 text-sm font-medium transition-colors active:scale-95 ${post.user_liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400'}`}>
                         <Heart className={`w-4 h-4 ${post.user_liked ? 'fill-current' : ''}`}/> {post.likes_count}
                       </button>
                       <span className="flex items-center gap-1.5 text-sm text-gray-600">
@@ -394,6 +421,20 @@ export default function UserProfilePage() {
             </div>
           )}
         </div>
+
+        {!currentUser && (
+          <div className="px-4 sm:px-6 pt-8">
+            <div className="rounded-3xl border border-butter-400/25 bg-gray-800/40 px-6 py-8 text-center">
+              <h3 className="text-lg font-bold text-white">Build your own shelves</h3>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-gray-400">
+                Keep every film, show, game and book you finish — and a top ten worth arguing about.
+              </p>
+              <Link to="/auth" className="mt-5 inline-flex min-h-11 items-center rounded-full bg-accent px-6 text-sm font-bold text-accent-deep transition-transform active:scale-95">
+                Join PopcornPal
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="h-8"/>
       </div>

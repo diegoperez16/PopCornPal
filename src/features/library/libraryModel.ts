@@ -2,6 +2,8 @@ import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
 
 export type MediaType = MediaEntry['media_type']
 export type LibrarySort = 'recent' | 'title' | 'rating'
+/** 'any', 'added-YYYY' (when it landed on the shelf) or 'released-YYYY'. */
+export type YearFilter = string
 export type EntryDraft = Pick<MediaEntry, 'status'> & {
   rating: number
   /** Too bad to rate; mutually exclusive with a rating. */
@@ -60,6 +62,47 @@ export function collectUniqueMedia(
   return [...byTitle.values()]
 }
 
+/** The calendar year an entry landed on the shelf, in the reader's own zone. */
+export function addedYearOf(entry: MediaEntry): number | null {
+  const added = Date.parse(entry.created_at)
+  return Number.isNaN(added) ? null : new Date(added).getFullYear()
+}
+
+/**
+ * The years worth offering in a year filter. This year always appears under
+ * "added" so "what I picked up this year" is one tap even on a quiet January;
+ * every other year has to be earned by an entry.
+ */
+export function collectLibraryYears(
+  entries: readonly MediaEntry[],
+  thisYear = new Date().getFullYear()
+): { added: number[]; released: number[] } {
+  const added = new Set<number>([thisYear])
+  const released = new Set<number>()
+  for (const entry of entries) {
+    const year = addedYearOf(entry)
+    if (year) added.add(year)
+    if (entry.year) released.add(entry.year)
+  }
+  const newestFirst = (a: number, b: number) => b - a
+  return {
+    added: [...added].sort(newestFirst),
+    released: [...released].sort(newestFirst),
+  }
+}
+
+/** Turns a year dropdown's value into the pair of filters it stands for. */
+export function parseYearFilter(value: YearFilter): {
+  addedYear: number | null
+  releaseYear: number | null
+} {
+  const added = /^added-(\d{4})$/.exec(value)
+  if (added) return { addedYear: Number(added[1]), releaseYear: null }
+  const released = /^released-(\d{4})$/.exec(value)
+  if (released) return { addedYear: null, releaseYear: Number(released[1]) }
+  return { addedYear: null, releaseYear: null }
+}
+
 export function selectLibraryEntries(
   entries: readonly MediaEntry[],
   {
@@ -68,6 +111,8 @@ export function selectLibraryEntries(
     sort,
     minRating = 0,
     maxRating = 10,
+    addedYear = null,
+    releaseYear = null,
   }: {
     type: MediaType | null
     search: string
@@ -82,6 +127,10 @@ export function selectLibraryEntries(
      */
     minRating?: number
     maxRating?: number
+    /** Keep only titles added to the library during this calendar year. */
+    addedYear?: number | null
+    /** Keep only titles that came out this year, whenever they were added. */
+    releaseYear?: number | null
   }
 ): MediaEntry[] {
   const query = search.trim().toLocaleLowerCase()
@@ -94,7 +143,9 @@ export function selectLibraryEntries(
           (!entry.dumpstered &&
             entry.rating !== null &&
             entry.rating >= minRating &&
-            entry.rating <= maxRating))
+            entry.rating <= maxRating)) &&
+        (!addedYear || addedYearOf(entry) === addedYear) &&
+        (!releaseYear || entry.year === releaseYear)
     )
     .sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title)

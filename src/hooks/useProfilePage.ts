@@ -7,6 +7,16 @@ import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMe
 import { usePeopleCounts } from './queries/usePeopleQueries'
 import { useSocialStore } from '../store/socialStore'
 import type { MediaEntry } from './queries/useMediaQueries'
+import { collectLibraryYears } from '../features/library/libraryModel'
+import type { YearFilter } from '../features/library/libraryModel'
+import {
+  buildOwnerTabs,
+  countByList,
+  LIST_TITLE_MAX,
+  uniqueListSlug,
+} from '../features/profile/favoriteLists'
+import type { CustomList } from '../features/profile/favoriteLists'
+import { profileShareUrl, shareLink } from '../lib/share'
 
 /** A row of profile_favorites, joined to the entry it points at. */
 type FavoriteRow = {
@@ -49,6 +59,8 @@ export function useProfilePage() {
   const [allFavorites, setAllFavorites] = useState<FavoriteRow[]>([])
   // Which top ten is on screen. 'all' is the overall list people already have.
   const [favoriteList, setFavoriteList] = useState<FavoriteList>('all')
+  // Lists this person named themselves; the fixed ones need no row.
+  const [customLists, setCustomLists] = useState<CustomList[]>([])
   const [userBadges, setUserBadges] = useState<UserBadge[]>([])
   const [availableBadges, setAvailableBadges] = useState<any[]>([])
   const [profileLoaded, setProfileLoaded] = useState(false)
@@ -61,11 +73,7 @@ export function useProfilePage() {
 
   // The visible top ten. Reordering and adding only ever touch this one.
   const favorites = allFavorites.filter((fav) => (fav.list ?? 'all') === favoriteList)
-  const favoriteCounts = allFavorites.reduce<Record<string, number>>((counts, fav) => {
-    const list = fav.list ?? 'all'
-    counts[list] = (counts[list] ?? 0) + 1
-    return counts
-  }, {})
+  const favoriteCounts = countByList(allFavorites)
 
   // This year always has a tab; earlier years appear once they hold something,
   // so a list someone built in 2026 never quietly disappears in 2027.
@@ -79,6 +87,12 @@ export function useProfilePage() {
         .map(Number),
     ]),
   ].sort((a, b) => b - a)
+
+  const favoriteTabs = buildOwnerTabs({
+    counts: favoriteCounts,
+    years: favoriteYears,
+    custom: customLists,
+  })
 
   /** Replaces the visible list in place, leaving the other lists alone. */
   const setFavorites = (next: FavoriteRow[]) =>
@@ -161,6 +175,9 @@ export function useProfilePage() {
   const [showMediaSelector, setShowMediaSelector] = useState(false)
   const [mediaSearchQuery, setMediaSearchQuery] = useState('')
   const [mediaFilterType, setMediaFilterType] = useState<'all' | 'movie' | 'show' | 'game' | 'book'>('all')
+  // Same two questions the library asks: added when, or released when.
+  const [mediaFilterYear, setMediaFilterYear] = useState<YearFilter>('any')
+  const mediaYears = collectLibraryYears(entries)
 
   const [isManagingFavorites, setIsManagingFavorites] = useState(false)
 
@@ -247,24 +264,73 @@ export function useProfilePage() {
       }
     }
 
+    // Posters turn towards the middle of the shelf as they pass it, so a flick
+    // through the top ten reads as physical objects on a rail rather than a row
+    // of thumbnails. Written straight to style on each frame — putting this in
+    // React state would re-render ten cards per scroll event.
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    const clearPosters = () => {
+      for (const poster of el.querySelectorAll<HTMLElement>('[data-poster]')) {
+        poster.style.transform = ''
+        poster.style.opacity = ''
+      }
+    }
+
+    const updatePosters = () => {
+      if (!el || calm) return
+      // A shelf that fits on screen is not a shelf you flick through, and
+      // turning its posters would just leave them permanently crooked.
+      if (el.scrollWidth <= el.clientWidth + 4) {
+        clearPosters()
+        return
+      }
+      const middle = el.scrollLeft + el.clientWidth / 2
+      const reach = el.clientWidth / 2 || 1
+      for (const poster of el.querySelectorAll<HTMLElement>('[data-poster]')) {
+        // How far off-centre this poster is, as -1 … 0 … 1 across the shelf.
+        const offset = Math.max(
+          -1,
+          Math.min(1, (poster.offsetLeft + poster.offsetWidth / 2 - middle) / reach)
+        )
+        const away = Math.abs(offset)
+        // Gentle on purpose. The ends of the rail can never quite reach the
+        // middle, so whatever the extreme looks like is what your first and
+        // last favourite look like — they have to stay readable.
+        poster.style.transform =
+          `perspective(900px) rotateY(${offset * -14}deg) scale(${1 - away * 0.08})`
+        poster.style.opacity = String(1 - away * 0.26)
+      }
+    }
+
     const onScroll = () => {
       if (rafId) return
       rafId = requestAnimationFrame(() => {
         updateBar()
+        updatePosters()
         rafId = null
       })
     }
 
     el.addEventListener('scroll', onScroll, { passive: true })
-    const observer = new ResizeObserver(() => requestAnimationFrame(updateBar))
+    const observer = new ResizeObserver(() => requestAnimationFrame(() => {
+      updateBar()
+      updatePosters()
+    }))
     observer.observe(el)
 
-    requestAnimationFrame(updateBar)
+    requestAnimationFrame(() => {
+      updateBar()
+      updatePosters()
+    })
 
     return () => {
       el.removeEventListener('scroll', onScroll)
       observer.disconnect()
       if (rafId) cancelAnimationFrame(rafId)
+      // Managing the list swaps the shelf for a drag-and-drop grid; a leftover
+      // rotation there would fight the drag preview.
+      clearPosters()
     }
   }, [isManagingFavorites, favorites])
 
@@ -279,6 +345,152 @@ export function useProfilePage() {
     )
     // Rows created before lists existed have no value; they belong to 'all'.
     if (data) setAllFavorites((data as FavoriteRow[]).map((row) => ({ ...row, list: row.list ?? 'all' })))
+  }
+
+  // 'idle' until the button is pressed, then whatever actually happened, so
+  // the label never claims "Copied" when the share sheet took it instead.
+  const [shareStatus, setShareStatus] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
+  const shareResetRef = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (shareResetRef.current) window.clearTimeout(shareResetRef.current)
+    },
+    []
+  )
+
+  const handleShareProfile = async () => {
+    const handle = profile?.username
+    if (!handle) return
+    const outcome = await shareLink({
+      url: profileShareUrl(handle),
+      title: `@${handle} on PopcornPal`,
+      text: `See what @${handle} is watching, playing and reading.`,
+    })
+    // Backing out of the share sheet deserves no message at all.
+    if (outcome === 'dismissed') return
+    setShareStatus(outcome === 'shared' ? 'shared' : outcome)
+    if (shareResetRef.current) window.clearTimeout(shareResetRef.current)
+    shareResetRef.current = window.setTimeout(() => setShareStatus('idle'), 2500)
+  }
+
+  // One field does both jobs: naming a new shelf and renaming an old one.
+  const [listDraft, setListDraft] = useState<{
+    mode: 'create' | 'rename'
+    slug?: string
+    title: string
+  } | null>(null)
+
+  const startNewList = () => setListDraft({ mode: 'create', title: '' })
+  const startRenameList = (slug: string) =>
+    setListDraft({
+      mode: 'rename',
+      slug,
+      title: customLists.find((list) => list.slug === slug)?.title ?? '',
+    })
+  const cancelListDraft = () => setListDraft(null)
+  const submitListDraft = async () => {
+    if (!listDraft) return
+    const title = listDraft.title.trim()
+    setListDraft(null)
+    if (!title) return
+    if (listDraft.mode === 'create') await handleCreateList(title)
+    else if (listDraft.slug) await handleRenameList(listDraft.slug, title)
+  }
+
+  const fetchCustomLists = async () => {
+    if (!user) return
+    try {
+      const data = await authedQuery(() =>
+        supabase
+          .from('profile_favorite_lists')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('position', { ascending: true })
+      )
+      if (data) setCustomLists(data as CustomList[])
+    } catch (error) {
+      // Before the migration is run this table is simply not there. The fixed
+      // top tens still work, so the profile loads without its named shelves
+      // rather than not at all.
+      console.error('Error loading custom lists:', error)
+    }
+  }
+
+  /** Makes a named shelf and moves you onto it. Returns its slug, or null. */
+  const handleCreateList = async (rawTitle: string) => {
+    if (!user) return null
+    const title = rawTitle.trim().slice(0, LIST_TITLE_MAX)
+    if (!title) return null
+    // The slug is derived once and then left alone: renaming a list must never
+    // move what is already sitting on it.
+    const slug = uniqueListSlug(title, customLists.map((list) => list.slug))
+    const { data, error } = await supabase
+      .from('profile_favorite_lists')
+      .insert({ user_id: user.id, slug, title, position: customLists.length })
+      .select()
+      .single()
+    if (error || !data) {
+      console.error('Error creating list:', error)
+      alert('That list could not be created. Try again.')
+      return null
+    }
+    setCustomLists((current) => [...current, data as CustomList])
+    setFavoriteList(slug)
+    return slug
+  }
+
+  const handleRenameList = async (slug: string, rawTitle: string) => {
+    if (!user) return
+    const title = rawTitle.trim().slice(0, LIST_TITLE_MAX)
+    if (!title) return
+    setCustomLists((current) =>
+      current.map((list) => (list.slug === slug ? { ...list, title } : list))
+    )
+    const { error } = await supabase
+      .from('profile_favorite_lists')
+      .update({ title })
+      .eq('user_id', user.id)
+      .eq('slug', slug)
+    if (error) {
+      console.error('Error renaming list:', error)
+      await fetchCustomLists()
+    }
+  }
+
+  const handleDeleteList = async (slug: string) => {
+    if (!user) return
+    const list = customLists.find((entry) => entry.slug === slug)
+    const held = favoriteCounts[slug] ?? 0
+    if (
+      !window.confirm(
+        held > 0
+          ? `Delete "${list?.title ?? 'this list'}" and the ${held} ${held === 1 ? 'title' : 'titles'} on it? Your library keeps them.`
+          : `Delete "${list?.title ?? 'this list'}"?`
+      )
+    ) {
+      return
+    }
+    try {
+      // The favourites go first: a list row that vanished while its rows
+      // survived would leave titles on a shelf nothing can name.
+      await supabase
+        .from('profile_favorites')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('list', slug)
+      await supabase
+        .from('profile_favorite_lists')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('slug', slug)
+      setAllFavorites((current) =>
+        current.filter((fav) => (fav.list ?? 'all') !== slug)
+      )
+      setCustomLists((current) => current.filter((entry) => entry.slug !== slug))
+      setFavoriteList('all')
+    } catch (error) {
+      console.error('Error deleting list:', error)
+    }
   }
 
   const handleAddFavorite = async (entryId: string) => {
@@ -431,7 +643,8 @@ export function useProfilePage() {
     Promise.all([
       fetchBadges(),
       fetchUserBadges(),
-      fetchFavorites()
+      fetchFavorites(),
+      fetchCustomLists()
     ]).finally(() => {
       clearTimeout(safetyTimer)
       setInitialLoading(false)
@@ -964,6 +1177,8 @@ export function useProfilePage() {
     setFavoriteList,
     favoriteCounts,
     favoriteYears,
+    favoriteTabs,
+    customLists,
     userBadges,
     availableBadges,
     // State
@@ -1028,6 +1243,9 @@ export function useProfilePage() {
     setMediaSearchQuery,
     mediaFilterType,
     setMediaFilterType,
+    mediaFilterYear,
+    setMediaFilterYear,
+    mediaYears,
     isManagingFavorites,
     setIsManagingFavorites,
     showAddButton,
@@ -1066,6 +1284,17 @@ export function useProfilePage() {
     handleDeleteEntry,
     handleAddFavorite,
     handleRemoveFavorite,
+    handleCreateList,
+    handleRenameList,
+    handleDeleteList,
+    listDraft,
+    setListDraft,
+    startNewList,
+    startRenameList,
+    cancelListDraft,
+    submitListDraft,
+    handleShareProfile,
+    shareStatus,
     handleDragStart,
     handleDragOver,
     handleDragEnd,

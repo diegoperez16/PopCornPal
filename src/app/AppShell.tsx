@@ -179,18 +179,17 @@ export default function AppShell() {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/auth/callback" element={<AuthPage />} />
               <Route path="/update-password" element={<UpdatePasswordPage />} />
+              {/* A profile is the one page you can hand to somebody who has no
+                  account: a shared link opens it signed out, read-only. */}
+              <Route path="/profile/:username" element={<UserProfilePage />} />
+              {/* Legacy redirect for any old /user/ links */}
+              <Route path="/user/:username" element={<RedirectToProfile />} />
               <Route element={<RequireSession />}>
                 <Route path="/feed" element={<FeedPage />} />
                 <Route path="/people" element={<PeoplePage />} />
                 <Route path="/activity" element={<ActivityPage />} />
                 <Route path="/library" element={<LibraryPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
-                <Route
-                  path="/profile/:username"
-                  element={<UserProfilePage />}
-                />
-                {/* Legacy redirect for any old /user/ links */}
-                <Route path="/user/:username" element={<RedirectToProfile />} />
                 <Route path="/add" element={<AddEntryPage />} />
                 <Route path="/admin/badges" element={<AdminBadgePanel />} />
               </Route>
