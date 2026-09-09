@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- The same bucket the phone shows. Desktop browsers cache a favicon by
+         URL and hold it for a very long time, so the version tag is what gets
+         a tab that is still drawing the old mark to fetch this one; the PNGs
+         are here for browsers that would rather not take the SVG. -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg?v=2" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png?v=2" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png?v=2" />
     <!-- interactive-widget=resizes-content shrinks the viewport when the on-screen
          keyboard opens, so bottom sheets sized in dvh stay fully reachable.
          Scale is locked so the layout holds its proportions like an app's. -->
@@ -17,7 +23,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Popcorn Pal" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
     
     <title>Popcorn Pal</title>
   </head>
