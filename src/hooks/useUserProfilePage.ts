@@ -11,6 +11,7 @@ import {
   useFollowersList,
   useFollowingList,
   useUserLibrary,
+  useUserShelfSummary,
 } from './queries/useProfileQueries'
 import type { ProfileMediaEntry } from './queries/useProfileQueries'
 import type { CustomList } from '../features/profile/favoriteLists'
@@ -72,8 +73,16 @@ export function useUserProfilePage(
   const profileData = profileQuery.data
   const profileUserId = profileData?.profile?.id
 
-  const postsQuery = useUserPosts(profileUserId, currentUserId)
-  const recentActivityQuery = useUserRecentActivity(profileUserId)
+  // A shared link is a calling card, not an open house: what somebody posts,
+  // what they finished last week and everything on their shelf are for people
+  // who are here properly. Signed out, none of it is asked for in the first
+  // place — hiding it in the markup would still put it on the wire.
+  const isVisitorSignedIn = !!currentUserId
+  // The one thing about their shelf a stranger does get: how big it is and how
+  // generous they are with a rating.
+  const shelfSummaryQuery = useUserShelfSummary(profileUserId)
+  const postsQuery = useUserPosts(profileUserId, currentUserId, isVisitorSignedIn)
+  const recentActivityQuery = useUserRecentActivity(profileUserId, isVisitorSignedIn)
 
   // Prefetch followers/following as soon as we have the profile ID so modal opens instantly
   useFollowersList(profileUserId, currentUserId, !!profileUserId)
@@ -99,7 +108,7 @@ export function useUserProfilePage(
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const libraryQuery = useUserLibrary(profileUserId, showLibraryModal)
+  const libraryQuery = useUserLibrary(profileUserId, showLibraryModal && isVisitorSignedIn)
   const fullLibrary = libraryQuery.data ?? []
   const libraryLoading = libraryQuery.isFetching
 
@@ -208,6 +217,7 @@ export function useUserProfilePage(
   const favorites = (profileData?.favorites ?? []) as Favorite[]
   // Their named shelves, so a visitor reads "Spider-Man", not "list-spider-man".
   const favoriteLists = (profileData?.favoriteLists ?? []) as CustomList[]
+  const shelfSummary = shelfSummaryQuery.data ?? null
   const posts = (postsQuery.data ?? []) as Post[]
   const recentActivity = (recentActivityQuery.data ?? []) as MediaEntry[]
 
@@ -229,6 +239,7 @@ export function useUserProfilePage(
     isFollowing,
     favorites,
     favoriteLists,
+    shelfSummary,
     recentActivity,
     fullLibrary,
     showLibraryModal,

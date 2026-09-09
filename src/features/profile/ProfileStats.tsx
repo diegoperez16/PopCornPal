@@ -1,6 +1,4 @@
-import { useMemo } from 'react'
-import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
-import { collectUniqueMedia } from '../library/libraryModel'
+import type { ShelfSummary } from './shelfSummary'
 import VerdictMark from '../verdict/VerdictMark'
 import { verdictFor } from '../verdict/verdictModel'
 import CountUp from '../../components/motion/CountUp'
@@ -15,35 +13,15 @@ import { Layers } from 'lucide-react'
  * are this app's vocabulary — the same marks that appear on the shelf — and a
  * count of Dumpsters says more about a person than a count of entries does.
  *
+ * The counting happens in shelfSummary, not here, because a visited profile is
+ * summarised from ratings alone — the titles behind these numbers are nobody
+ * else's business.
+ *
  * The numbers count up on arrival and the cells light under the finger. Both
  * are decoration, and both are here because this strip is the one place on the
  * page that is purely about you being pleased with yourself.
  */
-export default function ProfileStats({
-  entries,
-}: {
-  entries: readonly MediaEntry[]
-}) {
-  const stats = useMemo(() => {
-    // Per-title, not per-row: a film logged as both watched and shelved is one
-    // thing you have seen, not two.
-    const titles = collectUniqueMedia(entries)
-    const rated = titles.filter(
-      (entry) => !entry.dumpstered && typeof entry.rating === 'number'
-    )
-    const average = rated.length
-      ? rated.reduce((sum, entry) => sum + (entry.rating as number), 0) /
-        rated.length
-      : null
-    return {
-      titles: titles.length,
-      average,
-      goldens: rated.filter((entry) => verdictFor(entry.rating)?.id === 'golden')
-        .length,
-      dumpsters: titles.filter((entry) => entry.dumpstered).length,
-    }
-  }, [entries])
-
+export default function ProfileStats({ stats }: { stats: ShelfSummary }) {
   if (stats.titles === 0) return null
 
   // Every cell is topped by the mark it is about. Average wears whichever

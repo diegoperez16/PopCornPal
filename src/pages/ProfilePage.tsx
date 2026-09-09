@@ -6,7 +6,6 @@ import HouseRing from '../features/house/HouseRing'
 import HouseCard from '../features/house/HouseCard'
 import { verdictFor } from '../features/verdict/verdictModel'
 import ThemePicker from '../components/ThemePicker'
-import ProfileStats from '../features/profile/ProfileStats'
 import SectionHeader from '../features/profile/SectionHeader'
 import PillTabs from '../features/profile/PillTabs'
 import AuroraBanner from '../features/profile/AuroraBanner'
@@ -341,8 +340,6 @@ export default function ProfilePage() {
                     <span className="ml-1.5 text-sm text-gray-500">Following</span>
                   </button>
                 </div>
-
-                <ProfileStats entries={entries} />
 
                 {/* Badges */}
                 {userBadges.length > 0 && (

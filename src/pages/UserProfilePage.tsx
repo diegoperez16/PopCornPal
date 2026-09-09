@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library, Share2, Check } from 'lucide-react'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import Brand from '../components/brand/Brand'
+import ProfileStats from '../features/profile/ProfileStats'
 import { buildVisitorTabs } from '../features/profile/favoriteLists'
 import { useUserProfilePage } from '../hooks/useUserProfilePage'
 import UserAvatar from '../components/UserAvatar'
@@ -21,6 +22,7 @@ export default function UserProfilePage() {
     isFollowing,
     favorites,
     favoriteLists,
+    shelfSummary,
     recentActivity,
     showLibraryModal,
     setShowLibraryModal,
@@ -270,6 +272,12 @@ export default function UserProfilePage() {
 
               {renderBadges()}
 
+              {shelfSummary && (
+                <div className="mt-4">
+                  <ProfileStats stats={shelfSummary} />
+                </div>
+              )}
+
               <div className="flex gap-5 mt-4">
                 <button onClick={() => setShowFollowersModal(true)} className="text-left group">
                   <span className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">{followersCount}</span>
@@ -331,6 +339,10 @@ export default function UserProfilePage() {
             </div>
           )}
 
+          {/* Their shelf, their week and their posts are for people who are
+              here properly; a shared link stops at the top tens. Signed out,
+              none of it is fetched either. */}
+          {currentUser && (<>
           {/* Library button */}
           <button onClick={() => { setLibrarySearchQuery(''); setLibraryFilterType(null); setShowLibraryModal(true) }}
             className="w-full flex items-center justify-between px-5 py-4 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gray-600 rounded-2xl transition-all active:scale-[0.99] group">
@@ -420,6 +432,7 @@ export default function UserProfilePage() {
               </div>
             </div>
           )}
+          </>)}
         </div>
 
         {!currentUser && (

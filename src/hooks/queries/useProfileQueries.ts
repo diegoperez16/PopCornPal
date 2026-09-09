@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { queryClient, profileKeys, peopleKeys } from '../../lib/queryClient'
 import type { UserBadge } from '../../lib/supabase'
 import type { CustomList } from '../../features/profile/favoriteLists'
+import { summarizeShelf } from '../../features/profile/shelfSummary'
+import type { ShelfSummary } from '../../features/profile/shelfSummary'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -179,11 +181,15 @@ async function fetchUserPosts(profileUserId: string, currentUserId: string | nul
   }))
 }
 
-export function useUserPosts(profileUserId: string | undefined, currentUserId: string | null) {
+export function useUserPosts(
+  profileUserId: string | undefined,
+  currentUserId: string | null,
+  enabled = true
+) {
   return useQuery({
     queryKey: ['profile', 'posts', profileUserId, currentUserId],
     queryFn: () => fetchUserPosts(profileUserId!, currentUserId),
-    enabled: !!profileUserId,
+    enabled: !!profileUserId && enabled,
   })
 }
 
@@ -200,11 +206,40 @@ async function fetchUserRecentActivity(profileUserId: string): Promise<ProfileMe
   return (data ?? []) as ProfileMediaEntry[]
 }
 
-export function useUserRecentActivity(profileUserId: string | undefined) {
+/**
+ * The four numbers on a visited profile, counted from the ratings alone.
+ *
+ * Deliberately two columns: a summary of somebody's shelf should not require
+ * shipping the shelf. Only the canonical `logged` rows are counted, which is
+ * one per title.
+ */
+async function fetchUserShelfSummary(profileUserId: string): Promise<ShelfSummary> {
+  const { data, error } = await supabase
+    .from('media_entries')
+    .select('rating,dumpstered')
+    .eq('user_id', profileUserId)
+    .eq('status', 'logged')
+
+  if (error) throw error
+  return summarizeShelf(data ?? [])
+}
+
+export function useUserShelfSummary(profileUserId: string | undefined) {
+  return useQuery({
+    queryKey: ['profile', 'shelf-summary', profileUserId],
+    queryFn: () => fetchUserShelfSummary(profileUserId!),
+    enabled: !!profileUserId,
+  })
+}
+
+export function useUserRecentActivity(
+  profileUserId: string | undefined,
+  enabled = true
+) {
   return useQuery({
     queryKey: ['profile', 'activity', profileUserId],
     queryFn: () => fetchUserRecentActivity(profileUserId!),
-    enabled: !!profileUserId,
+    enabled: !!profileUserId && enabled,
   })
 }
 
