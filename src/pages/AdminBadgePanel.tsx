@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase, type Badge } from '../lib/supabase'
-import { Plus, X, Edit2, Trash2, Search, Users, Shield, Loader2, Sparkles, UserPlus, UserX, Save, ArrowUp, Check } from 'lucide-react'
+import { Plus, Edit2, Trash2, Search, Users, Shield, Loader2, UserPlus, UserX, Save, ArrowUp, Check } from 'lucide-react'
 import GifPicker from '../components/GifPicker'
+import Sheet from '../components/Sheet'
 
 type Profile = {
   id: string
@@ -24,6 +25,15 @@ const BADGE_COLORS = [
   'yellow-500', 'pink-500', 'orange-500', 'cyan-500',
   'teal-500', 'indigo-500', 'rose-500', 'emerald-500'
 ]
+
+// Badge colours live in the DB as Tailwind hue names; the classes they used to
+// build never compiled, so they resolve to real values here instead.
+const BADGE_COLOR_HEX: Record<string, string> = {
+  'purple-500': '#a855f7', 'red-500': '#ef4444', 'blue-500': '#3b82f6', 'green-500': '#22c55e',
+  'yellow-500': '#eab308', 'pink-500': '#ec4899', 'orange-500': '#f97316', 'cyan-500': '#06b6d4',
+  'teal-500': '#14b8a6', 'indigo-500': '#6366f1', 'rose-500': '#f43f5e', 'emerald-500': '#10b981',
+}
+const badgeHex = (color: string) => BADGE_COLOR_HEX[color] ?? '#6b7c8c'
 
 export default function AdminBadges() {
   // Main Data
@@ -253,375 +263,350 @@ export default function AdminBadges() {
   }
 
   return (
-    <div className="p-6 pb-32 max-w-6xl mx-auto text-white relative min-h-screen">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold flex items-center gap-3 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
-          <Sparkles className="text-purple-500 w-8 h-8" />
-          Badge Control
-        </h1>
-        <button
-          onClick={() => handleOpenEditModal()}
-          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl font-medium shadow-lg shadow-purple-500/20 transition-all active:scale-95"
-        >
-          <Plus className="w-5 h-5" /> Create New Badge
-        </button>
-      </div>
+    <div className="app-page">
+      <div className="max-w-6xl mx-auto px-5 py-8">
+        {/* HEADER */}
+        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="app-title">Badge control<span className="text-accent-soft">.</span></h1>
+          <button
+            type="button"
+            onClick={() => handleOpenEditModal()}
+            className="app-button-primary"
+          >
+            <Plus size={18} /> Create new badge
+          </button>
+        </header>
 
-      {/* BADGE GRID */}
-      {loading ? (
-        <div className="flex justify-center p-12">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {badges.map((badge) => (
-            <div key={badge.id} className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-4 flex flex-col group hover:border-purple-500/30 transition-colors">
-              {/* Badge Preview */}
-              <div className="aspect-video bg-gray-900/50 rounded-xl mb-4 overflow-hidden relative flex items-center justify-center border border-gray-700/50">
-                {badge.gif_url ? (
-                  <img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover" style={{ opacity: (badge.opacity || 80) / 100 }} />
-                ) : (
-                  <div className={`w-full h-full bg-gradient-to-br from-${badge.color.split('-')[0]}-600 to-${badge.color.split('-')[0]}-400 opacity-50`} />
-                )}
-                
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-                  <span className="font-bold text-lg uppercase tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                    {badge.name}
-                  </span>
-                  {badge.admin_only && (
-                    <span className="mt-1 px-2 py-0.5 bg-red-500/80 rounded text-[10px] font-bold uppercase flex items-center gap-1 shadow-sm">
-                      <Shield className="w-3 h-3" /> Admin Only
-                    </span>
+        {/* BADGE GRID */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 motion-safe:animate-pulse" aria-hidden="true">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="app-panel rounded-2xl p-4">
+                <div className="aspect-video rounded-xl bg-surface-strong mb-4" />
+                <div className="h-3 w-3/4 rounded-full bg-surface-strong mb-4" />
+                <div className="h-11 rounded-xl bg-surface-strong" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {badges.map((badge) => (
+              <div key={badge.id} className="app-panel rounded-2xl p-4 flex flex-col">
+                {/* Badge Preview */}
+                <div className="aspect-video rounded-xl mb-4 overflow-hidden relative flex items-center justify-center border border-line-soft bg-surface-sunken">
+                  {badge.gif_url ? (
+                    <img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover" style={{ opacity: (badge.opacity || 80) / 100 }} />
+                  ) : (
+                    <div className="w-full h-full opacity-50" style={{ background: badgeHex(badge.color) }} />
                   )}
+
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
+                    <span className="text-lg font-semibold text-gray-50 drop-shadow-md">
+                      {badge.name}
+                    </span>
+                    {badge.admin_only && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent-bright">
+                        <Shield size={12} /> Admin only
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Badge Info */}
+                {badge.description && (
+                  <p className="text-sm text-muted mb-4 line-clamp-2">
+                    {badge.description}
+                  </p>
+                )}
+
+                {/* Actions */}
+                <div className="mt-auto grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenUserModal(badge)}
+                    className="app-button-ghost app-button-sm !px-2"
+                  >
+                    <Users size={16} /> Users
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(badge)}
+                    className="app-button-ghost app-button-sm !px-2"
+                  >
+                    <Edit2 size={16} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBadge(badge.id)}
+                    className="app-button-ghost app-button-sm !px-2 hover:text-danger"
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
                 </div>
               </div>
-
-              {/* Badge Info */}
-              {badge.description && (
-                <p className="text-xs text-gray-400 mb-4 line-clamp-2 px-1">
-                  {badge.description}
-                </p>
-              )}
-
-              {/* Actions */}
-              <div className="mt-auto grid grid-cols-3 gap-2">
-                <button 
-                  onClick={() => handleOpenUserModal(badge)}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-700/30 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-colors"
-                  title="Manage Users"
-                >
-                  <Users className="w-5 h-5 mb-1" />
-                  <span className="text-[10px] font-medium">Users</span>
-                </button>
-                <button 
-                  onClick={() => handleOpenEditModal(badge)}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-700/30 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 transition-colors"
-                  title="Edit Badge"
-                >
-                  <Edit2 className="w-5 h-5 mb-1" />
-                  <span className="text-[10px] font-medium">Edit</span>
-                </button>
-                <button 
-                  onClick={() => handleDeleteBadge(badge.id)}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-700/30 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
-                  title="Delete Badge"
-                >
-                  <Trash2 className="w-5 h-5 mb-1" />
-                  <span className="text-[10px] font-medium">Delete</span>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* --- SCROLL TO TOP BUTTON --- */}
       <button
+        type="button"
         onClick={scrollToTop}
-        className={`fixed bottom-24 right-6 p-4 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-900/40 hover:scale-110 transition-all duration-300 z-40 ${
-          showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
-        }`}
         aria-label="Scroll to top"
+        aria-hidden={!showScrollTop}
+        tabIndex={showScrollTop ? 0 : -1}
+        className={`fixed bottom-24 right-5 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-line-soft bg-surface-strong text-gray-50 shadow-lg shadow-black/30 transition-opacity duration-200 ${
+          showScrollTop ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
       >
-        <ArrowUp className="w-6 h-6" />
+        <ArrowUp size={20} />
       </button>
 
       {/* --- MODAL 1: CREATE / EDIT BADGE --- */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 pb-32 relative shadow-2xl overflow-y-auto max-h-[90vh]">
+        <Sheet
+          title={editingBadge ? 'Edit badge' : 'Create a badge'}
+          onClose={() => setIsEditModalOpen(false)}
+          closeDisabled={saving}
+          footer={
             <button
-              onClick={() => setIsEditModalOpen(false)}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"
+              type="button"
+              onClick={handleSaveBadge}
+              disabled={saving}
+              className="app-button-primary w-full"
             >
-              <X className="w-5 h-5" />
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              Save changes
             </button>
-            
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              {editingBadge ? <Edit2 className="w-5 h-5 text-purple-500" /> : <Plus className="w-5 h-5 text-purple-500" />}
-              {editingBadge ? 'Edit Badge' : 'Create New Badge'}
-            </h2>
-            
-            <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Name</label>
+          }
+        >
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="badgeName" className="app-label">Name</label>
+              <input
+                id="badgeName"
+                value={formData.name}
+                onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="app-input"
+                placeholder="e.g. Cinephile"
+                autoComplete="off"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="badgeDescription" className="app-label">Description</label>
+              <textarea
+                id="badgeDescription"
+                value={formData.description}
+                onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                className="app-textarea"
+                placeholder="Short description for this badge…"
+              />
+            </div>
+
+            <fieldset>
+              <legend className="app-label">Color</legend>
+              <div className="flex flex-wrap gap-2">
+                {BADGE_COLORS.map((color) => {
+                  const isSelected = formData.color === color
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, color }))}
+                      aria-label={color.split('-')[0]}
+                      aria-pressed={isSelected}
+                      className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                        isSelected ? 'ring-2 ring-offset-2 ring-offset-surface ring-butter-400' : ''
+                      }`}
+                      style={{ background: badgeHex(color) }}
+                    >
+                      {isSelected && <Check size={18} className="text-gray-50 drop-shadow-md" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </fieldset>
+
+            <div>
+              <label htmlFor="badgeGif" className="app-label">GIF <small>paste a URL or search Giphy</small></label>
+              <div className="flex gap-2">
                 <input
-                  value={formData.name}
-                  onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all"
-                  placeholder="e.g. Cinephile"
+                  id="badgeGif"
+                  value={formData.gif_url}
+                  onChange={e => setFormData(prev => ({ ...prev, gif_url: e.target.value }))}
+                  className="app-input"
+                  placeholder="https://…"
+                  inputMode="url"
+                  autoComplete="off"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowGifPicker(true)}
+                  aria-label="Search GIFs"
+                  className="app-button-secondary app-button-sm flex-shrink-0 !px-3"
+                >
+                  <Search size={18} />
+                </button>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all resize-none h-20"
-                  placeholder="Short description for this badge..."
-                />
+            {formData.gif_url && (
+              <div className="relative h-32 overflow-hidden rounded-xl border border-line-soft bg-surface-sunken">
+                <img loading="lazy" decoding="async" src={formData.gif_url} className="w-full h-full object-cover" style={{ opacity: formData.opacity / 100 }} alt="Preview" />
               </div>
+            )}
 
-              {/* IMPROVED VISUAL COLOR PICKER */}
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">Color Theme</label>
-                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
-                  {BADGE_COLORS.map((color) => {
-                    const colorName = color.split('-')[0]
-                    const isSelected = formData.color === color
-                    return (
-                      <button
-                        key={color}
-                        onClick={() => setFormData(prev => ({ ...prev, color }))}
-                        className={`
-                          w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center relative
-                          bg-${colorName}-500 hover:scale-110
-                          ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:opacity-80'}
-                        `}
-                        title={color}
-                        type="button"
-                      >
-                        {isSelected && <Check className="w-4 h-4 text-white drop-shadow-md" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+            <div>
+              <label htmlFor="badgeOpacity" className="app-label flex items-center justify-between">
+                Opacity
+                <span className="text-sm font-normal text-muted tabular-nums">{formData.opacity}%</span>
+              </label>
+              <input
+                id="badgeOpacity"
+                type="range"
+                min="10"
+                max="100"
+                value={formData.opacity}
+                onChange={e => setFormData(prev => ({ ...prev, opacity: Number(e.target.value) }))}
+                className="w-full min-h-11 cursor-pointer"
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Visuals</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      value={formData.gif_url}
-                      onChange={e => setFormData(prev => ({ ...prev, gif_url: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-3 text-white text-sm outline-none focus:border-purple-500 transition-all"
-                      placeholder="GIF URL (or search →)"
-                    />
-                    <Sparkles className="absolute left-3 top-3.5 w-4 h-4 text-gray-500" />
-                  </div>
-                  <button
-                    onClick={() => setShowGifPicker(true)}
-                    className="px-4 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/50 rounded-xl transition-colors"
-                  >
-                    <Search className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {formData.gif_url && (
-                <div className="rounded-xl overflow-hidden border border-gray-700 relative h-32 bg-black/50">
-                  <img loading="lazy" decoding="async" src={formData.gif_url} className="w-full h-full object-cover" style={{ opacity: formData.opacity / 100 }} alt="Preview" />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="bg-black/60 px-3 py-1 rounded-full text-xs font-bold uppercase backdrop-blur-sm">Preview</span>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Opacity</label>
-                  <span className="text-xs text-purple-400 font-bold">{formData.opacity}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  value={formData.opacity}
-                  onChange={e => setFormData(prev => ({ ...prev, opacity: Number(e.target.value) }))}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                />
-              </div>
-              
-              <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                <input
-                  type="checkbox"
-                  id="adminOnly"
-                  checked={formData.admin_only}
-                  onChange={e => setFormData(prev => ({ ...prev, admin_only: e.target.checked }))}
-                  className="w-5 h-5 rounded bg-gray-700 border-gray-600 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
-                />
-                <label htmlFor="adminOnly" className="text-sm text-gray-300 select-none cursor-pointer flex-1">
-                  <span className="block font-medium text-white">Admin Exclusive</span>
-                  <span className="block text-xs text-gray-500">Only admins can assign this badge (e.g. Special Events)</span>
-                </label>
-              </div>
-
-              <button
-                onClick={handleSaveBadge}
-                disabled={saving}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 py-3.5 rounded-xl font-bold text-white shadow-lg shadow-purple-500/20 hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-              >
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Save Changes</>}
-              </button>
+            <div className="flex items-center gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3">
+              <input
+                type="checkbox"
+                id="adminOnly"
+                checked={formData.admin_only}
+                onChange={e => setFormData(prev => ({ ...prev, admin_only: e.target.checked }))}
+                className="h-5 w-5 flex-shrink-0 rounded"
+              />
+              <label htmlFor="adminOnly" className="flex min-h-11 flex-1 cursor-pointer select-none flex-col justify-center">
+                <span className="block text-sm font-semibold text-gray-50">Admin exclusive</span>
+                <span className="block text-xs text-muted">Only admins can assign this badge (e.g. special events)</span>
+              </label>
             </div>
           </div>
-        </div>
+        </Sheet>
       )}
 
       {/* --- MODAL 2: MANAGE USERS --- */}
       {isUserModalOpen && selectedBadge && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl p-6 pb-24 relative shadow-2xl flex flex-col max-h-[85vh]">
-            <button
-              onClick={() => setIsUserModalOpen(false)}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <Sheet title="Manage users" onClose={() => setIsUserModalOpen(false)}>
+          <p className="mb-5 text-sm text-muted">
+            Assigning <span className="font-semibold text-gray-50">{selectedBadge.name}</span>
+          </p>
 
-            <div className="mb-6">
-              <h2 className="text-xl font-bold flex items-center gap-2 mb-1">
-                <Users className="w-5 h-5 text-blue-400" />
-                Manage Users
-              </h2>
-              <p className="text-sm text-gray-400">
-                Assigning: <span className="text-white font-medium">{selectedBadge.name}</span>
-              </p>
+          {/* Give Badge Section (Search) */}
+          <div className="mb-6">
+            <label htmlFor="badgeUserSearch" className="app-label">Give this badge to someone</label>
+            <div className="app-search">
+              <Search size={18} />
+              <input
+                id="badgeUserSearch"
+                type="search"
+                value={userSearchQuery}
+                onChange={(e) => searchUsers(e.target.value)}
+                placeholder="Search by username…"
+                autoComplete="off"
+                enterKeyHint="search"
+                className="app-input"
+              />
             </div>
 
-            {/* Give Badge Section (Search) */}
-            <div className="mb-6 relative">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Give Badge to User</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  value={userSearchQuery}
-                  onChange={(e) => searchUsers(e.target.value)}
-                  placeholder="Search by username..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:border-blue-500 outline-none placeholder-gray-500"
-                />
-              </div>
-              
-              {/* Search Results Dropdown */}
-              {(searchResults.length > 0 || searchingUsers) && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-20">
-                  {searchingUsers ? (
-                    <div className="p-3 text-center text-gray-500 text-xs flex items-center justify-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Searching...
-                    </div>
-                  ) : (
-                    searchResults.map(user => (
+            {/* Search Results */}
+            {(searchResults.length > 0 || searchingUsers) && (
+              <div className="mt-2 overflow-hidden rounded-xl border border-line-soft bg-surface-strong divide-y divide-line-soft">
+                {searchingUsers ? (
+                  <p role="status" className="flex min-h-12 items-center justify-center gap-2 px-3 text-sm text-muted">
+                    <Loader2 size={16} className="animate-spin" /> Searching…
+                  </p>
+                ) : (
+                  searchResults.map(user => (
+                    <div key={user.id} className="flex min-h-12 items-center gap-3 pl-3 pr-1">
+                      <span className="app-avatar h-8 w-8 text-xs">
+                        {user.avatar_url ? (
+                          <img loading="lazy" decoding="async" src={user.avatar_url} alt="" />
+                        ) : (
+                          user.username[0].toUpperCase()
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-50">{user.username}</span>
                       <button
-                        key={user.id}
+                        type="button"
                         onClick={() => assignBadge(user.id)}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-700 transition-colors text-left group"
+                        className="app-button-ghost app-button-sm text-accent-soft"
                       >
-                        <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex-shrink-0">
-                          {user.avatar_url ? (
-                            <img loading="lazy" decoding="async" src={user.avatar_url} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs font-bold">
-                              {user.username[0].toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-sm font-medium">{user.username}</span>
-                        <div className="ml-auto flex items-center gap-1 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <UserPlus className="w-4 h-4" />
-                          <span className="text-xs font-bold">Give</span>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Current Holders List */}
-            <div className="flex-1 overflow-y-auto min-h-[200px] border-t border-gray-800 pt-4">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                Current Holders ({badgeHolders.length})
-              </h3>
-              
-              {loadingHolders ? (
-                <div className="flex flex-col items-center justify-center py-10 text-gray-500 gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
-                  <span className="text-xs">Loading users...</span>
-                </div>
-              ) : badgeHolders.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 italic text-sm">
-                  No users have this badge yet.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {badgeHolders.map((holder) => (
-                    <div key={holder.id} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/30">
-                      <div className="w-8 h-8 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
-                         {holder.profiles?.avatar_url ? (
-                            <img loading="lazy" decoding="async" src={holder.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs font-bold">
-                              {holder.profiles?.username?.[0]?.toUpperCase() || '?'}
-                            </div>
-                          )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-white truncate">
-                          {holder.profiles?.username || 'Unknown User'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Assigned: {new Date(holder.assigned_at || holder.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeBadge(holder.user_id)}
-                        className="p-2 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded-lg transition-colors"
-                        title="Remove Badge"
-                      >
-                        <UserX className="w-4 h-4" />
+                        <UserPlus size={16} /> Give
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-        </div>
+
+          {/* Current Holders List */}
+          <div className="border-t border-line-soft pt-4">
+            <h3 className="app-h2 mb-3">
+              Current holders <span className="font-normal text-muted tabular-nums">({badgeHolders.length})</span>
+            </h3>
+
+            {loadingHolders ? (
+              <div className="space-y-2 motion-safe:animate-pulse" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-14 rounded-xl bg-surface-strong" />
+                ))}
+              </div>
+            ) : badgeHolders.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted">
+                No one has this badge yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {badgeHolders.map((holder) => (
+                  <div key={holder.id} className="app-panel rounded-xl p-3 flex items-center gap-3">
+                    <span className="app-avatar h-8 w-8 text-xs">
+                      {holder.profiles?.avatar_url ? (
+                        <img loading="lazy" decoding="async" src={holder.profiles.avatar_url} alt="" />
+                      ) : (
+                        holder.profiles?.username?.[0]?.toUpperCase() || '?'
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-50">
+                        {holder.profiles?.username || 'Unknown user'}
+                      </p>
+                      <p className="text-xs text-muted">
+                        Assigned {new Date(holder.assigned_at || holder.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeBadge(holder.user_id)}
+                      aria-label="Remove badge from user"
+                      className="app-icon-button -mr-1 hover:text-danger"
+                    >
+                      <UserX size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Sheet>
       )}
 
-      {/* --- GIF PICKER OVERLAY --- */}
+      {/* --- GIF PICKER --- */}
       {showGifPicker && (
-        <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setShowGifPicker(false)}
-        >
-          <div 
-            className="w-full max-w-lg mx-4" 
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GifPicker
-              onSelect={(url) => {
-                setFormData(prev => ({ ...prev, gif_url: url }))
-                setShowGifPicker(false)
-              }}
-              onClose={() => setShowGifPicker(false)}
-            />
-          </div>
-        </div>
+        <GifPicker
+          onSelect={(url) => {
+            setFormData(prev => ({ ...prev, gif_url: url }))
+            setShowGifPicker(false)
+          }}
+          onClose={() => setShowGifPicker(false)}
+        />
       )}
     </div>
   )

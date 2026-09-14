@@ -86,7 +86,7 @@ export default function ThemePicker({
           )
         })}
       </div>
-      <p className="mt-2 text-[11px] text-gray-600">
+      <p className="mt-2 text-xs text-muted">
         {active.blurb}
       </p>
     </section>

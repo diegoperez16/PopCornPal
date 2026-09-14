@@ -29,6 +29,8 @@ export type UserProfile = {
   bg_url: string | null
   bg_opacity: number | null
   bg_crop?: BackgroundCrop | null
+  /** Hogwarts house; null until sorted. */
+  house?: string | null
   created_at: string
 }
 
@@ -230,6 +232,21 @@ export function useUserProfilePage(
 
   const isOwnProfile = profile ? currentUser?.id === profile.id : false
 
+  // How their top ten is shown: the ranked list, or a compact shelf of
+  // posters. It is the same preference as on your own profile — a way of
+  // looking, remembered on this device.
+  const [topPicksView, setTopPicksViewState] = useState<'list' | 'shelf'>(() =>
+    localStorage.getItem('popcorn_top_picks_view') === 'shelf' ? 'shelf' : 'list'
+  )
+  const setTopPicksView = (view: 'list' | 'shelf') => {
+    setTopPicksViewState(view)
+    try {
+      localStorage.setItem('popcorn_top_picks_view', view)
+    } catch {
+      /* Private mode: the choice simply lasts for this visit. */
+    }
+  }
+
   return {
     profile,
     userBadges,
@@ -265,6 +282,8 @@ export function useUserProfilePage(
     followingListLoading,
     postsLoaded,
     recentActivityLoaded,
+    topPicksView,
+    setTopPicksView,
     creatorBadge,
     alphaBadge,
     regularBadges,

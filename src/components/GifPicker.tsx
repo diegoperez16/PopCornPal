@@ -1,7 +1,8 @@
 import { Grid } from '@giphy/react-components'
 import { GiphyFetch } from '@giphy/js-fetch-api'
-import { X, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
+import Sheet from './Sheet'
 
 // You'll need to get a free API key from https://developers.giphy.com/
 const GIPHY_API_KEY = import.meta.env.VITE_GIPHY_API_KEY || 'YOUR_API_KEY_HERE'
@@ -12,6 +13,7 @@ interface GifPickerProps {
   onClose: () => void
 }
 
+/** Renders its own sheet; mount it conditionally, no wrapper needed. */
 export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchKey, setSearchKey] = useState(0)
@@ -25,7 +27,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
         setContainerWidth(containerRef.current.offsetWidth)
       }
     }
-    
+
     updateWidth()
     window.addEventListener('resize', updateWidth)
     return () => window.removeEventListener('resize', updateWidth)
@@ -51,51 +53,34 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] sm:max-h-[80vh] overflow-hidden border border-gray-700 flex flex-col" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700 flex-shrink-0">
-          <h3 className="text-base sm:text-lg font-semibold text-white">Choose a GIF</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="p-3 sm:p-4 border-b border-gray-700 flex-shrink-0">
-          <form onSubmit={handleSearch} className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search for GIFs..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm sm:text-base"
-            />
-          </form>
-        </div>
-
-        {/* GIF Grid */}
-        <div 
-          ref={containerRef}
-          className="p-2 sm:p-4 overflow-y-auto flex-1"
-        >
-          {containerWidth > 0 && (
-            <Grid
-              width={containerWidth - (window.innerWidth < 640 ? 16 : 32)}
-              columns={getColumns()}
-              fetchGifs={fetchGifs}
-              onGifClick={(gif, e) => {
-                e.preventDefault()
-                onSelect(gif.images.original.url)
-                onClose()
-              }}
-              key={`${searchKey}-${searchTerm}`}
-            />
-          )}
-        </div>
+    <Sheet title="Choose a GIF" onClose={onClose} size="wide" bodyClassName="!px-0 !pb-0">
+      <form onSubmit={handleSearch} className="app-search px-5 pb-3">
+        <Search size={18} />
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search GIFs"
+          aria-label="Search GIFs"
+          enterKeyHint="search"
+          className="app-input"
+        />
+      </form>
+      <div ref={containerRef} className="min-h-[40dvh] px-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+        {containerWidth > 0 && (
+          <Grid
+            width={containerWidth}
+            columns={getColumns()}
+            fetchGifs={fetchGifs}
+            onGifClick={(gif, e) => {
+              e.preventDefault()
+              onSelect(gif.images.original.url)
+              onClose()
+            }}
+            key={`${searchKey}-${searchTerm}`}
+          />
+        )}
       </div>
+    </Sheet>
   )
 }

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
-  X, Download, Bell, BellOff, Wifi, Zap, Share2, Plus, Check,
+  Download, Bell, BellOff, Wifi, Share2, Plus, Check,
   ChevronRight, ChevronLeft, Smartphone, Heart, MessageCircle,
   Users, CornerDownLeft, ExternalLink, Compass, NotebookPen, Sparkles,
 } from 'lucide-react'
 import { useInstallPrompt } from '../hooks/useInstallPrompt'
 import { WELCOME_VERSION } from '../lib/welcomeVersion'
 import PalMark from './brand/PalMark'
+import Sheet from './Sheet'
 import ThemePicker from './ThemePicker'
 import {
   canUsePushNotifications,
@@ -33,6 +34,11 @@ interface WelcomeModalProps {
 
 type Step = 'welcome' | 'season' | 'install' | 'notifications'
 const STEPS: Step[] = ['welcome', 'season', 'install', 'notifications']
+
+const TILE = 'mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-line-soft bg-surface-strong'
+const HEADING = 'mb-2 text-2xl font-semibold tracking-tight text-gray-50'
+const BODY = 'text-sm leading-relaxed text-muted'
+const SPINNER = 'h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent'
 
 export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
   const [step, setStep] = useState<Step>('welcome')
@@ -79,87 +85,59 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[500] animate-in fade-in duration-200"
-        onClick={handleClose}
-      />
-
-      {/* Sheet — full-screen on mobile, centered card on desktop */}
-      <div className="fixed inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center z-[501] pointer-events-none">
-        <div className="pointer-events-auto w-full md:max-w-lg md:mx-4 bg-gray-900 border-t md:border border-gray-700/80 rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] animate-in slide-in-from-bottom-4 md:zoom-in-95 duration-300">
-
-          {/* Handle (mobile only) */}
-          <div className="md:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full bg-gray-700" />
-          </div>
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-4 pb-2 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              {!isFirst && (
-                <button onClick={goPrev} className="p-1.5 rounded-full text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              )}
-              <div className="flex gap-1.5">
-                {STEPS.map((s, i) => (
-                  <div
-                    key={s}
-                    className={`rounded-full transition-all duration-300 ${
-                      i === stepIndex ? 'w-5 h-2 bg-accent' : 'w-2 h-2 bg-gray-700'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-            <button onClick={handleClose} className="p-2 rounded-full text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
-              <X className="w-4 h-4" />
+    <Sheet
+      onClose={handleClose}
+      ariaLabel="Welcome to Popcorn Pal"
+      header={
+        <div className="flex items-center gap-2 pt-1">
+          {!isFirst && (
+            <button type="button" onClick={goPrev} className="app-icon-button -ml-2" aria-label="Back">
+              <ChevronLeft size={20} />
             </button>
-          </div>
-
-          {/* Step content */}
-          <div className="flex-1 overflow-y-auto px-6 pb-4">
-            {step === 'welcome' && <WelcomeStep />}
-            {step === 'season' && <SeasonStep />}
-            {step === 'install' && (
-              <InstallStep
-                isIOS={isIOS}
-                alreadyInstalled={isInstalled || isInStandaloneMode}
-                canPromptInstall={canPromptInstall}
-                onInstall={promptInstall}
+          )}
+          <div className="flex gap-1.5" aria-hidden="true">
+            {STEPS.map((s, i) => (
+              <div
+                key={s}
+                className={`h-2 rounded-full transition-all duration-200 ${
+                  i === stepIndex ? 'w-5 bg-accent' : 'w-2 bg-line-strong'
+                }`}
               />
-            )}
-            {step === 'notifications' && (
-              <NotificationsStep
-                permission={notifPermission}
-                subscribed={subscribed}
-                subscribing={subscribing}
-                canUse={canUsePushNotifications()}
-                onSubscribe={handleSubscribe}
-                onUnsubscribe={handleUnsubscribe}
-              />
-            )}
+            ))}
           </div>
-
-          {/* Footer */}
-          <div className="flex-shrink-0 px-6 pb-6 pt-2">
-            <button
-              onClick={goNext}
-              className="w-full py-3.5 rounded-2xl bg-accent hover:bg-accent-soft text-accent-on font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              {isLast ? (
-                <><Check className="w-4 h-4" /> Got it!</>
-              ) : (
-                <>Next <ChevronRight className="w-4 h-4" /></>
-              )}
-            </button>
-          </div>
-
         </div>
-      </div>
-    </>
+      }
+      footer={
+        <button type="button" onClick={goNext} className="app-button-primary w-full">
+          {isLast ? (
+            <><Check size={16} /> Got it!</>
+          ) : (
+            <>Next <ChevronRight size={16} /></>
+          )}
+        </button>
+      }
+    >
+      {step === 'welcome' && <WelcomeStep />}
+      {step === 'season' && <SeasonStep />}
+      {step === 'install' && (
+        <InstallStep
+          isIOS={isIOS}
+          alreadyInstalled={isInstalled || isInStandaloneMode}
+          canPromptInstall={canPromptInstall}
+          onInstall={promptInstall}
+        />
+      )}
+      {step === 'notifications' && (
+        <NotificationsStep
+          permission={notifPermission}
+          subscribed={subscribed}
+          subscribing={subscribing}
+          canUse={canUsePushNotifications()}
+          onSubscribe={handleSubscribe}
+          onUnsubscribe={handleUnsubscribe}
+        />
+      )}
+    </Sheet>
   )
 }
 
@@ -168,47 +146,47 @@ export default function WelcomeModal({ userId, onClose }: WelcomeModalProps) {
 function WelcomeStep() {
   const features = [
     {
-      icon: <Sparkles className="w-5 h-5 text-butter-400" />,
+      icon: <Sparkles size={20} className="text-butter-300" />,
       title: 'A whole new look',
       desc: 'Meet Poppy, our popcorn pal, and a design that finally feels like ours.',
     },
     {
-      icon: <Compass className="w-5 h-5 text-accent" />,
+      icon: <Compass size={20} className="text-accent" />,
       title: 'Hold the pal to navigate',
       desc: 'Press Poppy at the bottom, slide to where you want, let go. Tapping still works.',
     },
     {
-      icon: <NotebookPen className="w-5 h-5 text-butter-400" />,
+      icon: <NotebookPen size={20} className="text-butter-300" />,
       title: 'Room to write',
       desc: 'Notes grow as you type, and the keyboard no longer covers the save button.',
     },
     {
-      icon: <Wifi className="w-5 h-5 text-accent" />,
+      icon: <Wifi size={20} className="text-accent" />,
       title: 'Works offline',
       desc: 'Browse your feed and library, and log things, with no connection.',
     },
   ]
 
   return (
-    <div className="py-4">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-800 border border-gray-700">
-        <PalMark size={46} />
+    <div className="py-2">
+      <div className={TILE}>
+        <PalMark size={40} />
       </div>
-      <h2 className="text-2xl font-black text-white mb-2">Popcorn Pal got a redesign</h2>
-      <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+      <h2 className={HEADING}>Popcorn Pal got a redesign</h2>
+      <p className={`${BODY} mb-2`}>
         New look, a mascot, and a few things that were quietly annoying are fixed.
       </p>
-      <div className="grid grid-cols-1 gap-3">
+      <ul className="divide-y divide-line-soft">
         {features.map((f) => (
-          <div key={f.title} className="flex items-start gap-3 p-4 rounded-2xl border border-gray-700 bg-gray-800/50">
-            <div className="flex-shrink-0 mt-0.5">{f.icon}</div>
+          <li key={f.title} className="flex items-start gap-3 py-3">
+            <span className="mt-0.5 shrink-0">{f.icon}</span>
             <div>
-              <p className="font-semibold text-white text-sm">{f.title}</p>
-              <p className="text-gray-400 text-xs mt-0.5 leading-relaxed">{f.desc}</p>
+              <p className="text-sm font-semibold text-gray-50">{f.title}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted">{f.desc}</p>
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   )
 }
@@ -217,18 +195,18 @@ function WelcomeStep() {
 
 function SeasonStep() {
   return (
-    <div className="py-4">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-800 border border-gray-700">
-        <PalMark size={46} />
+    <div className="py-2">
+      <div className={TILE}>
+        <PalMark size={40} />
       </div>
-      <h2 className="text-2xl font-black text-white mb-2">Pick your season</h2>
-      <p className="text-gray-400 text-sm mb-5 leading-relaxed">
+      <h2 className={HEADING}>Pick your season</h2>
+      <p className={`${BODY} mb-5`}>
         The app repaints itself and Poppy dresses up. It is yours alone, so
         your friends keep whichever season they picked. Change it any time from
         your profile.
       </p>
       <ThemePicker heading={null} />
-      <p className="mt-4 text-xs text-gray-500 leading-relaxed">
+      <p className="mt-4 text-xs leading-relaxed text-muted">
         Cinema is the original look, kept exactly as it was.
       </p>
     </div>
@@ -257,109 +235,102 @@ function InstallStep({ isIOS, alreadyInstalled, canPromptInstall, onInstall }: I
 
   if (installed) {
     return (
-      <div className="py-8 text-center">
-        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/30">
-          <Check className="w-10 h-10 text-white" />
+      <div className="py-2">
+        <div className={TILE}>
+          <Smartphone size={28} className="text-accent" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">App installed!</h2>
-        <p className="text-gray-400 text-sm leading-relaxed">
+        <h2 className={HEADING}>App installed!</h2>
+        <p className={`${BODY} mb-4`}>
           PopcornPal is on your home screen. Open it from there for the full native experience — faster launch, offline support, and no browser UI.
         </p>
+        <div role="status" className="app-note app-note-ok flex items-center gap-2">
+          <Check size={18} className="shrink-0" />
+          <span className="font-semibold">Installed and ready</span>
+        </div>
       </div>
     )
   }
 
+  const iosSteps = [
+    {
+      icon: <Share2 size={18} className="shrink-0 text-muted" />,
+      step: '1',
+      text: 'Tap the Share button in Safari',
+      sub: 'The box with an arrow pointing up at the bottom of the screen',
+    },
+    {
+      icon: <Plus size={18} className="shrink-0 text-muted" />,
+      step: '2',
+      text: 'Tap "Add to Home Screen"',
+      sub: 'Scroll down in the share sheet to find it',
+    },
+    {
+      icon: <Check size={18} className="shrink-0 text-ok" />,
+      step: '3',
+      text: 'Tap "Add" — done!',
+      sub: 'PopcornPal will appear on your home screen like any other app',
+    },
+  ]
+
   return (
-    <div className="py-4">
-      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-900/30">
-        <Smartphone className="w-7 h-7 text-white" />
+    <div className="py-2">
+      <div className={TILE}>
+        <Smartphone size={28} className="text-accent" />
       </div>
-      <h2 className="text-2xl font-black text-white mb-1">Add to Home Screen</h2>
-      <p className="text-gray-400 text-sm mb-2 leading-relaxed">
+      <h2 className={HEADING}>Add to Home Screen</h2>
+      <p className={`${BODY} mb-4`}>
         "Install the app" just means adding PopcornPal to your home screen — no App Store needed. It opens full-screen like a native app and works offline.
       </p>
 
-      {/* Why bother callout */}
-      <div className="flex items-start gap-2.5 p-3 bg-gray-800/60 rounded-xl border border-gray-700/50 mb-5">
-        <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-gray-300 leading-relaxed">
-          Push notifications on iOS <span className="text-white font-semibold">require</span> the app to be on your home screen. Install now to unlock them.
-        </p>
+      <div role="status" className="app-note app-note-warn mb-5 text-xs">
+        Push notifications on iOS <span className="font-semibold">require</span> the app to be on your home screen. Install now to unlock them.
       </div>
 
       {isIOS ? (
-        /* iOS instructions */
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">How to install on iPhone / iPad</p>
-
-          {[
-            {
-              icon: <Share2 className="w-5 h-5 text-blue-400 flex-shrink-0" />,
-              step: '1',
-              text: 'Tap the Share button in Safari',
-              sub: 'The box with an arrow pointing up at the bottom of the screen',
-            },
-            {
-              icon: <Plus className="w-5 h-5 text-blue-400 flex-shrink-0" />,
-              step: '2',
-              text: 'Tap "Add to Home Screen"',
-              sub: 'Scroll down in the share sheet to find it',
-            },
-            {
-              icon: <Check className="w-5 h-5 text-green-400 flex-shrink-0" />,
-              step: '3',
-              text: 'Tap "Add" — done!',
-              sub: 'PopcornPal will appear on your home screen like any other app',
-            },
-          ].map((s) => (
-            <div key={s.step} className="flex items-start gap-3 p-3.5 bg-gray-800/60 rounded-2xl border border-gray-700/50">
-              <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-400">
-                {s.step}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  {s.icon}
-                  <p className="text-sm font-semibold text-white">{s.text}</p>
+        <div>
+          <h3 className="app-h2 mb-1">How to install on iPhone / iPad</h3>
+          <ul className="divide-y divide-line-soft">
+            {iosSteps.map((s) => (
+              <li key={s.step} className="flex items-start gap-3 py-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-strong text-xs font-semibold text-muted">
+                  {s.step}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {s.icon}
+                    <p className="text-sm font-semibold text-gray-50">{s.text}</p>
+                  </div>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted">{s.sub}</p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{s.sub}</p>
-              </div>
-            </div>
-          ))}
-
-          <div className="mt-3 p-3 bg-gray-800/40 rounded-xl border border-gray-700/30 flex items-center gap-2.5">
-            <ExternalLink className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Must be using <span className="text-white">Safari</span> — Chrome and Firefox on iOS don't support Add to Home Screen.
-            </p>
-          </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted">
+            <ExternalLink size={16} className="mt-0.5 shrink-0" />
+            <span>
+              Must be using <span className="font-medium text-gray-200">Safari</span> — Chrome and Firefox on iOS don't support Add to Home Screen.
+            </span>
+          </p>
         </div>
       ) : canPromptInstall ? (
-        /* Android / Chrome — one-tap install */
         <div className="space-y-4">
-          <div className="p-4 bg-gray-800/60 rounded-2xl border border-gray-700/50">
-            <p className="text-sm text-gray-300 leading-relaxed">
-              Your browser supports one-tap install. Tap the button below and PopcornPal will be added to your home screen automatically.
-            </p>
-          </div>
+          <p className={BODY}>
+            Your browser supports one-tap install. Tap the button below and PopcornPal will be added to your home screen automatically.
+          </p>
           <button
+            type="button"
             onClick={handleInstall}
             disabled={installing}
-            className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+            className="app-button-primary w-full"
           >
-            {installing
-              ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              : <Download className="w-4 h-4" />
-            }
+            {installing ? <span className={SPINNER} aria-hidden="true" /> : <Download size={16} />}
             Add to Home Screen
           </button>
         </div>
       ) : (
-        /* Already installed or no prompt */
-        <div className="p-4 bg-gray-800/60 rounded-2xl border border-gray-700/50">
-          <p className="text-sm text-gray-400 leading-relaxed">
-            Look for <span className="text-white font-medium">"Add to Home Screen"</span> or <span className="text-white font-medium">"Install App"</span> in your browser's menu (usually the three-dot menu at the top right).
-          </p>
-        </div>
+        <p className={BODY}>
+          Look for <span className="font-medium text-gray-200">"Add to Home Screen"</span> or <span className="font-medium text-gray-200">"Install App"</span> in your browser's menu (usually the three-dot menu at the top right).
+        </p>
       )}
     </div>
   )
@@ -378,83 +349,75 @@ interface NotificationsStepProps {
 
 function NotificationsStep({ permission, subscribed, subscribing, canUse, onSubscribe, onUnsubscribe }: NotificationsStepProps) {
   const notifTypes = [
-    { icon: <Heart className="w-4 h-4 text-red-400" />,           label: 'Likes',    desc: 'When someone likes your post' },
-    { icon: <MessageCircle className="w-4 h-4 text-blue-400" />,  label: 'Comments', desc: 'When someone comments on your post' },
-    { icon: <CornerDownLeft className="w-4 h-4 text-purple-400" />, label: 'Replies', desc: 'When someone replies to your comment' },
-    { icon: <Users className="w-4 h-4 text-green-400" />,          label: 'Follows',  desc: 'When someone follows you' },
+    { icon: <Heart size={16} />,           label: 'Likes',    desc: 'When someone likes your post' },
+    { icon: <MessageCircle size={16} />,   label: 'Comments', desc: 'When someone comments on your post' },
+    { icon: <CornerDownLeft size={16} />,  label: 'Replies',  desc: 'When someone replies to your comment' },
+    { icon: <Users size={16} />,           label: 'Follows',  desc: 'When someone follows you' },
   ]
 
   return (
-    <div className="py-4">
-      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center mb-4 shadow-lg shadow-purple-900/30">
-        <Bell className="w-7 h-7 text-white" />
+    <div className="py-2">
+      <div className={TILE}>
+        <Bell size={28} className="text-accent" />
       </div>
-      <h2 className="text-2xl font-black text-white mb-2">Stay in the loop</h2>
-      <p className="text-gray-400 text-sm mb-5 leading-relaxed">
+      <h2 className={HEADING}>Stay in the loop</h2>
+      <p className={`${BODY} mb-5`}>
         Get notified when people interact with your posts, even when the app is closed.
       </p>
 
-      <div className="grid grid-cols-2 gap-2 mb-5">
+      <div className="mb-5 grid grid-cols-2 gap-2">
         {notifTypes.map(n => (
-          <div key={n.label} className="flex items-center gap-2 p-3 bg-gray-800/60 rounded-xl border border-gray-700/50">
-            <div className="flex-shrink-0">{n.icon}</div>
+          <div key={n.label} className="flex items-start gap-2 rounded-xl border border-line-soft bg-surface-sunken p-3">
+            <span className="mt-0.5 shrink-0 text-muted">{n.icon}</span>
             <div>
-              <p className="text-xs font-semibold text-white">{n.label}</p>
-              <p className="text-[10px] text-gray-500 leading-tight">{n.desc}</p>
+              <p className="text-sm font-semibold text-gray-50">{n.label}</p>
+              <p className="text-xs leading-snug text-muted">{n.desc}</p>
             </div>
           </div>
         ))}
       </div>
 
       {!canUse ? (
-        <div className="p-4 bg-gray-800/60 rounded-2xl border border-gray-700/50">
-          <div className="flex items-start gap-3">
-            <Smartphone className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-gray-400 leading-relaxed">
-              Push notifications require the app to be installed. Go back to the previous step to add it to your home screen first.
-            </p>
-          </div>
+        <div role="status" className="app-note app-note-warn flex items-start gap-3">
+          <Smartphone size={18} className="mt-0.5 shrink-0" />
+          <p>
+            Push notifications require the app to be installed. Go back to the previous step to add it to your home screen first.
+          </p>
         </div>
       ) : permission === 'denied' ? (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
-          <div className="flex items-start gap-3">
-            <BellOff className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-red-400 mb-1">Notifications blocked</p>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                You've blocked notifications for this site. To re-enable, go to your browser or phone Settings and allow notifications for PopcornPal.
-              </p>
-            </div>
+        <div role="alert" className="app-note app-note-danger flex items-start gap-3">
+          <BellOff size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Notifications blocked</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              You've blocked notifications for this site. To re-enable, go to your browser or phone Settings and allow notifications for PopcornPal.
+            </p>
           </div>
         </div>
       ) : subscribed ? (
         <div className="space-y-3">
-          <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-3">
-            <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
-            <p className="text-sm text-green-400 font-semibold">Notifications are enabled!</p>
+          <div role="status" className="app-note app-note-ok flex items-center gap-3">
+            <Check size={18} className="shrink-0" />
+            <p className="font-semibold">Notifications are enabled!</p>
           </div>
           <button
+            type="button"
             onClick={onUnsubscribe}
             disabled={subscribing}
-            className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            className="app-button-secondary w-full"
           >
-            {subscribing
-              ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-              : <BellOff className="w-4 h-4" />
-            }
+            {subscribing ? <span className={SPINNER} aria-hidden="true" /> : <BellOff size={16} />}
             Turn off notifications
           </button>
         </div>
       ) : (
         <button
+          type="button"
           onClick={onSubscribe}
           disabled={subscribing}
-          className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-purple-900/30"
+          className="app-button-primary w-full"
         >
-          {subscribing
-            ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            : <Bell className="w-4 h-4" />
-          }
+          {subscribing ? <span className={SPINNER} aria-hidden="true" /> : <Bell size={16} />}
           Enable Notifications
         </button>
       )}

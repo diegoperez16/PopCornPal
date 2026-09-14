@@ -134,44 +134,44 @@ export default function NotificationBanner() {
   if (!visible || notifications.length === 0) return null
 
   return (
-    <div className="fixed top-20 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] space-y-2 animate-in slide-in-from-top-5">
+    <div className="fixed right-4 top-20 z-50 w-80 max-w-[calc(100vw-2rem)] space-y-2">
       {notifications.map((notif) => (
         <div
           key={notif.id}
-          className="bg-gray-800 border border-gray-700 rounded-lg p-4 shadow-xl"
+          className="app-panel rounded-2xl p-4 shadow-2xl"
         >
           <div className="flex items-start gap-3">
-            {/* Avatar */}
-            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+            <span className="app-avatar h-10 w-10 text-sm">
               {notif.from_profile.username.charAt(0).toUpperCase()}
-            </div>
+            </span>
 
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-white mb-2">
-                <span className="font-semibold">@{notif.from_profile.username}</span>
+            <div className="min-w-0 flex-1">
+              <p className="mb-2 text-sm text-gray-200">
+                <span className="font-semibold text-gray-50">@{notif.from_profile.username}</span>
                 {' '}started following you
               </p>
 
               {!notif.is_following_back ? (
                 <button
+                  type="button"
                   onClick={() => handleFollowBack(notif.from_user_id, notif.id)}
-                  className="flex items-center gap-2 bg-accent text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-all"
+                  className="app-button-primary app-button-sm"
                 >
-                  <UserPlus className="w-4 h-4" />
+                  <UserPlus size={16} />
                   Follow Back
                 </button>
               ) : (
-                <p className="text-xs text-gray-400">You're following each other</p>
+                <p className="text-xs text-muted">You're following each other</p>
               )}
             </div>
 
-            {/* Close button */}
             <button
+              type="button"
               onClick={() => handleDismiss(notif.id)}
-              className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              className="app-icon-button -mr-2 -mt-2"
+              aria-label="Dismiss"
             >
-              <X className="w-4 h-4" />
+              <X size={18} />
             </button>
           </div>
         </div>
@@ -179,8 +179,9 @@ export default function NotificationBanner() {
 
       {notifications.length > 1 && (
         <button
+          type="button"
           onClick={handleDismissAll}
-          className="w-full bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="app-button-secondary w-full"
         >
           Dismiss All
         </button>

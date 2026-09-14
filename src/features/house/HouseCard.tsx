@@ -75,7 +75,7 @@ export default function HouseCard({
       {thinking && (
         <div className="flex items-center gap-3 py-1">
           <Loader2 className="h-5 w-5 shrink-0 animate-spin text-accent" />
-          <p className="text-sm text-gray-300">
+          <p className="text-sm text-gray-200">
             The Sorting is reading your shelf…
           </p>
         </div>
@@ -85,15 +85,15 @@ export default function HouseCard({
         <div className="flex items-center gap-3">
           <Crest house={sorted.id} size={54} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-100">{sorted.name}</p>
-            <p className="mt-0.5 text-xs leading-snug text-gray-500">
+            <p className="text-sm font-semibold text-gray-50">{sorted.name}</p>
+            <p className="mt-0.5 text-xs leading-snug text-muted">
               {sorted.trait}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setPicking(true)}
-            className="min-h-11 shrink-0 text-xs font-semibold text-accent underline underline-offset-4"
+            className="app-button-ghost app-button-sm shrink-0"
           >
             Change
           </button>
@@ -105,14 +105,14 @@ export default function HouseCard({
           <div className="flex items-center gap-3">
             <Crest house={proposal.house.id} />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-100">
+              <p className="text-sm font-semibold text-gray-50">
                 The Sorting says {proposal.house.name}
               </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
+              <p className="mt-0.5 text-xs leading-relaxed text-muted">
                 {proposal.because}
               </p>
               {usedFallback && (
-                <p className="mt-1 text-[11px] text-gray-600">
+                <p className="mt-1 text-xs text-gray-500">
                   Sorted on this device — the Sorting could not be reached.
                 </p>
               )}
@@ -122,14 +122,14 @@ export default function HouseCard({
             <button
               type="button"
               onClick={() => choose(proposal.house.id)}
-              className="min-h-11 flex-1 rounded-xl bg-accent text-sm font-semibold text-accent-on"
+              className="app-button-primary flex-1"
             >
               That&rsquo;s me
             </button>
             <button
               type="button"
               onClick={() => setPicking(true)}
-              className="min-h-11 flex-1 rounded-xl border border-gray-700 text-sm font-semibold text-gray-300"
+              className="app-button-secondary flex-1"
             >
               Choose my own
             </button>
@@ -139,18 +139,18 @@ export default function HouseCard({
 
       {!sorted && !picking && !thinking && !proposal && (
         <div>
-          <p className="text-xs leading-relaxed text-gray-400">
+          <p className="text-sm leading-relaxed text-muted">
             {enoughShelf
               ? 'The Sorting reads what you have watched, played and read, and how you rate it.'
               : `The Sorting reads your shelf, and yours is still short. Log ${Math.max(1, SORTING_MINIMUM - shelfSize)} more and it will have something to go on — or pick for yourself.`}
           </p>
           {enoughShelf && (
-            <label className="mt-3 flex items-start gap-2 text-xs leading-snug text-gray-500">
+            <label className="mt-3 flex min-h-11 items-start gap-2 text-xs leading-snug text-muted">
               <input
                 type="checkbox"
                 checked={readNotes}
                 onChange={(event) => setReadNotes(event.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+                className="mt-0.5 h-4 w-4 shrink-0"
               />
               <span>
                 Also read my notes. They make the reason sharper, but your
@@ -164,7 +164,7 @@ export default function HouseCard({
                 type="button"
                 disabled={thinking}
                 onClick={() => void sort({ includeNotes: readNotes })}
-                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-accent-on disabled:opacity-60"
+                className="app-button-primary flex-1"
               >
                 {thinking ? (
                   <>
@@ -182,7 +182,7 @@ export default function HouseCard({
             <button
               type="button"
               onClick={() => setPicking(true)}
-              className="min-h-11 flex-1 rounded-xl border border-gray-700 text-sm font-semibold text-gray-300"
+              className="app-button-secondary flex-1"
             >
               Choose my own
             </button>
@@ -201,7 +201,7 @@ export default function HouseCard({
               setPicking(false)
               void sort({ includeNotes: readNotes })
             }}
-            className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-accent/60 bg-accent/10 text-sm font-semibold text-accent-soft disabled:opacity-60"
+            className="mb-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-accent/60 bg-accent/10 text-sm font-semibold text-accent-soft disabled:opacity-45"
           >
             {thinking ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Reading your shelf…</>
@@ -215,15 +215,12 @@ export default function HouseCard({
             <button
               key={option.id}
               type="button"
+              aria-pressed={option.id === house}
               onClick={() => choose(option.id)}
-              className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors ${
-                option.id === house
-                  ? 'border-accent bg-accent/10'
-                  : 'border-gray-700 hover:border-gray-600'
-              }`}
+              className="app-option justify-start py-2 text-left"
             >
               <Crest house={option.id} />
-              <span className="min-w-0 text-xs font-semibold text-gray-100">
+              <span className="min-w-0 text-xs font-semibold">
                 {option.name}
               </span>
             </button>

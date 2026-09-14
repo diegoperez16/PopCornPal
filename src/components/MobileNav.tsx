@@ -62,6 +62,7 @@ export default function MobileNav() {
     moved: boolean
     detach: () => void
   } | null>(null)
+  const wheel = useRef<HTMLElement>(null)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   // Touch devices emit a compatibility click at the press origin once a drag
   // ends. That lands on the launcher after a slide selection has already
@@ -72,7 +73,11 @@ export default function MobileNav() {
   const close = () => dialog.current?.close()
 
   const open = () => {
-    if (!dialog.current?.open) dialog.current?.showModal()
+    if (dialog.current?.open) return
+    dialog.current?.showModal()
+    // Nothing starts out looking chosen: focus rests on the wheel itself until
+    // you aim, or press an arrow key to walk the sectors.
+    wheel.current?.focus({ preventScroll: true })
   }
 
   const go = (path: string) => {
@@ -212,7 +217,12 @@ export default function MobileNav() {
           }
         }}
       >
-        <nav className="radial-wheel" aria-label="Main navigation">
+        <nav
+          ref={wheel}
+          tabIndex={-1}
+          className="radial-wheel"
+          aria-label="Main navigation"
+        >
           <svg
             viewBox="0 0 360 360"
             className="wheel-svg"
@@ -243,15 +253,18 @@ export default function MobileNav() {
                     void prefetchRouteModule(path)
                   }}
                 >
+                  {/* The sector is invisible; it is only the place you can
+                      tap. What you see is the icon and its name, which light
+                      up when you are aiming at them. */}
                   <path d={sectorPath(index)} />
                   <Icon
-                    size={24}
-                    strokeWidth={1.7}
-                    x={ix - 12}
-                    y={iy - 22}
+                    size={28}
+                    strokeWidth={1.6}
+                    x={ix - 14}
+                    y={iy - 26}
                     aria-hidden="true"
                   />
-                  <text x={ix} y={iy + 20} textAnchor="middle">
+                  <text x={ix} y={iy + 22} textAnchor="middle">
                     {label}
                   </text>
                 </a>

@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { X, RefreshCw, Pencil, Trash2, ArrowUp, Image as ImageIcon, MessageCircle, Heart } from 'lucide-react'
 import GifPicker from '../GifPicker'
+import AutoGrowTextarea from '../AutoGrowTextarea'
+import Sheet from '../Sheet'
 import { type Comment, formatTimeAgo, findImageLink } from './feedTypes'
 import UserAvatar from '../UserAvatar'
 import ProfileLink from '../ProfileLink'
@@ -61,10 +64,13 @@ export default function ThreadModal({
   onUploadReplyImage,
   onLikeComment,
 }: ThreadModalProps) {
+  // Only a Reply or Edit tap inside this sheet may focus a field. A target
+  // left over from the feed would otherwise raise the keyboard as the sheet
+  // opens, and the phone scrolls the page behind it.
+  const [focusField, setFocusField] = useState(false)
+
   const handleReplyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
-    e.target.style.height = 'auto'
-    e.target.style.height = `${e.target.scrollHeight}px`
     if (!replyImageUrl && !uploadingReplyImage) {
       const result = findImageLink(value)
       if (result) {
@@ -89,527 +95,429 @@ export default function ThreadModal({
     await refreshModal()
   }
 
-  return (
-    <>
-      <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        onClick={onClose}
-      >
-        <div
-          className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[75vh] md:max-h-[85vh] overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
+  const parentChain: Comment[] = []
+  {
+    let current = threadModalComment
+    const allCommentsForPost = allComments[threadModalPostId] || []
+    const commentsMap = new Map<string, Comment>()
+
+    const buildMap = (comments: Comment[]) => {
+      comments.forEach((c) => {
+        commentsMap.set(c.id, c)
+        if (c.replies) buildMap(c.replies)
+      })
+    }
+    buildMap(allCommentsForPost)
+
+    while (current.parent_comment_id) {
+      const parent = commentsMap.get(current.parent_comment_id)
+      if (parent) {
+        parentChain.unshift(parent)
+        current = parent
+      } else {
+        break
+      }
+    }
+  }
+
+  const renderEditor = (onSave: () => void) => (
+    <div className="mt-1">
+      <textarea
+        value={editText}
+        onChange={(e) => {
+          setEditText(e.target.value)
+          e.target.style.height = 'auto'
+          e.target.style.height = `${e.target.scrollHeight}px`
+        }}
+        rows={1}
+        aria-label="Edit your comment"
+        className="app-textarea overflow-hidden"
+        autoFocus={focusField}
+      />
+      <div className="mt-2 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => { setEditingCommentId(null); setEditText('') }}
+          className="app-button-ghost app-button-sm"
         >
-          {/* Modal Header */}
-          <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4 flex items-center justify-between z-10">
-            <h3 className="text-lg font-semibold text-white">Thread</h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation()
-                  refreshModal()
-                }}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
-                title="Refresh thread"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  onClose()
-                  onSetReplyingTo(null)
-                  setReplyText('')
-                  setReplyImageUrl('')
-                }}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-          </div>
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={!editText.trim()}
+          className="app-button-primary app-button-sm"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  )
 
-          {/* Modal Content */}
-          <div className="p-4 space-y-4">
-            {/* Parent Chain */}
-            {(() => {
-              const parentChain: Comment[] = []
-              let current = threadModalComment
-              const allCommentsForPost = allComments[threadModalPostId] || []
-              const commentsMap = new Map<string, Comment>()
+  // The footer composer targets the reply picked with "Reply" when it belongs
+  // to this thread, otherwise the focused comment.
+  const nestedTarget = threadModalComment.replies?.find((r) => r.id === replyingTo)
+  const target = nestedTarget ?? threadModalComment
+  const targetUsername = target.profiles.username
 
-              const buildMap = (comments: Comment[]) => {
-                comments.forEach((c) => {
-                  commentsMap.set(c.id, c)
-                  if (c.replies) buildMap(c.replies)
-                })
+  const replyComposer = (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-sm text-muted">
+          Replying to <span className="font-semibold text-gray-50">@{targetUsername}</span>
+        </span>
+        {nestedTarget && (
+          <button
+            type="button"
+            onClick={() => onSetReplyingTo(null)}
+            className="app-button-ghost app-button-sm -mr-2 shrink-0"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+      <div className="flex items-end gap-1 rounded-2xl border border-line-soft bg-surface-sunken p-2 transition-colors focus-within:border-butter-400">
+        <div className="min-w-0 flex-1">
+          <AutoGrowTextarea
+            key={target.id}
+            minRows={1}
+            maxRows={5}
+            value={replyText}
+            onChange={handleReplyChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !postingComment && replyText.trim()) {
+                e.preventDefault()
+                submitAndRefresh(target.id)
               }
-              buildMap(allCommentsForPost)
-
-              while (current.parent_comment_id) {
-                const parent = commentsMap.get(current.parent_comment_id)
-                if (parent) {
-                  parentChain.unshift(parent)
-                  current = parent
-                } else {
-                  break
-                }
-              }
-
-              return parentChain.map((parentComment) => (
-                <div key={parentComment.id} className="flex gap-3 opacity-60 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center flex-shrink-0 overflow-hidden min-w-0">
-                    <UserAvatar avatarUrl={parentComment.profiles.avatar_url} avatarCrop={parentComment.profiles.avatar_crop} username={parentComment.profiles.username} />
-                    {!parentComment.profiles.avatar_url && (
-                      <span className="text-white text-xs font-bold">
-                        {parentComment.profiles.username.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="bg-gray-800/30 rounded-lg p-3 min-w-0">
-                      <ProfileLink
-                        username={parentComment.profiles.username}
-                        className="text-sm font-semibold text-gray-300 hover:text-red-400 transition-colors inline-block mb-1 min-w-0"
-                        onClick={onClose}
-                      >
-                        @{parentComment.profiles.username}
-                      </ProfileLink>
-                      <p className="text-sm text-gray-400 break-words overflow-wrap-anywhere">{parentComment.content}</p>
-                      {parentComment.image_url && (
-                        <div className="mt-2">
-                          <img loading="lazy" decoding="async"
-                            src={parentComment.image_url}
-                            alt="Parent comment"
-                            className="max-w-full rounded-lg max-h-48 object-contain"
-                          />
-                        </div>
-                      )}
-                      <button
-                        onClick={() => onSetComment(parentComment)}
-                        className="text-xs text-blue-400 hover:text-blue-300 mt-2"
-                      >
-                        View this thread
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            })()}
-
-            {/* Focused Comment */}
-            <div className="flex gap-3 border-l-2 border-red-500 pl-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                <UserAvatar avatarUrl={threadModalComment.profiles.avatar_url} avatarCrop={threadModalComment.profiles.avatar_crop} username={threadModalComment.profiles.username} />
-                {!threadModalComment.profiles.avatar_url && (
-                  <span className="text-white text-sm font-bold">
-                    {threadModalComment.profiles.username.charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <ProfileLink
-                    username={threadModalComment.profiles.username}
-                    className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
-                    onClick={() => {
-                      onClose()
-                      onSetReplyingTo(null)
-                      setReplyText('')
-                      setReplyImageUrl('')
-                    }}
-                  >
-                    @{threadModalComment.profiles.username}
-                  </ProfileLink>
-
-                  {editingCommentId === threadModalComment.id ? (
-                    <div className="mt-1">
-                      <textarea
-                        value={editText}
-                        onChange={(e) => {
-                          setEditText(e.target.value)
-                          e.target.style.height = 'auto'
-                          e.target.style.height = `${e.target.scrollHeight}px`
-                        }}
-                        rows={1}
-                        className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
-                        autoFocus
-                      />
-                      <div className="flex gap-2 mt-2 justify-end">
-                        <button
-                          onClick={() => { setEditingCommentId(null); setEditText('') }}
-                          className="text-xs text-gray-400 hover:text-white px-2 py-1"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await onUpdateComment(threadModalComment.id, threadModalPostId)
-                            await refreshModal()
-                          }}
-                          disabled={!editText.trim()}
-                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg disabled:opacity-50"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-300">{threadModalComment.content}</p>
-                  )}
-
-                  {threadModalComment.image_url && !editingCommentId && (
-                    <div className="mt-3">
-                      <img loading="lazy" decoding="async"
-                        src={threadModalComment.image_url}
-                        alt="Comment attachment"
-                        className="max-w-full rounded-lg max-h-96 object-contain"
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 mt-2">
-                    <p className="text-xs text-gray-500">{formatTimeAgo(threadModalComment.created_at)}</p>
-                    {!editingCommentId && (
-                      <button
-                        onClick={() => onLikeComment(threadModalComment.id, threadModalPostId)}
-                        className={`text-xs flex items-center gap-1 transition-colors active:scale-95 ${
-                          threadModalComment.is_liked ? 'text-red-400' : 'text-gray-500 hover:text-red-400'
-                        }`}
-                      >
-                        <Heart className={`w-3 h-3 ${threadModalComment.is_liked ? 'fill-current' : ''}`} />
-                        {(threadModalComment.likes_count ?? 0) > 0 && <span>{threadModalComment.likes_count}</span>}
-                      </button>
-                    )}
-                    {currentUserId === threadModalComment.user_id && !editingCommentId && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setEditingCommentId(threadModalComment.id)
-                            setEditText(threadModalComment.content)
-                          }}
-                          className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
-                        >
-                          <Pencil className="w-3 h-3" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await onDeleteComment(threadModalComment.id, threadModalPostId)
-                            onClose()
-                          }}
-                          className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Reply to focused comment */}
-                {replyingTo === threadModalComment.id ? (
-                  <div className="mt-3">
-                    <div className="flex items-end gap-2 bg-gray-900/50 border border-gray-600 rounded-3xl p-2 relative transition-all focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
-                      <div className="flex-1 min-w-0">
-                        <textarea
-                          value={replyText}
-                          onChange={handleReplyChange}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey && !postingComment && replyText.trim()) {
-                              e.preventDefault()
-                              submitAndRefresh(threadModalComment.id)
-                            }
-                          }}
-                          placeholder={`Reply to @${threadModalComment.profiles.username}...`}
-                          rows={1}
-                          className="w-full bg-transparent border-none text-sm text-white placeholder-gray-500 focus:ring-0 resize-none max-h-32 py-2 px-2"
-                          autoFocus
-                        />
-                      </div>
-                      <div className="flex items-center gap-1 pb-1">
-                        <label
-                          htmlFor={`modal-reply-image-${threadModalComment.id}`}
-                          className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-gray-800 rounded-full cursor-pointer transition-colors"
-                          title="Upload Image"
-                        >
-                          <ImageIcon className="w-4 h-4" />
-                          <input
-                            type="file"
-                            accept="image/*,image/gif"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUploadReplyImage(f) }}
-                            className="hidden"
-                            id={`modal-reply-image-${threadModalComment.id}`}
-                          />
-                        </label>
-                        <button
-                          onClick={() => setShowModalReplyGifPicker(true)}
-                          className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-gray-800 rounded-full transition-colors font-bold text-[10px]"
-                          title="Add GIF"
-                        >
-                          <span className="border border-current rounded px-1">GIF</span>
-                        </button>
-                        <button
-                          onClick={() => submitAndRefresh(threadModalComment.id)}
-                          disabled={(!replyText.trim() && !replyImageUrl && !uploadingReplyImage) || postingComment}
-                          className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all disabled:opacity-50 disabled:scale-95 shadow-lg shadow-blue-500/20 ml-1"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {(replyImageUrl || uploadingReplyImage) && (
-                      <div className="mt-2 ml-2">
-                        {uploadingReplyImage ? (
-                          <div className="text-xs text-gray-400 flex items-center gap-2">
-                            <div className="w-3 h-3 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin"></div>
-                            Uploading image...
-                          </div>
-                        ) : (
-                          <div className="relative inline-block max-w-full group">
-                            <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700" />
-                            <button
-                              onClick={() => setReplyImageUrl('')}
-                              className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => onSetReplyingTo(threadModalComment.id)}
-                    className="mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    Reply to @{threadModalComment.profiles.username}
-                  </button>
-                )}
-
-                {/* All Replies */}
-                {threadModalComment.replies && threadModalComment.replies.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    {threadModalComment.replies.map((reply) => (
-                      <div key={reply.id} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          <UserAvatar avatarUrl={reply.profiles.avatar_url} avatarCrop={reply.profiles.avatar_crop} username={reply.profiles.username} />
-                          {!reply.profiles.avatar_url && (
-                            <span className="text-white text-xs font-bold">
-                              {reply.profiles.username.charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="bg-gray-800/30 rounded-lg p-3">
-                            <ProfileLink
-                              username={reply.profiles.username}
-                              className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
-                              onClick={onClose}
-                            >
-                              @{reply.profiles.username}
-                            </ProfileLink>
-
-                            {editingCommentId === reply.id ? (
-                              <div className="mt-1">
-                                <textarea
-                                  value={editText}
-                                  onChange={(e) => {
-                                    setEditText(e.target.value)
-                                    e.target.style.height = 'auto'
-                                    e.target.style.height = `${e.target.scrollHeight}px`
-                                  }}
-                                  rows={1}
-                                  className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
-                                  autoFocus
-                                />
-                                <div className="flex gap-2 mt-2 justify-end">
-                                  <button
-                                    onClick={() => { setEditingCommentId(null); setEditText('') }}
-                                    className="text-xs text-gray-400 hover:text-white px-2 py-1"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      await onUpdateComment(reply.id, threadModalPostId)
-                                      setTimeout(refreshModal, 500)
-                                    }}
-                                    disabled={!editText.trim()}
-                                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg disabled:opacity-50"
-                                  >
-                                    Save
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-gray-300">{reply.content}</p>
-                            )}
-
-                            {reply.image_url && !editingCommentId && (
-                              <div className="mt-2">
-                                <img loading="lazy" decoding="async"
-                                  src={reply.image_url}
-                                  alt="Reply attachment"
-                                  className="max-w-full rounded-lg max-h-64 object-contain"
-                                />
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-3 mt-2">
-                              <p className="text-xs text-gray-500">{formatTimeAgo(reply.created_at)}</p>
-                              {!editingCommentId && (
-                                <>
-                                  <button
-                                    onClick={() => onLikeComment(reply.id, threadModalPostId)}
-                                    className={`text-xs flex items-center gap-1 transition-colors active:scale-95 ${
-                                      reply.is_liked ? 'text-red-400' : 'text-gray-500 hover:text-red-400'
-                                    }`}
-                                  >
-                                    <Heart className={`w-3 h-3 ${reply.is_liked ? 'fill-current' : ''}`} />
-                                    {(reply.likes_count ?? 0) > 0 && <span>{reply.likes_count}</span>}
-                                  </button>
-                                  <button
-                                    onClick={() => onSetReplyingTo(reply.id)}
-                                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                                  >
-                                    Reply
-                                  </button>
-                                  {currentUserId === reply.user_id && (
-                                    <>
-                                      <button
-                                        onClick={() => { setEditingCommentId(reply.id); setEditText(reply.content) }}
-                                        className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
-                                      >
-                                        <Pencil className="w-3 h-3" />
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={async () => {
-                                          await onDeleteComment(reply.id, threadModalPostId)
-                                          setTimeout(refreshModal, 500)
-                                        }}
-                                        className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                        Delete
-                                      </button>
-                                    </>
-                                  )}
-                                  {reply.replies && reply.replies.length > 0 && (
-                                    <button
-                                      onClick={() => onSetComment(reply)}
-                                      className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
-                                    >
-                                      <MessageCircle className="w-3 h-3" />
-                                      {reply.replies.length} {reply.replies.length === 1 ? 'reply' : 'replies'}
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Reply input for this reply */}
-                          {replyingTo === reply.id && (
-                            <div className="mt-2">
-                              <div className="flex items-end gap-2 bg-gray-900/50 border border-gray-600 rounded-3xl p-2 relative transition-all focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
-                                <div className="flex-1 min-w-0">
-                                  <textarea
-                                    value={replyText}
-                                    onChange={handleReplyChange}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && !e.shiftKey && !postingComment && replyText.trim()) {
-                                        e.preventDefault()
-                                        submitAndRefresh(reply.id)
-                                      }
-                                    }}
-                                    placeholder={`Reply to @${reply.profiles.username}...`}
-                                    rows={1}
-                                    className="w-full bg-transparent border-none text-sm text-white placeholder-gray-500 focus:ring-0 resize-none max-h-32 py-2 px-2"
-                                    autoFocus
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1 pb-1">
-                                  <label
-                                    htmlFor={`modal-reply-image-${reply.id}`}
-                                    className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-gray-800 rounded-full cursor-pointer transition-colors"
-                                    title="Upload Image"
-                                  >
-                                    <ImageIcon className="w-4 h-4" />
-                                    <input
-                                      type="file"
-                                      accept="image/*,image/gif"
-                                      onChange={(e) => { const f = e.target.files?.[0]; if (f) onUploadReplyImage(f) }}
-                                      className="hidden"
-                                      id={`modal-reply-image-${reply.id}`}
-                                    />
-                                  </label>
-                                  <button
-                                    onClick={() => setShowModalReplyGifPicker(true)}
-                                    className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-gray-800 rounded-full transition-colors font-bold text-[10px]"
-                                    title="Add GIF"
-                                  >
-                                    <span className="border border-current rounded px-1">GIF</span>
-                                  </button>
-                                  <button
-                                    onClick={() => submitAndRefresh(reply.id)}
-                                    disabled={(!replyText.trim() && !replyImageUrl && !uploadingReplyImage) || postingComment}
-                                    className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all disabled:opacity-50 disabled:scale-95 shadow-lg shadow-blue-500/20 ml-1"
-                                  >
-                                    <ArrowUp className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {(replyImageUrl || uploadingReplyImage) && (
-                                <div className="mt-2 ml-2">
-                                  {uploadingReplyImage ? (
-                                    <div className="text-xs text-gray-400 flex items-center gap-2">
-                                      <div className="w-3 h-3 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin"></div>
-                                      Uploading image...
-                                    </div>
-                                  ) : (
-                                    <div className="relative inline-block max-w-full group">
-                                      <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700" />
-                                      <button
-                                        onClick={() => setReplyImageUrl('')}
-                                        className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+            }}
+            placeholder="Write a reply..."
+            aria-label={`Reply to @${targetUsername}`}
+            enterKeyHint="send"
+            className="w-full border-none bg-transparent px-2 py-2.5 text-base leading-6 text-gray-50 placeholder:text-gray-500 focus:outline-none focus:ring-0"
+            autoFocus={focusField && replyingTo === target.id}
+          />
+        </div>
+        <div className="flex shrink-0 items-center">
+          <label
+            htmlFor="modal-reply-image"
+            aria-label="Upload an image"
+            className="app-icon-button cursor-pointer"
+          >
+            <ImageIcon size={18} />
+            <input
+              type="file"
+              accept="image/*,image/gif"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUploadReplyImage(f) }}
+              className="hidden"
+              id="modal-reply-image"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowModalReplyGifPicker(true)}
+            aria-label="Add a GIF"
+            className="app-icon-button"
+          >
+            <span className="rounded border border-current px-1 text-xs font-bold leading-5">GIF</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => submitAndRefresh(target.id)}
+            disabled={(!replyText.trim() && !replyImageUrl && !uploadingReplyImage) || postingComment}
+            aria-label="Send"
+            className="app-button-primary !min-h-11 !w-11 !p-0 !rounded-full ml-1"
+          >
+            <ArrowUp size={18} />
+          </button>
         </div>
       </div>
 
-      {/* Modal Reply GIF Picker */}
-      {showModalReplyGifPicker && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4"
-          onClick={() => setShowModalReplyGifPicker(false)}
-        >
-          <GifPicker
-            onSelect={(gifUrl) => {
-              setReplyImageUrl(gifUrl)
-              setShowModalReplyGifPicker(false)
-            }}
-            onClose={() => setShowModalReplyGifPicker(false)}
-          />
+      {(replyImageUrl || uploadingReplyImage) && (
+        <div className="mt-2">
+          {uploadingReplyImage ? (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
+              Uploading image...
+            </div>
+          ) : (
+            <div className="flex items-start gap-1">
+              <img loading="lazy" decoding="async" src={replyImageUrl} alt="Reply attachment" className="h-auto w-auto min-w-0 max-w-full max-h-20 rounded-lg border border-line-soft object-contain" />
+              <button
+                type="button"
+                onClick={() => setReplyImageUrl('')}
+                aria-label="Remove image"
+                className="app-icon-button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
         </div>
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      <Sheet
+        size="wide"
+        ariaLabel="Thread"
+        onClose={onClose}
+        header={
+          <div className="flex items-center gap-1">
+            <h2 className="text-lg font-semibold leading-snug tracking-tight text-gray-50">Thread</h2>
+            <button
+              type="button"
+              onClick={() => refreshModal()}
+              aria-label="Refresh thread"
+              className="app-icon-button"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
+        }
+        footer={replyComposer}
+      >
+        <div className="space-y-4">
+          {/* Parent Chain */}
+          {parentChain.map((parentComment) => (
+            <div key={parentComment.id} className="flex min-w-0 gap-3 opacity-60">
+              <span className="app-avatar h-8 w-8 text-xs">
+                <UserAvatar avatarUrl={parentComment.profiles.avatar_url} avatarCrop={parentComment.profiles.avatar_crop} username={parentComment.profiles.username} />
+                {!parentComment.profiles.avatar_url && (
+                  <span>{parentComment.profiles.username.charAt(0).toUpperCase()}</span>
+                )}
+              </span>
+              <div className="min-w-0 flex-1 rounded-xl bg-surface-sunken p-3">
+                <ProfileLink
+                  username={parentComment.profiles.username}
+                  className="mb-1 inline-block text-sm font-semibold text-gray-50 transition-colors hover:text-accent-soft"
+                  onClick={onClose}
+                >
+                  @{parentComment.profiles.username}
+                </ProfileLink>
+                <p className="break-words text-sm text-gray-200">{parentComment.content}</p>
+                {parentComment.image_url && (
+                  <img loading="lazy" decoding="async"
+                    src={parentComment.image_url}
+                    alt="Parent comment"
+                    className="mt-2 max-h-48 max-w-full rounded-lg object-contain"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => onSetComment(parentComment)}
+                  className="app-button-ghost app-button-sm -ml-4 mt-1 text-accent-soft"
+                >
+                  View this thread
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Focused Comment */}
+          <div className="rounded-xl bg-accent/10 p-1 ring-1 ring-accent/30">
+            <div className="flex gap-3">
+              <span className="app-avatar h-10 w-10 text-sm">
+                <UserAvatar avatarUrl={threadModalComment.profiles.avatar_url} avatarCrop={threadModalComment.profiles.avatar_crop} username={threadModalComment.profiles.username} />
+                {!threadModalComment.profiles.avatar_url && (
+                  <span>{threadModalComment.profiles.username.charAt(0).toUpperCase()}</span>
+                )}
+              </span>
+              <div className="min-w-0 flex-1 rounded-xl bg-surface-sunken p-3">
+                <ProfileLink
+                  username={threadModalComment.profiles.username}
+                  className="mb-1 inline-block text-sm font-semibold text-gray-50 transition-colors hover:text-accent-soft"
+                  onClick={() => {
+                    onClose()
+                    onSetReplyingTo(null)
+                    setReplyText('')
+                    setReplyImageUrl('')
+                  }}
+                >
+                  @{threadModalComment.profiles.username}
+                </ProfileLink>
+
+                {editingCommentId === threadModalComment.id ? (
+                  renderEditor(async () => {
+                    await onUpdateComment(threadModalComment.id, threadModalPostId)
+                    await refreshModal()
+                  })
+                ) : (
+                  <p className="whitespace-pre-wrap break-words text-sm text-gray-200">{threadModalComment.content}</p>
+                )}
+
+                {threadModalComment.image_url && !editingCommentId && (
+                  <img loading="lazy" decoding="async"
+                    src={threadModalComment.image_url}
+                    alt="Comment attachment"
+                    className="mt-3 max-h-96 max-w-full rounded-lg object-contain"
+                  />
+                )}
+
+                <div className="-mb-2 -ml-2 mt-1 flex flex-wrap items-center gap-x-1">
+                  <span className="px-2 text-xs text-muted">{formatTimeAgo(threadModalComment.created_at)}</span>
+                  {!editingCommentId && (
+                    <button
+                      type="button"
+                      onClick={() => onLikeComment(threadModalComment.id, threadModalPostId)}
+                      aria-pressed={threadModalComment.is_liked}
+                      aria-label={threadModalComment.is_liked ? 'Unlike comment' : 'Like comment'}
+                      className={`flex min-h-11 items-center gap-1 px-2 text-xs font-semibold tabular-nums transition-colors ${
+                        threadModalComment.is_liked ? 'text-accent-soft' : 'text-muted hover:text-gray-50'
+                      }`}
+                    >
+                      <Heart size={14} className={threadModalComment.is_liked ? 'fill-current' : ''} />
+                      {(threadModalComment.likes_count ?? 0) > 0 && <span>{threadModalComment.likes_count}</span>}
+                    </button>
+                  )}
+                  {currentUserId === threadModalComment.user_id && !editingCommentId && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFocusField(true)
+                          setEditingCommentId(threadModalComment.id)
+                          setEditText(threadModalComment.content)
+                        }}
+                        className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-gray-50"
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onDeleteComment(threadModalComment.id, threadModalPostId)
+                          onClose()
+                        }}
+                        className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-danger"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* All Replies */}
+          {threadModalComment.replies && threadModalComment.replies.length > 0 && (
+            <div className="ml-4 space-y-3 border-l border-line-soft pl-3">
+              {threadModalComment.replies.map((reply) => (
+                <div key={reply.id} className="flex gap-3">
+                  <span className="app-avatar h-8 w-8 text-xs">
+                    <UserAvatar avatarUrl={reply.profiles.avatar_url} avatarCrop={reply.profiles.avatar_crop} username={reply.profiles.username} />
+                    {!reply.profiles.avatar_url && (
+                      <span>{reply.profiles.username.charAt(0).toUpperCase()}</span>
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="rounded-xl bg-surface-sunken p-3">
+                      <ProfileLink
+                        username={reply.profiles.username}
+                        className="mb-1 inline-block text-sm font-semibold text-gray-50 transition-colors hover:text-accent-soft"
+                        onClick={onClose}
+                      >
+                        @{reply.profiles.username}
+                      </ProfileLink>
+
+                      {editingCommentId === reply.id ? (
+                        renderEditor(async () => {
+                          await onUpdateComment(reply.id, threadModalPostId)
+                          setTimeout(refreshModal, 500)
+                        })
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words text-sm text-gray-200">{reply.content}</p>
+                      )}
+
+                      {reply.image_url && !editingCommentId && (
+                        <img loading="lazy" decoding="async"
+                          src={reply.image_url}
+                          alt="Reply attachment"
+                          className="mt-2 max-h-64 max-w-full rounded-lg object-contain"
+                        />
+                      )}
+
+                      <div className="-mb-2 -ml-2 mt-1 flex flex-wrap items-center gap-x-1">
+                        <span className="px-2 text-xs text-muted">{formatTimeAgo(reply.created_at)}</span>
+                        {!editingCommentId && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onLikeComment(reply.id, threadModalPostId)}
+                              aria-pressed={reply.is_liked}
+                              aria-label={reply.is_liked ? 'Unlike comment' : 'Like comment'}
+                              className={`flex min-h-11 items-center gap-1 px-2 text-xs font-semibold tabular-nums transition-colors ${
+                                reply.is_liked ? 'text-accent-soft' : 'text-muted hover:text-gray-50'
+                              }`}
+                            >
+                              <Heart size={14} className={reply.is_liked ? 'fill-current' : ''} />
+                              {(reply.likes_count ?? 0) > 0 && <span>{reply.likes_count}</span>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setFocusField(true); onSetReplyingTo(reply.id) }}
+                              className="min-h-11 px-2 text-xs font-semibold text-accent-soft"
+                            >
+                              Reply
+                            </button>
+                            {currentUserId === reply.user_id && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => { setFocusField(true); setEditingCommentId(reply.id); setEditText(reply.content) }}
+                                  className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-gray-50"
+                                >
+                                  <Pencil size={14} />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await onDeleteComment(reply.id, threadModalPostId)
+                                    setTimeout(refreshModal, 500)
+                                  }}
+                                  className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-danger"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                            {reply.replies && reply.replies.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => onSetComment(reply)}
+                                className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-gray-50"
+                              >
+                                <MessageCircle size={14} />
+                                {reply.replies.length} {reply.replies.length === 1 ? 'reply' : 'replies'}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Sheet>
+
+      {/* Modal Reply GIF Picker (renders its own sheet) */}
+      {showModalReplyGifPicker && (
+        <GifPicker
+          onSelect={(gifUrl) => {
+            setReplyImageUrl(gifUrl)
+            setShowModalReplyGifPicker(false)
+          }}
+          onClose={() => setShowModalReplyGifPicker(false)}
+        />
       )}
     </>
   )

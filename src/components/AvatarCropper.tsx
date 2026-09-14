@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, Check, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { Check, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 import type { AvatarCrop } from '../lib/supabase'
+import Sheet from './Sheet'
 
 interface AvatarCropperProps {
   imageSrc: string
@@ -22,7 +23,7 @@ export default function AvatarCropper({
   const [dragMode, setDragMode] = useState<'mouse' | 'touch' | null>(null)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [imageLoaded, setImageLoaded] = useState(false)
-  
+
   const modalRef = useRef<HTMLDivElement | null>(null)
   const cropAreaRef = useRef<HTMLDivElement | null>(null)
   const dragStartRef = useRef(dragStart)
@@ -192,187 +193,146 @@ export default function AvatarCropper({
     }
   }, [handleWheel])
 
+  const preview = {
+    backgroundImage: `url(${imageSrc})`,
+    backgroundSize: `${cropData.scale}%`,
+    backgroundPosition: `${cropData.x}% ${cropData.y}%`,
+    backgroundRepeat: 'no-repeat',
+  }
+
   return (
-    <div
-      ref={modalRef}
-      className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-black/95 sm:bg-black/90 sm:backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-hidden"
-      style={{ touchAction: isDragging ? 'none' : 'auto' }}
-    >
-      {/* Main Container */}
-      <div className="flex flex-col w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
-        
-        {/* Header */}
-        <div className="flex-none flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900">
-          <h3 className="text-lg font-bold text-white">
-            Crop Profile Picture
-          </h3>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="p-2 -mr-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Crop Area */}
-        <div className="flex-1 relative bg-black/60 p-6 sm:p-8">
-          {!imageLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center z-50">
-              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )}
-
-          {/* Crop Preview Container */}
-          <div className="flex flex-col items-center gap-6">
-            {/* Circular Crop Area */}
-            <div
-              ref={cropAreaRef}
-              className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl cursor-move select-none"
-              style={{ touchAction: 'none' }}
-              onMouseDown={handleMouseDown}
-              onTouchStart={handleTouchStart}
+    // A drag that runs past the picture must not count as a tap on the
+    // backdrop, so this sheet only closes from its buttons and Escape.
+    <Sheet
+      title="Crop profile picture"
+      onClose={onCancel}
+      dismissOnBackdrop={false}
+      footer={
+        <div className="space-y-4">
+          {/* Zoom */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleZoom(-10)}
+              className="app-icon-button"
+              aria-label="Zoom out"
             >
-              {/* Image */}
-              <div
-                className="absolute inset-0 transition-transform duration-75"
-                style={{
-                  backgroundImage: `url(${imageSrc})`,
-                  backgroundSize: `${cropData.scale}%`,
-                  backgroundPosition: `${cropData.x}% ${cropData.y}%`,
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
+              <ZoomOut size={18} />
+            </button>
+            <input
+              type="range"
+              min="100"
+              max="300"
+              value={cropData.scale}
+              aria-label="Zoom"
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10)
+                setCropData(prev => ({ ...prev, scale: val }))
+              }}
+              className="min-w-0 flex-1"
+            />
+            <button
+              type="button"
+              onClick={() => handleZoom(10)}
+              className="app-icon-button"
+              aria-label="Zoom in"
+            >
+              <ZoomIn size={18} />
+            </button>
+            <span className="w-12 text-right text-xs tabular-nums text-muted">{cropData.scale}%</span>
+          </div>
 
-              {/* Overlay Grid */}
-              <div className="absolute inset-0 pointer-events-none opacity-30">
-                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/50"></div>
-                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/50"></div>
-              </div>
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="app-icon-button"
+              aria-label="Reset crop"
+            >
+              <RotateCcw size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="app-button-secondary flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleComplete}
+              className="app-button-primary flex-1"
+            >
+              <Check size={16} />
+              Apply
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div
+        ref={modalRef}
+        className="relative"
+        style={{ touchAction: isDragging ? 'none' : 'auto' }}
+      >
+        {!imageLoaded && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          </div>
+        )}
 
-              {/* Drag indicator */}
-              {isDragging && (
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                  <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs text-white font-medium">
-                    Dragging...
-                  </div>
+        <div className="flex flex-col items-center gap-6 py-2">
+          {/* Circular crop area */}
+          <div
+            ref={cropAreaRef}
+            className="relative h-64 w-64 cursor-move select-none overflow-hidden rounded-full border-4 border-line-soft sm:h-72 sm:w-72"
+            style={{ touchAction: 'none' }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          >
+            <div
+              className="absolute inset-0 transition-transform duration-75"
+              style={preview}
+            />
+
+            {/* Crosshair */}
+            <div className="pointer-events-none absolute inset-0 opacity-30">
+              <div className="absolute inset-x-0 top-1/2 h-px bg-gray-50/50" />
+              <div className="absolute inset-y-0 left-1/2 w-px bg-gray-50/50" />
+            </div>
+
+            {isDragging && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900/20">
+                <div className="rounded-lg bg-gray-900/70 px-3 py-1.5 text-xs font-medium text-gray-50 backdrop-blur-sm">
+                  Dragging…
                 </div>
-              )}
-            </div>
-
-            {/* Mini Preview */}
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <div
-                  className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-700 shadow-lg mx-auto"
-                  style={{
-                    backgroundImage: `url(${imageSrc})`,
-                    backgroundSize: `${cropData.scale}%`,
-                    backgroundPosition: `${cropData.x}% ${cropData.y}%`,
-                    backgroundRepeat: 'no-repeat',
-                  }}
-                />
-                <p className="text-[10px] text-gray-500 mt-1">Large</p>
               </div>
-              <div className="text-center">
-                <div
-                  className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-700 shadow-lg mx-auto"
-                  style={{
-                    backgroundImage: `url(${imageSrc})`,
-                    backgroundSize: `${cropData.scale}%`,
-                    backgroundPosition: `${cropData.x}% ${cropData.y}%`,
-                    backgroundRepeat: 'no-repeat',
-                  }}
-                />
-                <p className="text-[10px] text-gray-500 mt-1">Medium</p>
-              </div>
-              <div className="text-center">
-                <div
-                  className="w-6 h-6 rounded-full overflow-hidden border border-gray-700 shadow-lg mx-auto"
-                  style={{
-                    backgroundImage: `url(${imageSrc})`,
-                    backgroundSize: `${cropData.scale}%`,
-                    backgroundPosition: `${cropData.x}% ${cropData.y}%`,
-                    backgroundRepeat: 'no-repeat',
-                  }}
-                />
-                <p className="text-[10px] text-gray-500 mt-1">Small</p>
-              </div>
-            </div>
-
-            {/* Instructions */}
-            <p className="text-xs text-gray-500 text-center">
-              Drag to reposition • Scroll or use slider to zoom
-            </p>
+            )}
           </div>
-        </div>
 
-        {/* Bottom Toolbar */}
-        <div className="flex-none bg-gray-900 border-t border-gray-800 p-4">
-          <div className="flex flex-col gap-4">
-            
-            {/* Zoom Controls */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => handleZoom(-10)}
-                className="text-gray-500 hover:text-white transition-colors p-1.5 hover:bg-gray-800 rounded-lg"
-                aria-label="Zoom out"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <input
-                type="range"
-                min="100"
-                max="300"
-                value={cropData.scale}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10)
-                  setCropData(prev => ({ ...prev, scale: val }))
-                }}
-                className="flex-1 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-red-500"
-              />
-              <button
-                type="button"
-                onClick={() => handleZoom(10)}
-                className="text-gray-500 hover:text-white transition-colors p-1.5 hover:bg-gray-800 rounded-lg"
-                aria-label="Zoom in"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <span className="text-xs text-gray-400 w-12 text-right">{cropData.scale}%</span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="p-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 hover:text-white transition-colors"
-                aria-label="Reset"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 font-medium transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleComplete}
-                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl transition-colors shadow-lg shadow-red-900/20 flex items-center justify-center gap-2 text-sm"
-              >
-                <Check className="w-4 h-4" />
-                Apply
-              </button>
-            </div>
+          {/* How it reads at every size */}
+          <div className="flex items-end gap-4">
+            {[
+              { label: 'Large', size: 'h-16 w-16 border-2' },
+              { label: 'Medium', size: 'h-10 w-10 border-2' },
+              { label: 'Small', size: 'h-6 w-6 border' },
+            ].map(({ label, size }) => (
+              <div key={label} className="text-center">
+                <div
+                  className={`mx-auto overflow-hidden rounded-full border-line-soft ${size}`}
+                  style={preview}
+                />
+                <p className="mt-1 text-xs text-muted">{label}</p>
+              </div>
+            ))}
           </div>
-        </div>
 
+          <p className="text-center text-xs text-muted">
+            Drag to reposition · Scroll or use the slider to zoom
+          </p>
+        </div>
       </div>
-    </div>
+    </Sheet>
   )
 }

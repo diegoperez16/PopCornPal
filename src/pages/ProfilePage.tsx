@@ -1,6 +1,31 @@
-import { Film, Tv, Gamepad2, Book, Calendar, Edit2, X, Trash2, Camera, LogOut, Sparkles, Crown, Beaker, Search, Settings2, Check, GripVertical, Plus, Share2, ListPlus, Pencil } from 'lucide-react'
-import DecimalRating from '../components/DecimalRating'
+import { Link } from 'react-router-dom'
+import {
+  Book,
+  Calendar,
+  Camera,
+  Check,
+  ChevronRight,
+  Film,
+  GalleryHorizontal,
+  Gamepad2,
+  GripVertical,
+  ListOrdered,
+  ListPlus,
+  Lock,
+  LogOut,
+  Pencil,
+  Plus,
+  Search,
+  Share2,
+  Sparkles,
+  Trash2,
+  Tv,
+  X,
+} from 'lucide-react'
 import PalMark from '../components/brand/PalMark'
+import Sheet from '../components/Sheet'
+import RatingField from '../components/RatingField'
+import NoteField from '../components/NoteField'
 import VerdictMark from '../features/verdict/VerdictMark'
 import HouseRing from '../features/house/HouseRing'
 import HouseCard from '../features/house/HouseCard'
@@ -9,15 +34,21 @@ import ThemePicker from '../components/ThemePicker'
 import SectionHeader from '../features/profile/SectionHeader'
 import PillTabs from '../features/profile/PillTabs'
 import AuroraBanner from '../features/profile/AuroraBanner'
+import PeopleListSheet from '../features/profile/PeopleListSheet'
+import BadgeRow, { BadgeMedal } from '../features/profile/BadgeRow'
+import { sortBadges } from '../features/profile/badges'
 import Reveal from '../components/motion/Reveal'
-
-import { addedYearOf, collectUniqueMedia, parseYearFilter } from '../features/library/libraryModel'
+import { addedYearOf, collectUniqueMedia, parseYearFilter, statusLabel } from '../features/library/libraryModel'
 import { isCustomList, labelForList, LIST_TITLE_MAX } from '../features/profile/favoriteLists'
 import GifPicker from '../components/GifPicker'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import ImageCropper from '../components/ImageCropper'
 import AvatarCropper from '../components/AvatarCropper'
 import { useProfilePage } from '../hooks/useProfilePage'
+
+const ENTRY_STATUSES = ['completed', 'in-progress', 'planned', 'logged'] as const
+const TYPE_NAMES: Record<string, string> = { movie: 'Movie', show: 'Show', game: 'Game', book: 'Book' }
+const TYPE_ICONS = { movie: Film, show: Tv, game: Gamepad2, book: Book } as const
 
 export default function ProfilePage() {
   const {
@@ -57,8 +88,6 @@ export default function ProfilePage() {
     profileBgUrl,
     profileBgOpacity,
     setProfileBgOpacity,
-    showBgGifPicker,
-    setShowBgGifPicker,
     showGifPickerModal,
     setShowGifPickerModal,
     uploadedBgImage,
@@ -82,8 +111,6 @@ export default function ProfilePage() {
     editNotes,
     setEditNotes,
     draggedFavIndex,
-    selectedFavoriteId,
-    setSelectedFavoriteId,
     showMediaSelector,
     setShowMediaSelector,
     mediaSearchQuery,
@@ -95,21 +122,21 @@ export default function ProfilePage() {
     mediaYears,
     isManagingFavorites,
     setIsManagingFavorites,
+    topPicksView,
+    setTopPicksView,
     recentActivityRef,
     profileBgRef,
     isDesktop,
-    carouselRef,
-    progressBarRef,
-    progressContainerRef,
-    creatorBadge,
-    alphaBadge,
-    regularBadges,
     cropperUserPreview,
-    colorEffects,
     followersCount,
     followingCount,
+    peopleSheet,
+    setPeopleSheet,
+    followersList,
+    followingList,
+    peopleListLoading,
+    toggleFollow,
     updateProfile,
-    openPeopleTab,
     handleSignOut,
     handleSaveProfile,
     handleBgUpload,
@@ -146,899 +173,798 @@ export default function ProfilePage() {
     navigate,
   } = useProfilePage()
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'movie': return Film
-      case 'show': return Tv
-      case 'game': return Gamepad2
-      case 'book': return Book
-      default: return Film
-    }
-  }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return ''
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
-
   if (initialLoading) {
     return <ProfileSkeleton />
   }
 
   if (!user || !profile) return null
 
+  const avatarSrc = uploadedAvatar || avatarUrl || profile.avatar_url
+  const avatarFallback = profile.username.charAt(0).toUpperCase()
+  const avatarImage = avatarSrc ? (
+    pendingAvatarGifCrop ? (
+      <div
+        className="h-full w-full"
+        style={{
+          backgroundImage: `url(${avatarSrc})`,
+          backgroundSize: `${pendingAvatarGifCrop.scale}%`,
+          backgroundPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
+          backgroundRepeat: 'no-repeat',
+        }}
+      />
+    ) : (
+      <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+    )
+  ) : (
+    avatarFallback
+  )
+
+  const bannerSrc = pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl || ''
+  const bannerCrop = (pendingBgImage || originalBgImageUrl) ? (isDesktop ? desktopCropData : mobileCropData) : null
+  const bannerStyle = {
+    objectFit: 'cover' as const,
+    objectPosition: bannerCrop ? `${bannerCrop.x}% ${bannerCrop.y}%` : 'center',
+    transform: bannerCrop ? `scale(${Math.max(1, bannerCrop.scale / 100)})` : 'none',
+    transformOrigin: bannerCrop ? `${bannerCrop.x}% ${bannerCrop.y}%` : 'center',
+    opacity: (profileBgOpacity ?? 80) / 100,
+  }
+
+  const closeEditor = () => {
+    setIsEditing(false)
+    setUploadedAvatar(null)
+    if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
+  }
+
+  const activity = entries.filter((entry) => entry.status !== 'logged')
+  const shownEntries = activity.filter((entry) => statusFilter === 'all' || entry.status === statusFilter)
+  const countOf = (status: string) => activity.filter((entry) => entry.status === status).length
+
   return (
+    <div className="app-page">
+      <main className="mx-auto max-w-3xl px-5 pt-4 sm:pt-6">
 
-    <div className="app-page text-white">
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-
-        {/* Profile Header — banner + avatar overlap */}
-        <div className="mb-6">
-          {/* Banner */}
+        {/* ── Header ── */}
+        <div className="mb-8">
           <div
             ref={profileHeaderRef}
-            className="relative h-40 sm:h-52 overflow-hidden rounded-2xl ring-1 ring-white/5"
+            className="relative h-40 overflow-hidden rounded-2xl border border-line-soft sm:h-52"
           >
-            {(pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl) ? (
+            {bannerSrc ? (
               <div ref={profileBgRef} className="absolute inset-0 z-0">
-                {(() => {
-                  const activeCropData = (pendingBgImage || originalBgImageUrl)
-                    ? (isDesktop ? desktopCropData : mobileCropData)
-                    : null
-                  return (
-                    <img
-                      src={pendingBgImage || originalBgImageUrl || uploadedBgImage || profileBgUrl || ''}
-                      alt=""
-                      draggable={false}
-                      className="w-full h-full"
-                      style={{
-                        objectFit: 'cover',
-                        objectPosition: activeCropData ? `${activeCropData.x}% ${activeCropData.y}%` : 'center',
-                        transform: activeCropData ? `scale(${Math.max(1, activeCropData.scale / 100)})` : 'none',
-                        transformOrigin: activeCropData ? `${activeCropData.x}% ${activeCropData.y}%` : 'center',
-                        opacity: (profileBgOpacity ?? 80) / 100,
-                      }}
-                    />
-                  )
-                })()}
+                <img src={bannerSrc} alt="" draggable={false} className="h-full w-full" style={bannerStyle} />
               </div>
             ) : (
               <AuroraBanner />
             )}
-            {/* Bottom fade */}
-            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-900/60 to-transparent z-10 pointer-events-none" />
-            {/* Edit bg button */}
-            {!isEditing && !showBgGifPicker && (
-              <button
-                onClick={() => setShowBgGifPicker(true)}
-                className="absolute top-3 right-3 z-20 p-2 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full text-white/70 hover:text-white transition-all"
-                title="Edit Profile Background"
-              >
-                <Camera className="w-4 h-4" />
-              </button>
-            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-bg/60 to-transparent" />
           </div>
 
-          {/* Avatar + action buttons */}
-          <div className="px-1 sm:px-2 -mt-10 sm:-mt-14 relative z-20">
-            <div className="flex items-end justify-between">
-              {/* Avatar with permanent camera badge */}
+          <div className="relative z-20 -mt-10 px-1 sm:-mt-14 sm:px-2">
+            <div className="flex items-end justify-between gap-3">
               <div className="relative">
                 <HouseRing house={profile.house} beast>
-                <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-gray-900 overflow-hidden bg-gray-700 flex items-center justify-center text-3xl sm:text-4xl font-bold shadow-lg shadow-black/40">
-                  {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
-                    pendingAvatarGifCrop ? (
-                      <div
-                        className="w-full h-full"
-                        style={{
-                          backgroundImage: `url(${uploadedAvatar || avatarUrl || profile.avatar_url})`,
-                          backgroundSize: `${pendingAvatarGifCrop.scale}%`,
-                          backgroundPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
-                          backgroundRepeat: 'no-repeat',
-                        }}
-                      />
-                    ) : (
-                      <img
-                        src={uploadedAvatar || avatarUrl || profile.avatar_url || ''}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                          e.currentTarget.parentElement!.innerHTML = profile.username.charAt(0).toUpperCase()
-                        }}
-                      />
-                    )
-                  ) : (
-                    profile.username.charAt(0).toUpperCase()
-                  )}
-                </div>
-                {/* Camera badge — always visible */}
+                  <div className="app-avatar h-20 w-20 border-4 border-bg text-3xl sm:h-28 sm:w-28 sm:text-4xl">
+                    {avatarImage}
+                  </div>
                 </HouseRing>
+              </div>
+
+              {/* Sits clear of the banner's bottom edge; only the avatar overlaps it. */}
+              <div className="flex translate-y-2 items-center gap-1">
+                {profile.is_admin && (
+                  <button type="button" onClick={() => navigate('/admin/badges')} aria-label="Badge control" className="app-icon-button">
+                    <Sparkles size={18} />
+                  </button>
+                )}
                 <button
-                  onClick={() => setIsEditing(true)}
-                  className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1 p-1.5 bg-gray-900 hover:bg-gray-700 border border-gray-700 rounded-full shadow-md transition-all"
-                  title="Edit profile"
+                  type="button"
+                  onClick={handleShareProfile}
+                  className={`app-button-secondary app-button-sm rounded-full ${
+                    shareStatus === 'failed' ? 'text-danger' : shareStatus === 'idle' ? '' : 'text-butter-300'
+                  }`}
                 >
-                  <Camera className="w-3 h-3 text-gray-300" />
+                  {shareStatus === 'idle' ? <Share2 size={16} /> : <Check size={16} />}
+                  {shareStatus === 'idle' ? 'Share' : shareStatus === 'copied' ? 'Link copied' : shareStatus === 'shared' ? 'Shared' : 'Copy failed'}
+                </button>
+                <button type="button" onClick={() => setIsEditing(true)} aria-label="Edit profile" className="app-icon-button">
+                  <Pencil size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  <h2 className="name-shine text-[27px] font-bold leading-none tracking-tight">@{profile.username}</h2>
+                  {profile.full_name && <p className="text-sm text-muted">{profile.full_name}</p>}
+                </div>
+                <p className="mt-2 text-[15px] leading-relaxed text-gray-200">
+                  {profile.bio ? profile.bio : <span className="italic text-muted">No bio yet.</span>}
+                </p>
+              </div>
+
+              <div className="flex gap-5">
+                <button type="button" onClick={() => setPeopleSheet('followers')} className="group min-h-11 text-left">
+                  <span className="text-base font-bold tabular-nums text-gray-50 transition-colors group-hover:text-accent-soft">{followersCount}</span>
+                  <span className="ml-1.5 text-sm text-muted">Followers</span>
+                </button>
+                <button type="button" onClick={() => setPeopleSheet('following')} className="group min-h-11 text-left">
+                  <span className="text-base font-bold tabular-nums text-gray-50 transition-colors group-hover:text-accent-soft">{followingCount}</span>
+                  <span className="ml-1.5 text-sm text-muted">Following</span>
                 </button>
               </div>
 
-              {/* Action buttons */}
-              {!showBgGifPicker && (
-                <div className="flex items-center gap-2 pb-1">
-                  {profile.is_admin && (
-                    <button
-                      onClick={() => navigate('/admin/badges')}
-                      className="p-2 hover:bg-purple-600/20 rounded-full transition-colors text-purple-400 hover:text-purple-300 border border-purple-500/30"
-                      title="Admin Badge Panel"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                    </button>
-                  )}
-                  {/* The link this makes opens for anyone, account or not. */}
-                  <button
-                    onClick={handleShareProfile}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-all ${
-                      shareStatus === 'idle'
-                        ? 'border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white'
-                        : shareStatus === 'failed'
-                          ? 'border-red-500/40 bg-red-500/10 text-red-300'
-                          : 'border-butter-400/50 bg-butter-400/15 text-butter-300'
-                    }`}
-                    title="Share your profile"
-                  >
-                    {shareStatus === 'idle' ? <Share2 className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-                    <span className="hidden sm:inline">
-                      {shareStatus === 'idle'
-                        ? 'Share'
-                        : shareStatus === 'copied'
-                          ? 'Link copied'
-                          : shareStatus === 'shared'
-                            ? 'Shared'
-                            : 'Copy failed'}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="p-2 bg-gray-800/80 hover:bg-gray-700 border border-gray-700 rounded-full transition-all text-gray-300 hover:text-white"
-                    title="Edit Profile"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+              <BadgeRow badges={userBadges} />
             </div>
-
-            {/* Name, bio, badges — always visible */}
-            {!showBgGifPicker && (
-              <div className="mt-3 space-y-4">
-                <div>
-                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                    <h2 className="name-shine text-[27px] font-bold leading-none tracking-tight">@{profile.username}</h2>
-                    {profile.full_name && (
-                      <p className="text-sm text-gray-500">{profile.full_name}</p>
-                    )}
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                    {profile.bio ? profile.bio : <span className="text-gray-500 italic">No bio yet.</span>}
-                  </p>
-                </div>
-
-                {/* Followers sit with the identity; the shelf numbers below are
-                    a different kind of fact and get their own strip. */}
-                <div className="flex gap-5">
-                  <button onClick={() => openPeopleTab('followers')} className="group text-left">
-                    <span className="text-base font-bold tabular-nums text-white transition-colors group-hover:text-accent">{followersCount}</span>
-                    <span className="ml-1.5 text-sm text-gray-500">Followers</span>
-                  </button>
-                  <button onClick={() => openPeopleTab('following')} className="group text-left">
-                    <span className="text-base font-bold tabular-nums text-white transition-colors group-hover:text-accent">{followingCount}</span>
-                    <span className="ml-1.5 text-sm text-gray-500">Following</span>
-                  </button>
-                </div>
-
-                {/* Badges */}
-                {userBadges.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {creatorBadge && (
-                      <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(246,205,102,0.5)] ring-2 ring-butter-400/40">
-                        {creatorBadge.badges?.gif_url ? (
-                          <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}>
-                            <img loading="lazy" decoding="async" src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500" />
-                        )}
-                        <div className="relative px-3 py-1 flex items-center gap-1.5">
-                          <Crown className="w-3 h-3 text-yellow-300" />
-                          <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">CREATOR</span>
-                        </div>
-                      </div>
-                    )}
-                    {alphaBadge && (
-                      <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(34,211,238,0.6)] ring-2 ring-cyan-500/40">
-                        {alphaBadge.badges?.gif_url ? (
-                          <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}>
-                            <img loading="lazy" decoding="async" src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500" />
-                        )}
-                        <div className="relative px-3 py-1 flex items-center gap-1.5">
-                          <Beaker className="w-3 h-3 text-cyan-300" />
-                          <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">ALPHA TESTER</span>
-                        </div>
-                      </div>
-                    )}
-                    {regularBadges.map((userBadge) => {
-                      const badge = userBadge.badges!
-                      const effects = colorEffects[badge.color] || { gradient: 'from-gray-600 via-gray-500 to-gray-400', glow: 'shadow-gray-500/50' }
-                      return (
-                        <div key={userBadge.id} className={`relative overflow-hidden rounded-full shadow-sm ${effects.glow} hover:scale-105 transition-transform`}>
-                          {badge.gif_url ? (
-                            <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}>
-                              <img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <div className={`absolute inset-0 bg-gradient-to-br ${effects.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }} />
-                          )}
-                          <div className="relative px-3 py-1 flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                            <span className="text-xs font-bold text-white tracking-wide uppercase drop-shadow-lg">{badge.name}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Background editor (inline, triggered by bg camera button) */}
-            {showBgGifPicker && (
-              <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="p-4 bg-gray-900/80 rounded-2xl border border-butter-400/30">
-                  <h4 className="font-semibold text-butter-400 mb-3 text-sm">Edit Background</h4>
-                  <input ref={bgFileInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <button type="button" onClick={() => bgFileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-full text-xs transition-colors">
-                      <Camera className="w-3.5 h-3.5" /> Upload
-                    </button>
-                    <button type="button" onClick={handleBgUrl} className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-full text-xs transition-colors">
-                      <Film className="w-3.5 h-3.5" /> URL
-                    </button>
-                    <button type="button" onClick={() => setShowGifPickerModal(true)} className="flex items-center gap-2 px-3 py-1.5 bg-butter-400/15 hover:bg-butter-400/25 border border-butter-400/50 rounded-full text-xs transition-colors">
-                      <Sparkles className="w-3.5 h-3.5" /> GIFs
-                    </button>
-                    {(pendingBgImage || uploadedBgImage || profileBgUrl || originalBgImageUrl || imageToCrop) && (
-                      <button type="button" onClick={handleRemoveBg} className="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-full text-xs transition-colors">
-                        <X className="w-3.5 h-3.5" /> Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-medium text-gray-400">Opacity</label>
-                      <span className="text-xs text-gray-500">{profileBgOpacity}%</span>
-                    </div>
-                    <input type="range" min={10} max={100} value={profileBgOpacity} onChange={e => setProfileBgOpacity(Number(e.target.value))} className="w-full" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setShowBgGifPicker(false); handleSaveProfile() }} disabled={savingProfile} className="flex-1 bg-accent text-white font-semibold px-4 py-2 rounded-full text-sm transition-all disabled:opacity-50">
-                      {savingProfile ? 'Saving...' : 'Save'}
-                    </button>
-                    <button onClick={() => { setShowBgGifPicker(false); setProfileBgOpacity(profile?.bg_opacity ?? 80); if (bgFileInputRef.current) bgFileInputRef.current.value = '' }} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-full text-sm transition-colors">
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* ── EDIT PROFILE MODAL ───────────────────── */}
-        {isEditing && (
-          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-gray-900 border border-gray-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 flex-shrink-0">
-                <h3 className="font-bold text-white">Edit Profile</h3>
-                <button
-                  onClick={() => { setIsEditing(false); setUploadedAvatar(null); if (avatarFileInputRef.current) avatarFileInputRef.current.value = '' }}
-                  className="p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto">
-                <div className="p-5 space-y-6">
-
-                  {/* Avatar */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Profile Picture</p>
-                    <input ref={avatarFileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-xl font-bold flex-shrink-0">
-                        {(uploadedAvatar || avatarUrl || profile.avatar_url) ? (
-                          pendingAvatarGifCrop ? (
-                            <div
-                              className="w-full h-full"
-                              style={{
-                                backgroundImage: `url(${uploadedAvatar || avatarUrl || profile.avatar_url})`,
-                                backgroundSize: `${pendingAvatarGifCrop.scale}%`,
-                                backgroundPosition: `${pendingAvatarGifCrop.x}% ${pendingAvatarGifCrop.y}%`,
-                                backgroundRepeat: 'no-repeat',
-                              }}
-                            />
-                          ) : (
-                            <img loading="lazy" decoding="async" src={uploadedAvatar || avatarUrl || profile.avatar_url || ''} alt="" className="w-full h-full object-cover" />
-                          )
-                        ) : (
-                          profile.username.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => avatarFileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-full text-xs transition-colors">
-                          <Camera className="w-3.5 h-3.5" /> Upload
-                        </button>
-                        <button type="button" onClick={handleAvatarUrl} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-full text-xs transition-colors">
-                          <Film className="w-3.5 h-3.5" /> URL
-                        </button>
-                        <button type="button" onClick={() => setShowAvatarGifPicker(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 rounded-full text-xs transition-colors">
-                          <Sparkles className="w-3.5 h-3.5" /> GIFs
-                        </button>
-                        {(uploadedAvatar || avatarUrl) && (
-                          <button type="button" onClick={handleRemoveAvatar} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-full text-xs transition-colors">
-                            <X className="w-3.5 h-3.5" /> Remove
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Username */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Username</p>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">@</span>
-                      <input
-                        type="text"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                        maxLength={20}
-                        className={`w-full pl-8 pr-4 py-2.5 bg-gray-800/60 border rounded-xl text-white placeholder-gray-500 focus:outline-none text-sm ${usernameError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-gray-500'}`}
-                        placeholder="username"
-                      />
-                    </div>
-                    {usernameError && <p className="text-red-400 text-xs mt-1.5">{usernameError}</p>}
-                  </div>
-
-                  {/* Name & Bio */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Info</p>
-                    <div className="space-y-3">
-                      <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-2.5 bg-gray-800/60 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 text-sm" placeholder="Full name" />
-                      <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full px-4 py-2.5 bg-gray-800/60 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 text-sm resize-none" placeholder="Bio" />
-                    </div>
-                  </div>
-
-                  {/* Badges */}
-                  {availableBadges.filter(b => !b.admin_only).length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Badges</p>
-                        <span className="text-xs text-gray-600">{selectedBadgeIds.length}/5</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {availableBadges.filter(badge => !badge.admin_only).map((badge) => {
-                          const isSelected = selectedBadgeIds.includes(badge.id)
-                          return (
-                            <button key={badge.id} type="button" onClick={() => { if (isSelected) { setSelectedBadgeIds(selectedBadgeIds.filter(id => id !== badge.id)) } else if (selectedBadgeIds.length < 5) { setSelectedBadgeIds([...selectedBadgeIds, badge.id]) } }} className={`relative px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isSelected ? 'ring-2 ring-white/60 scale-105' : 'opacity-60 hover:opacity-100'}`} disabled={!isSelected && selectedBadgeIds.length >= 5}>
-                              <div className={`absolute inset-0 rounded-full bg-${badge.color}`} />
-                              <span className="relative z-10 text-white">{badge.name}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {userBadges.some(ub => ub.badges?.admin_only) && (
-                        <p className="text-xs text-purple-400 mt-2 flex items-center gap-1.5"><span>✨</span> You have admin-only badges</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Theme. The house is not here: it is something the profile
-                      says about you, so it lives on the page itself. */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Preferences</p>
-                    <div className="space-y-6 bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
-                      <ThemePicker />
-                    </div>
-                  </div>
-
-                  {/* Sign Out (Mobile only) */}
-                  <div className="pt-2 md:hidden">
-                    <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 py-3 bg-gray-800/50 hover:bg-red-500/10 text-gray-400 hover:text-red-400 rounded-xl transition-colors border border-gray-800 hover:border-red-500/20">
-                      <LogOut className="w-4 h-4" /> <span className="text-sm font-semibold">Sign Out</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="flex-shrink-0 px-5 py-4 border-t border-gray-800 space-y-3">
-                {saveError && (
-                  <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs">
-                    {saveError}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button onClick={() => { setIsEditing(false); setUploadedAvatar(null); if (avatarFileInputRef.current) avatarFileInputRef.current.value = '' }} className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-full text-sm text-gray-300 transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={handleSaveProfile} disabled={savingProfile} className="flex-1 bg-accent text-white font-semibold py-2.5 rounded-full text-sm transition-all disabled:opacity-50">
-                    {savingProfile ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Your house, on the page where visitors and you can both see it —
-            choosing one is part of the profile, not a setting to go hunting
-            for. Renders only in the Wizarding season. */}
+        {/* Your house, only in the Wizarding season */}
         <Reveal className="mb-8">
-          <HouseCard
-            house={profile.house}
-            entries={entries}
-            onChoose={(house) => void updateProfile({ house })}
-          />
+          <HouseCard house={profile.house} entries={entries} onChoose={(house) => void updateProfile({ house })} />
         </Reveal>
 
-        {/* --- FAVORITES SHELF ---
-            The season picker used to sit above this, which meant the profile
-            opened on a preference control before it said anything about you;
-            it now lives in the edit sheet. */}
-        <Reveal className="mb-8">
-
+        {/* ── Top picks: a ranked ten with a hero at number one ── */}
+        <Reveal className="mb-10">
           <SectionHeader
-            title="Top Picks"
+            title="Top picks"
             count={favorites.length}
             action={
-              <div className="flex shrink-0 items-center gap-2">
-              {isManagingFavorites && favorites.length < 10 && (
-                <button
-                  onClick={() => setShowMediaSelector(true)}
-                  className="text-xs bg-accent hover:bg-accent-soft text-white border border-butter-400/50 px-3 py-1.5 rounded-full flex items-center gap-2 transition-colors animate-in fade-in shadow"
-                >
-                  <Plus className="w-3 h-3" /> Add
+              favorites.length < 10 ? (
+                <button type="button" onClick={() => setShowMediaSelector(true)} className="app-button-primary app-button-sm shrink-0">
+                  <Plus size={16} /> Add
                 </button>
-              )}
-              <button
-                onClick={() => {
-                  setIsManagingFavorites(!isManagingFavorites)
-                  setSelectedFavoriteId(null)
-                }}
-                className={`
-                  text-xs px-3 py-1.5 rounded-full flex items-center gap-2 transition-all border
-                  ${isManagingFavorites
-                    ? 'bg-butter-400 hover:bg-butter-300 text-ink border-butter-400/50 shadow'
-                    : 'bg-gray-800 hover:bg-gray-700 text-gray-400 border-gray-700'}
-                `}
-              >
-                {isManagingFavorites ? (
-                  <>
-                    Done <Check className="w-3 h-3" />
-                  </>
-                ) : (
-                  <>
-                    <Settings2 className="w-3 h-3" /> Manage
-                  </>
-                )}
-              </button>
-              </div>
+              ) : undefined
             }
           />
 
           <div className="mb-3 space-y-2">
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
-                <PillTabs
-                  ariaLabel="Which top ten"
-                  value={favoriteList}
-                  onChange={setFavoriteList}
-                  tabs={favoriteTabs}
-                />
+                <PillTabs ariaLabel="Which top ten" value={favoriteList} onChange={setFavoriteList} tabs={favoriteTabs} />
               </div>
-              {/* A shelf you name yourself: "Favorite Spider-Man movies". */}
-              <button
-                onClick={startNewList}
-                title="New list"
-                aria-label="New list"
-                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-700 bg-gray-800/60 px-3 text-xs font-semibold text-gray-400 transition-colors hover:border-butter-400/50 hover:text-butter-300"
-              >
-                <ListPlus className="h-3.5 w-3.5" />
+              <button type="button" onClick={startNewList} aria-label="New list" className="app-button-ghost app-button-sm shrink-0">
+                <ListPlus size={16} />
                 <span className="hidden sm:inline">New list</span>
               </button>
             </div>
 
+            {/* How to look at the list, and, in the ranked view, how to rearrange it. */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="app-segmented !gap-0.5 !p-0.5" role="group" aria-label="Top picks layout">
+                <button
+                  type="button"
+                  aria-pressed={topPicksView === 'list'}
+                  onClick={() => setTopPicksView('list')}
+                  className="!min-h-10 !px-3 !text-[13px]"
+                >
+                  <ListOrdered size={16} aria-hidden="true" /> List
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={topPicksView === 'shelf'}
+                  onClick={() => setTopPicksView('shelf')}
+                  className="!min-h-10 !px-3 !text-[13px]"
+                >
+                  <GalleryHorizontal size={16} aria-hidden="true" /> Shelf
+                </button>
+              </div>
+              {favorites.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsManagingFavorites(!isManagingFavorites)}
+                  className={isManagingFavorites ? 'app-button-primary app-button-sm' : 'app-button-secondary app-button-sm'}
+                >
+                  {isManagingFavorites ? <><Check size={16} /> Done</> : <><Pencil size={16} /> Edit</>}
+                </button>
+              )}
+            </div>
+
             {listDraft && (
-              <div className="flex items-center gap-2 rounded-2xl border border-butter-400/30 bg-gray-900/60 p-2">
+              <div className="flex gap-2">
                 <input
                   autoFocus
                   value={listDraft.title}
                   maxLength={LIST_TITLE_MAX}
+                  aria-label={listDraft.mode === 'create' ? 'New list name' : 'List name'}
+                  enterKeyHint="done"
                   onChange={(e) => setListDraft({ ...listDraft, title: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void submitListDraft()
                     if (e.key === 'Escape') cancelListDraft()
                   }}
                   placeholder={listDraft.mode === 'create' ? 'Favorite Spider-Man movies' : 'Rename this list'}
-                  className="min-w-0 flex-1 bg-transparent px-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                  className="app-input min-w-0 flex-1"
                 />
-                <button
-                  onClick={() => void submitListDraft()}
-                  disabled={!listDraft.title.trim()}
-                  className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity disabled:opacity-40"
-                >
+                <button type="button" onClick={() => void submitListDraft()} disabled={!listDraft.title.trim()} className="app-button-primary app-button-sm">
                   {listDraft.mode === 'create' ? 'Create' : 'Save'}
                 </button>
-                <button
-                  onClick={cancelListDraft}
-                  className="rounded-full border border-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white"
-                >
+                <button type="button" onClick={cancelListDraft} className="app-button-ghost app-button-sm">
                   Cancel
                 </button>
               </div>
             )}
 
-            {/* Renaming and deleting belong to the list you are looking at, so
-                they only appear once you are standing on one. */}
             {isCustomList(favoriteList) && !listDraft && (
-              <div className="flex items-center gap-2 px-1">
-                <span className="truncate text-xs text-gray-500">
-                  {labelForList(favoriteList, customLists)}
-                </span>
-                <span aria-hidden="true" className="h-px flex-1 bg-gray-800" />
-                <button
-                  onClick={() => startRenameList(favoriteList)}
-                  className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-white"
-                >
-                  <Pencil className="h-3 w-3" /> Rename
+              <div className="flex items-center gap-1">
+                <span className="truncate text-xs text-muted">{labelForList(favoriteList, customLists)}</span>
+                <span aria-hidden="true" className="h-px min-w-4 flex-1 bg-line-soft" />
+                <button type="button" onClick={() => startRenameList(favoriteList)} className="app-button-ghost app-button-sm">
+                  <Pencil size={14} /> Rename
                 </button>
-                <button
-                  onClick={() => void handleDeleteList(favoriteList)}
-                  className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-400"
-                >
-                  <Trash2 className="h-3 w-3" /> Delete
+                <button type="button" onClick={() => void handleDeleteList(favoriteList)} className="app-button-ghost app-button-sm hover:text-danger">
+                  <Trash2 size={14} /> Delete
                 </button>
               </div>
             )}
           </div>
 
-          {/* Favorites Grid / Carousel Container */}
-          <div className={`
-            bg-gray-900/40 border-y border-gray-800/50 rounded-3xl sm:rounded-2xl sm:border transition-colors duration-300
-            ${isManagingFavorites ? 'bg-gray-900/60 border-red-500/20 p-4' : 'p-4 sm:p-8'}
-          `}>
-            <div
+          {favorites.length === 0 ? (
+            <div className="app-empty">
+              <div className="flex justify-center"><PalMark size={56} /></div>
+              <h3 className="mt-3">Nothing on this list yet</h3>
+              <p>Ten titles you would defend to the end. Start with one.</p>
+              <button type="button" onClick={() => setShowMediaSelector(true)} className="app-button-primary mt-5">
+                <Plus size={16} /> Add a title
+              </button>
+            </div>
+          ) : topPicksView === 'shelf' ? (
+            <ol
               className={
                 isManagingFavorites
-                  ? "grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 w-full justify-items-center"
-                  : "flex gap-6 px-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden max-w-full w-full min-w-0"
+                  ? 'grid grid-cols-3 gap-x-3 gap-y-4 pt-3 sm:grid-cols-4 md:grid-cols-5'
+                  : 'no-scrollbar -mx-5 flex gap-3 overflow-x-auto px-5 pb-1 pt-3'
               }
-              ref={carouselRef}
-              style={{ overflowX: isManagingFavorites ? 'visible' : 'auto' }}
+              aria-label={`${labelForList(favoriteList, customLists)} top ten`}
             >
-              {favorites.length === 0 ? (
-                <div className="flex-1 flex items-center col-span-full justify-center py-8">
-                  <div className="text-gray-500 text-center">
-                    <div className="mb-3 flex justify-center opacity-90">
-                      <PalMark size={52} />
-                    </div>
-                    <p className="mb-2 italic">No favorites yet.</p>
-                    <button
-                      onClick={() => {
-                        setIsManagingFavorites(true)
-                        setShowMediaSelector(true)
-                      }}
-                      className="text-butter-400 hover:text-butter-300 text-sm font-medium underline underline-offset-4"
-                    >
-                      Start your collection
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                favorites.map((fav, index) => {
-                const isSelected = selectedFavoriteId === fav.id
-
-                const draggableProps = {
-                  draggable: isManagingFavorites && isSelected,
-                  onDragStart: (e: React.DragEvent) => {
-                    if (isManagingFavorites && isSelected) {
-                      handleDragStart(index)
-                    } else {
-                      e.preventDefault()
-                    }
-                  },
-                  onDragEnd: handleDragEnd,
-                }
-
+              {favorites.map((fav, index) => {
+                const entry = fav.media_entry
+                const title = entry?.title ?? 'Untitled'
+                const Icon = entry ? TYPE_ICONS[entry.media_type] ?? Film : Film
                 return (
-                  <div
+                  <li
                     key={fav.id}
                     data-fav-index={index}
-                    className={`
-                      relative group flex-shrink-0 w-24 sm:w-28 transition-all duration-200 select-none
-                      ${isManagingFavorites && isSelected ? 'cursor-grab active:cursor-grabbing hover:scale-105 hover:z-10' : isManagingFavorites ? 'cursor-pointer' : 'cursor-default'}
-                      ${isSelected ? 'scale-105 z-10' : ''}
-                      ${draggedFavIndex === index ? 'opacity-20 scale-90' : 'opacity-100'}
-                    `}
-                    style={{
-                      touchAction: isManagingFavorites && isSelected ? 'none' : 'auto',
-                      WebkitUserSelect: 'none',
-                      userSelect: 'none'
+                    draggable={isManagingFavorites}
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      if (isManagingFavorites) handleDragOver(e, index)
                     }}
-
-                    onDragOver={(e: React.DragEvent) => {
-                      e.preventDefault();
-                      if (isManagingFavorites && draggedFavIndex !== null) {
-                        handleDragOver(e, index)
-                      }
-                    }}
-
-                    // Touch Handlers
-                    onTouchStart={() => isSelected && handleTouchStart(index)}
-                    onTouchMove={(e) => isSelected && handleTouchMove(e)}
-                    onTouchEnd={() => isSelected && handleTouchEnd()}
-
-                    {...draggableProps}
-                    onClick={() => {
-                      if (isManagingFavorites) {
-                        setSelectedFavoriteId(fav.id === selectedFavoriteId ? null : fav.id)
-                      }
-                    }}
+                    onDragEnd={handleDragEnd}
+                    onTouchStart={() => isManagingFavorites && handleTouchStart(index)}
+                    onTouchMove={(e) => isManagingFavorites && handleTouchMove(e)}
+                    onTouchEnd={() => isManagingFavorites && handleTouchEnd()}
+                    className={`relative ${isManagingFavorites ? 'min-w-0 cursor-grab touch-none active:cursor-grabbing' : 'w-[104px] shrink-0'} ${
+                      draggedFavIndex === index ? 'opacity-40' : ''
+                    }`}
                   >
-                    {/* Carries the coverflow rotation written by the shelf's
-                        scroll handler. Kept separate from the card below so
-                        the card's own hover lift is not overwritten. */}
-                    <div data-poster className="poster-tilt">
-                    <div className={`
-                      aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden shadow-lg border relative
-                      transition-transform duration-200 ease-out will-change-transform
-                      hover:-translate-y-1 hover:shadow-xl active:scale-[0.97]
-                      ${isSelected ? 'border-accent ring-2 ring-accent/50' : 'border-gray-700/50'}
-                    `}>
-                      {/* Draggable Indicator */}
-                      {isManagingFavorites && isSelected && (
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/70 backdrop-blur-md rounded-lg p-2 pointer-events-none">
-                          <GripVertical className="w-6 h-6 text-white/90" />
+                    {isManagingFavorites && (
+                      <button
+                        type="button"
+                        aria-label={`Remove ${title} from list`}
+                        onClick={() => handleRemoveFavorite(fav.id)}
+                        className="absolute -right-2 -top-2 z-20 flex h-9 w-9 items-center justify-center rounded-full border-2 border-bg bg-surface-raised text-gray-50 shadow-md hover:text-danger"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!entry || isManagingFavorites}
+                      onClick={() => entry && setSelectedEntry(entry)}
+                      aria-label={`Number ${index + 1}: ${title}`}
+                      className="group block w-full text-left disabled:cursor-inherit"
+                    >
+                      <div className="relative aspect-[2/3] rounded-xl border border-line bg-surface-strong">
+                        {isManagingFavorites && (
+                          <span aria-hidden="true" className="absolute left-1/2 top-1/2 z-10 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl bg-bg/70 text-gray-50 backdrop-blur">
+                            <GripVertical size={20} />
+                          </span>
+                        )}
+                        <div className="h-full w-full overflow-hidden rounded-[inherit]">
+                          {entry?.cover_image_url ? (
+                            <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105" draggable={false} />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={22} strokeWidth={1.4} /></div>
+                          )}
                         </div>
-                      )}
-                      {fav.media_entry?.cover_image_url ? (
-                        <img loading="lazy" decoding="async"
-                          src={fav.media_entry.cover_image_url}
-                          alt={fav.media_entry.title}
-                          className="w-full h-full object-cover pointer-events-none"
-                          draggable={false}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-600">
-                          <Film className="w-8 h-8" />
-                        </div>
-                      )}
-
-                      {/* Rank Badge */}
-                      <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-white/20 shadow-sm z-20">
-                        {index + 1}
-                      </div>
-
-                      {/* Remove Button */}
-                      {isManagingFavorites && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRemoveFavorite(fav.id)
-                            setSelectedFavoriteId(null)
-                          }}
-                          className={`
-                            absolute -top-2 -right-2 z-30
-                            bg-red-500 text-white p-1.5 rounded-full shadow-lg shadow-black/50
-                            transform transition-all duration-200 border-2 border-gray-900
-                            ${isSelected
-                              ? 'scale-100 opacity-100 pointer-events-auto'
-                              : 'scale-100 opacity-100 pointer-events-auto'
-                            }
-                          `}
+                        <span
+                          aria-hidden="true"
+                          className={`absolute -left-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-bg text-sm font-bold tabular-nums shadow-md ${
+                            index === 0 ? 'bg-butter-400 text-ink' : 'bg-surface-raised text-gray-50'
+                          }`}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-center mt-2 truncate text-gray-400 group-hover:text-white transition-colors px-1 select-none">
-                      {fav.media_entry?.title}
-                    </p>
-                    </div>
-                  </div>
+                          {index + 1}
+                        </span>
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-snug text-gray-50">{title}</p>
+                      {entry?.year && <p className="mt-0.5 text-xs text-muted">{entry.year}</p>}
+                    </button>
+                  </li>
                 )
-              })
-              )}
+              })}
+            </ol>
+          ) : (
+            <ol className="space-y-2" aria-label={`${labelForList(favoriteList, customLists)} top ten`}>
+              {favorites.map((fav, index) => {
+                const entry = fav.media_entry
+                const title = entry?.title ?? 'Untitled'
+                const verdict = verdictFor(entry?.rating, Boolean(entry?.dumpstered))
+                const hero = index === 0 && !isManagingFavorites
+                const meta = [entry ? TYPE_NAMES[entry.media_type] ?? entry.media_type : null, entry?.year].filter(Boolean).join(' · ')
+                const Icon = entry ? TYPE_ICONS[entry.media_type] ?? Film : Film
+                return (
+                  <li
+                    key={fav.id}
+                    data-fav-index={index}
+                    draggable={isManagingFavorites}
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      if (isManagingFavorites) handleDragOver(e, index)
+                    }}
+                    onDragEnd={handleDragEnd}
+                    className={`app-panel flex items-center rounded-2xl transition-opacity ${
+                      hero ? 'gap-4 p-4' : 'gap-3 p-2 pr-2'
+                    } ${draggedFavIndex === index ? 'opacity-40' : ''}`}
+                  >
+                    {isManagingFavorites && (
+                      <button
+                        type="button"
+                        aria-label={`Drag to reorder ${title}`}
+                        className="app-icon-button -ml-1 cursor-grab touch-none text-muted active:cursor-grabbing"
+                        onTouchStart={() => handleTouchStart(index)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                      >
+                        <GripVertical size={20} />
+                      </button>
+                    )}
+                    {!hero && (
+                      <span
+                        className={`shrink-0 text-center text-base font-bold tabular-nums text-muted ${isManagingFavorites ? 'w-5' : 'w-7'}`}
+                        aria-hidden="true"
+                      >
+                        {index + 1}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!entry || isManagingFavorites}
+                      onClick={() => entry && setSelectedEntry(entry)}
+                      aria-label={`Number ${index + 1}: ${title}`}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
+                    >
+                      <div
+                        className={`relative shrink-0 rounded-lg border border-line bg-surface-strong ${
+                          hero ? 'h-[126px] w-[84px] rounded-xl' : isManagingFavorites ? 'h-12 w-8' : 'h-16 w-11'
+                        }`}
+                      >
+                        <div className="h-full w-full overflow-hidden rounded-[inherit]">
+                          {entry?.cover_image_url ? (
+                            <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover" draggable={false} />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={hero ? 24 : 16} /></div>
+                          )}
+                        </div>
+                        {hero && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute -left-2.5 -top-2.5 flex h-9 w-9 items-center justify-center rounded-full border-2 border-surface bg-butter-400 text-base font-bold tabular-nums text-ink shadow-md"
+                          >
+                            1
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={hero ? 'text-lg font-semibold leading-tight text-gray-50' : 'truncate text-sm font-semibold text-gray-50'}>
+                          {title}
+                        </p>
+                        {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
+                        {hero && entry?.notes && (
+                          <p className="mt-2 line-clamp-2 text-sm italic leading-snug text-muted">{entry.notes}</p>
+                        )}
+                      </div>
+                    </button>
+                    {verdict && !isManagingFavorites && (
+                      <span className="flex shrink-0 items-center gap-1 pr-1 text-sm font-semibold tabular-nums text-butter-gold" title={verdict.name}>
+                        <VerdictMark verdict={verdict.id} size={hero ? 28 : 22} />
+                        {entry?.dumpstered ? <span className="sr-only">{verdict.name}</span> : entry?.rating?.toFixed(1)}
+                      </span>
+                    )}
+                    {isManagingFavorites && (
+                      <button
+                        type="button"
+                        aria-label={`Remove ${title} from list`}
+                        onClick={() => handleRemoveFavorite(fav.id)}
+                        className="app-icon-button hover:text-danger"
+                      >
+                        <X size={18} />
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </Reveal>
 
-              {/* Add Button */}
-              {isManagingFavorites && favorites.length < 10 && (
-                <button
-                  onClick={() => setShowMediaSelector(true)}
-                  className="flex-shrink-0 w-24 sm:w-28 aspect-[2/3] bg-gray-800/30 border-2 border-dashed border-gray-700 hover:border-gray-500 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all group"
-                >
-                   <div className="bg-gray-800 group-hover:bg-gray-700 p-3 rounded-full transition-colors">
-                     <Plus className="w-5 h-5" />
-                   </div>
-                   <span className="text-xs font-medium">Add New</span>
-                </button>
-              )}
-            </div>
+        {/* ── Your collection: what you have been up to, as posters ── */}
+        <Reveal>
+          <div ref={recentActivityRef}>
+            <SectionHeader
+              title="Your collection"
+              count={activity.length}
+              action={
+                <Link to="/library" className="app-button-ghost app-button-sm shrink-0">
+                  Library <ChevronRight size={16} />
+                </Link>
+              }
+            />
+            <PillTabs
+              ariaLabel="Filter your collection"
+              value={statusFilter}
+              onChange={(id) => setStatusFilter(id as typeof statusFilter)}
+              tabs={[
+                { id: 'all', label: 'All' },
+                { id: 'completed', label: statusLabel('completed'), count: countOf('completed') },
+                { id: 'in-progress', label: statusLabel('in-progress'), count: countOf('in-progress') },
+                { id: 'planned', label: statusLabel('planned'), count: countOf('planned') },
+              ]}
+            />
 
-            {/* Pink gradient scroll slider for carousel */}
-            {!isManagingFavorites && (
-              <div
-                ref={progressContainerRef}
-                className="relative mt-4 h-1.5 w-full px-2 transition-opacity duration-300 opacity-0"
-              >
-                {/* Track */}
-                <div className="absolute left-0 right-0 top-1/2 w-full -translate-y-1/2 h-0.5 rounded-full bg-gray-700/50" />
-
-                {/* Active Indicator (Direct DOM controlled) */}
-                <div
-                  ref={progressBarRef}
-                  className="absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-gray-500"
-                  style={{ width: '0%', left: '0%' }}
-                />
+            {shownEntries.length > 0 ? (
+              <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5">
+                {shownEntries.map((entry) => {
+                  const Icon = TYPE_ICONS[entry.media_type] ?? Film
+                  const verdict = verdictFor(entry.rating, Boolean(entry.dumpstered))
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setSelectedEntry(entry)}
+                      aria-label={`Edit ${entry.title}`}
+                      className="group min-w-0 text-left"
+                    >
+                      <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-line bg-surface-strong">
+                        {entry.cover_image_url ? (
+                          <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={22} strokeWidth={1.4} /></div>
+                        )}
+                        {verdict && (
+                          <span className="absolute right-1.5 top-1.5 flex items-center gap-0.5 rounded-md border border-line bg-bg/90 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold tabular-nums text-butter-gold backdrop-blur" title={verdict.name}>
+                            <VerdictMark verdict={verdict.id} size={18} />
+                            {!entry.dumpstered && entry.rating?.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-snug text-gray-50 transition-colors group-hover:text-accent-soft">{entry.title}</p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {statusFilter === 'all' ? statusLabel(entry.status) : (entry.year ?? TYPE_NAMES[entry.media_type])}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="app-empty mt-4">
+                <div className="flex justify-center"><PalMark size={56} /></div>
+                <h3 className="mt-3">{statusFilter === 'all' ? 'Nothing logged yet' : `Nothing ${statusLabel(statusFilter as 'completed').toLowerCase()} yet`}</h3>
+                <p>Log what you watch, play and read, and it shows up here.</p>
+                <button type="button" onClick={() => navigate('/add')} className="app-button-primary mt-5">Log a title</button>
               </div>
             )}
           </div>
         </Reveal>
 
-        {/* Recent Activity */}
-        <Reveal>
-        <div className="space-y-4" ref={recentActivityRef}>
-          <SectionHeader title="Your collection" />
+        <button type="button" onClick={handleSignOut} className="app-button-secondary mt-12 w-full md:hidden">
+          <LogOut size={16} /> Sign out
+        </button>
+      </main>
 
-          {/* Status filter — the same strip as the top tens above, so the page
-              has one way of asking "which subset?" rather than two. */}
-          <PillTabs
-            ariaLabel="Filter your collection"
-            value={statusFilter}
-            onChange={(id) => setStatusFilter(id as typeof statusFilter)}
-            tabs={[
-              { id: 'all', label: 'All' },
-              { id: 'completed', label: 'Completed' },
-              { id: 'in-progress', label: 'In Progress' },
-              { id: 'planned', label: 'Planned' },
-            ]}
-          />
-
-          {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).length > 0 ? (
-            <div className="space-y-2">
-              {entries.filter(e => e.status !== 'logged' && (statusFilter === 'all' || e.status === statusFilter)).map((entry) => {
-                const Icon = getIcon(entry.media_type)
-                return (
-                  <div key={entry.id} onClick={() => setSelectedEntry(entry)}
-                    className="flex gap-3 p-3 bg-gray-800/30 hover:bg-gray-800/60 rounded-2xl border border-gray-700/30 hover:border-gray-600/50 transition-all cursor-pointer group active:scale-[0.99]">
-                    <div className="w-10 h-14 bg-gray-900 rounded-xl flex-shrink-0 overflow-hidden relative">
-                      {entry.cover_image_url
-                        ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        : <div className="w-full h-full flex items-center justify-center text-gray-600"><Icon className="w-4 h-4" /></div>}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
-                        <Edit2 className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0 py-0.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-semibold text-sm text-white truncate group-hover:text-red-400 transition-colors">{entry.title}</h4>
-                        <span className={`flex-shrink-0 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${entry.status === 'completed' ? 'bg-green-500/10 text-green-400' : entry.status === 'in-progress' ? 'bg-blue-500/10 text-blue-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                          {entry.status.replace('-', ' ')}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        <span className="capitalize">{entry.media_type}</span>
-                        {entry.year && <span>· {entry.year}</span>}
-                        {entry.completed_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(entry.completed_date)}</span>}
-                      </div>
-                      {(entry.rating || entry.dumpstered) && (
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <VerdictMark
-                            verdict={verdictFor(entry.rating, Boolean(entry.dumpstered))!.id}
-                            size={20}
-                          />
-                          {entry.dumpstered ? (
-                            <span className="text-xs font-bold text-gray-400">Dumpster</span>
-                          ) : (
-                            <>
-                              <span className="text-xs font-bold text-butter-gold tabular-nums">{entry.rating}</span>
-                              <span className="text-xs text-gray-600">/ 10</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {entry.notes && <p className="text-gray-500 text-xs mt-1 line-clamp-1 italic">"{entry.notes}"</p>}
-                    </div>
+      {/* ── Edit profile: everything about you, in one place ── */}
+      {isEditing && (
+        <Sheet
+          title="Edit profile"
+          onClose={closeEditor}
+          closeDisabled={savingProfile}
+          footer={
+            <div className="space-y-3">
+              {saveError && <p role="alert" className="app-note app-note-danger">{saveError}</p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={closeEditor} disabled={savingProfile} className="app-button-secondary">
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSaveProfile} disabled={savingProfile} className="app-button-primary flex-1">
+                  {savingProfile ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-6">
+            {/* Banner */}
+            <div>
+              <p className="app-label">Banner</p>
+              <div className="relative h-24 overflow-hidden rounded-xl border border-line-soft bg-surface-strong">
+                {bannerSrc ? (
+                  <img src={bannerSrc} alt="" draggable={false} className="h-full w-full" style={bannerStyle} />
+                ) : (
+                  <AuroraBanner />
+                )}
+              </div>
+              <input ref={bgFileInputRef} type="file" accept="image/*" onChange={handleBgUpload} className="hidden" />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" onClick={() => bgFileInputRef.current?.click()} className="app-chip"><Camera size={16} /> Upload</button>
+                <button type="button" onClick={handleBgUrl} className="app-chip"><Film size={16} /> URL</button>
+                <button type="button" onClick={() => setShowGifPickerModal(true)} className="app-chip"><Sparkles size={16} /> GIFs</button>
+                {(bannerSrc || imageToCrop) && (
+                  <button type="button" onClick={handleRemoveBg} className="app-chip text-danger hover:text-danger"><X size={16} /> Remove</button>
+                )}
+              </div>
+              {bannerSrc && (
+                <div className="mt-3">
+                  <div className="mb-1 flex items-center justify-between">
+                    <label htmlFor="profile-bg-opacity" className="text-sm font-semibold text-gray-50">Brightness</label>
+                    <span className="text-xs tabular-nums text-muted">{profileBgOpacity}%</span>
                   </div>
+                  <input
+                    id="profile-bg-opacity"
+                    type="range"
+                    min={10}
+                    max={100}
+                    value={profileBgOpacity}
+                    onChange={(e) => setProfileBgOpacity(Number(e.target.value))}
+                    className="app-slider"
+                    style={{ '--pct': `${((profileBgOpacity - 10) / 90) * 100}%` } as React.CSSProperties}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Avatar */}
+            <div>
+              <p className="app-label">Profile picture</p>
+              <input ref={avatarFileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+              <div className="flex items-center gap-4">
+                <div className="app-avatar h-16 w-16 text-2xl">{avatarImage}</div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => avatarFileInputRef.current?.click()} className="app-chip"><Camera size={16} /> Upload</button>
+                  <button type="button" onClick={handleAvatarUrl} className="app-chip"><Film size={16} /> URL</button>
+                  <button type="button" onClick={() => setShowAvatarGifPicker(true)} className="app-chip"><Sparkles size={16} /> GIFs</button>
+                  {(uploadedAvatar || avatarUrl) && (
+                    <button type="button" onClick={handleRemoveAvatar} className="app-chip text-danger hover:text-danger"><X size={16} /> Remove</button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Username */}
+            <div>
+              <label htmlFor="profile-username" className="app-label">Username</label>
+              <div className="relative">
+                <span aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted">@</span>
+                <input
+                  id="profile-username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  maxLength={20}
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  enterKeyHint="next"
+                  aria-invalid={usernameError ? true : undefined}
+                  className="app-input pl-8"
+                  placeholder="username"
+                />
+              </div>
+              {usernameError && <p className="mt-1.5 text-xs text-danger">{usernameError}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="profile-name" className="app-label">Name</label>
+              <input id="profile-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" enterKeyHint="next" className="app-input" placeholder="Full name" />
+            </div>
+
+            {/* Bio opens the roomy writing surface, like every note in the app */}
+            <NoteField
+              id="profile-bio"
+              label="Bio"
+              optional={false}
+              title="Your bio"
+              subtitle="Shown at the top of your profile"
+              placeholder="A line or two about what you love."
+              value={bio}
+              onChange={setBio}
+            />
+
+            {/* Badges: the ones you earned, then the ones you choose to wear */}
+            {(availableBadges.some((b) => !b.admin_only) || userBadges.some((ub) => ub.badges?.admin_only)) && (() => {
+              const adminIds = new Set(availableBadges.filter((b) => b.admin_only).map((b) => b.id))
+              const chosen = selectedBadgeIds.filter((id) => !adminIds.has(id))
+              const earned = sortBadges(userBadges.filter((ub) => ub.badges?.admin_only))
+              return (
+                <div>
+                  <p className="app-label flex items-center justify-between">
+                    Badges
+                    <small className="tabular-nums">{chosen.length}/5 chosen</small>
+                  </p>
+                  <ul className="space-y-2">
+                    {earned.map((ub) => (
+                      <li key={ub.id} className="flex items-center gap-3 rounded-2xl border border-butter-400/30 bg-butter-400/5 p-2 pr-3">
+                        <BadgeMedal badge={ub.badges!} size={40} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-gray-50">{ub.badges!.name}</span>
+                          <span className="block text-xs text-muted">Earned. Always on your profile.</span>
+                        </span>
+                        <Lock size={16} className="shrink-0 text-butter-300" aria-hidden="true" />
+                      </li>
+                    ))}
+                    {availableBadges.filter((badge) => !badge.admin_only).map((badge) => {
+                      const isSelected = selectedBadgeIds.includes(badge.id)
+                      const full = !isSelected && chosen.length >= 5
+                      return (
+                        <li key={badge.id}>
+                          <button
+                            type="button"
+                            aria-pressed={isSelected}
+                            disabled={full}
+                            onClick={() => {
+                              if (isSelected) setSelectedBadgeIds(selectedBadgeIds.filter((id) => id !== badge.id))
+                              else if (!full) setSelectedBadgeIds([...selectedBadgeIds, badge.id])
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-2xl border p-2 pr-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                              isSelected ? 'border-accent/60 bg-accent/10' : 'border-line-soft bg-surface-sunken hover:border-line-strong'
+                            }`}
+                          >
+                            <BadgeMedal badge={badge} size={40} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-semibold text-gray-50">{badge.name}</span>
+                              {badge.description && (
+                                <span className="line-clamp-2 block text-xs leading-snug text-muted">{badge.description}</span>
+                              )}
+                            </span>
+                            {isSelected ? (
+                              <Check size={18} className="shrink-0 text-accent-bright" aria-hidden="true" />
+                            ) : (
+                              <Plus size={18} className="shrink-0 text-muted" aria-hidden="true" />
+                            )}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })()}
+
+            {/* Season */}
+            <div>
+              <p className="app-label">Season</p>
+              <ThemePicker heading={null} />
+            </div>
+          </div>
+        </Sheet>
+      )}
+
+      {/* ── Followers / following ── */}
+      {peopleSheet && (
+        <PeopleListSheet
+          title={peopleSheet === 'followers' ? 'Followers' : 'Following'}
+          people={peopleSheet === 'followers' ? followersList : followingList}
+          loading={peopleListLoading}
+          currentUserId={user.id}
+          onClose={() => setPeopleSheet(null)}
+          onOpenProfile={(handle) => {
+            setPeopleSheet(null)
+            navigate(`/profile/${handle}`)
+          }}
+          onToggleFollow={toggleFollow}
+        />
+      )}
+
+      {showGifPickerModal && <GifPicker onSelect={handleGifPickerSelect} onClose={() => setShowGifPickerModal(false)} />}
+      {showAvatarGifPicker && <GifPicker onSelect={handleAvatarGifPickerSelect} onClose={() => setShowAvatarGifPicker(false)} />}
+
+      {/* ── Edit an entry ── */}
+      {selectedEntry && (
+        <Sheet
+          header={
+            <div className="flex items-center gap-4 pt-1">
+              {selectedEntry.cover_image_url ? (
+                <img src={selectedEntry.cover_image_url} alt="" className="h-[100px] w-[68px] shrink-0 rounded-xl border border-line-soft bg-surface-strong object-cover" />
+              ) : (
+                <div className="flex h-[100px] w-[68px] shrink-0 items-center justify-center rounded-xl border border-line-soft bg-surface-strong text-muted"><Film size={26} strokeWidth={1.4} /></div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-semibold leading-tight tracking-tight text-gray-50">{selectedEntry.title}</h2>
+                <p className="mt-1 text-sm text-muted">
+                  {[TYPE_NAMES[selectedEntry.media_type] ?? selectedEntry.media_type, selectedEntry.year].filter(Boolean).join(' · ')}
+                </p>
+                {selectedEntry.completed_date && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                    <Calendar size={12} /> Finished {new Date(selectedEntry.completed_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                )}
+              </div>
+            </div>
+          }
+          ariaLabel={`Edit ${selectedEntry.title}`}
+          onClose={() => setSelectedEntry(null)}
+          footer={
+            <div className="flex gap-3">
+              <button type="button" onClick={handleDeleteEntry} aria-label="Delete entry" className="app-icon-button h-12 w-12 rounded-xl border border-line-soft hover:text-danger">
+                <Trash2 size={20} />
+              </button>
+              <button type="button" onClick={handleUpdateEntry} className="app-button-primary flex-1">
+                <Check size={18} /> Save changes
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-5 pt-1">
+            <div>
+              <p className="app-label">On your shelf</p>
+              <div className="grid grid-cols-2 gap-2">
+                {ENTRY_STATUSES.map((value) => (
+                  <button key={value} type="button" aria-pressed={editStatus === value} onClick={() => setEditStatus(value)} className="app-option">
+                    {statusLabel(value)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <RatingField rating={editRating} onChange={setEditRating} />
+            <NoteField
+              id="entry-notes"
+              label="Notes"
+              title={selectedEntry.title}
+              subtitle={[TYPE_NAMES[selectedEntry.media_type] ?? selectedEntry.media_type, selectedEntry.year].filter(Boolean).join(' · ')}
+              placeholder="What did you think?"
+              value={editNotes}
+              onChange={setEditNotes}
+            />
+          </div>
+        </Sheet>
+      )}
+
+      {/* ── Add to a top ten ── */}
+      {showMediaSelector && (
+        <Sheet
+          title={`Add to ${labelForList(favoriteList, customLists)}`}
+          onClose={() => { setShowMediaSelector(false); setMediaSearchQuery(''); setMediaFilterYear('any') }}
+        >
+          <div className="space-y-3">
+            <div className="app-search">
+              <Search size={18} />
+              <input
+                type="search"
+                value={mediaSearchQuery}
+                onChange={(e) => setMediaSearchQuery(e.target.value)}
+                placeholder="Search your library"
+                aria-label="Search your library"
+                enterKeyHint="search"
+                className="app-input"
+                autoFocus
+              />
+            </div>
+            <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+              {[{ id: 'all', label: 'All' }, { id: 'movie', label: 'Movies', icon: Film }, { id: 'show', label: 'Shows', icon: Tv }, { id: 'game', label: 'Games', icon: Gamepad2 }, { id: 'book', label: 'Books', icon: Book }].map((type) => {
+                const Icon = type.icon
+                return (
+                  <button key={type.id} type="button" aria-pressed={mediaFilterType === type.id} onClick={() => setMediaFilterType(type.id as typeof mediaFilterType)} className="app-chip">
+                    {Icon && <Icon size={16} />}
+                    {type.label}
+                  </button>
                 )
               })}
             </div>
-          ) : (
-            <div className="bg-gray-800/30 border border-gray-800 rounded-2xl p-10 text-center">
-              <div className="w-14 h-14 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600"><Film className="w-7 h-7" /></div>
-              <h3 className="text-base font-semibold text-white mb-1">No entries yet</h3>
-              <p className="text-gray-500 text-sm mb-5">Start building your collection.</p>
-              <button onClick={() => navigate('/add')} className="bg-accent text-white font-semibold px-6 py-2.5 rounded-full transition-all shadow-lg shadow-red-500/20">Add Your First Entry</button>
-            </div>
-          )}
-        </div>
-
-        </Reveal>
-      </main>
-
-      {/* Modals and GIF Pickers */}
-      {showGifPickerModal && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowGifPickerModal(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleGifPickerSelect} onClose={() => setShowGifPickerModal(false)} /></div></div>}
-      {showAvatarGifPicker && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowAvatarGifPicker(false)}><div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><GifPicker onSelect={handleAvatarGifPickerSelect} onClose={() => setShowAvatarGifPicker(false)} /></div></div>}
-      {selectedEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-gray-900 border border-gray-700 w-full max-w-sm rounded-2xl p-5 relative shadow-2xl">
-             <button onClick={() => setSelectedEntry(null)} className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-full transition-colors"><X className="w-4 h-4" /></button>
-             <h2 className="text-lg font-bold mb-0.5 pr-8 leading-tight">{selectedEntry.title}</h2>
-             <p className="text-gray-400 text-xs mb-4 capitalize">{selectedEntry.media_type}</p>
-             <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Status</label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {[{ value: 'completed', label: 'Completed' }, { value: 'in-progress', label: 'In Progress' }, { value: 'planned', label: 'Plan to Watch' }, { value: 'logged', label: 'Library' }].map((s) => (
-                      <button key={s.value} onClick={() => setEditStatus(s.value as any)} className={`py-2 px-2 rounded-lg text-xs font-medium border transition-colors ${editStatus === s.value ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>{s.label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Rating {editRating > 0 && <span className="normal-case font-normal text-gray-500">· {editRating} / 10</span>}</label>
-                  <DecimalRating value={editRating} onChange={setEditRating} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Notes</label>
-                  <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={3} className="w-full bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-red-500 text-white" placeholder="What did you think?" />
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={handleDeleteEntry} className="px-3 py-2.5 rounded-xl border border-gray-700 text-gray-400 hover:bg-red-500/10 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                  <button onClick={handleUpdateEntry} className="flex-1 bg-accent text-white font-semibold py-2.5 rounded-xl text-sm">Save Changes</button>
-                </div>
-             </div>
-           </div>
-        </div>
-      )}
-      {showMediaSelector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-2xl p-4 relative shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="truncate text-base font-bold text-white">Add to {labelForList(favoriteList, customLists)}</h3>
-              <button onClick={() => { setShowMediaSelector(false); setMediaSearchQuery(''); setMediaFilterYear('any'); }} className="p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="space-y-3 mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input type="text" value={mediaSearchQuery} onChange={(e) => setMediaSearchQuery(e.target.value)} placeholder="Search your library..." className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" autoFocus />
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {[{ id: 'all', label: 'All' }, { id: 'movie', label: 'Movies', icon: Film }, { id: 'show', label: 'TV', icon: Tv }, { id: 'game', label: 'Games', icon: Gamepad2 }, { id: 'book', label: 'Books', icon: Book }].map((type) => { const Icon = type.icon; return ( <button key={type.id} onClick={() => setMediaFilterType(type.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${mediaFilterType === type.id ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'}`}>{Icon && <Icon className="w-3.5 h-3.5" />}{type.label}</button> )})}
-              </div>
-              <label className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Calendar className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span className="sr-only">Filter your library by year</span>
-                <select value={mediaFilterYear} onChange={(e) => setMediaFilterYear(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500">
+            <label className="flex items-center gap-2">
+              <Calendar size={16} className="shrink-0 text-muted" aria-hidden="true" />
+              <span className="sr-only">Filter your library by year</span>
+              <span className="app-select flex-1">
+                <select value={mediaFilterYear} onChange={(e) => setMediaFilterYear(e.target.value)} className="app-input">
                   <option value="any">Any year</option>
                   <optgroup label="Added in">
                     {mediaYears.added.map((year: number) => (
@@ -1053,61 +979,56 @@ export default function ProfilePage() {
                     </optgroup>
                   )}
                 </select>
-              </label>
-            </div>
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
-              {entries.length === 0 ? (
-                <div className="text-center py-8 text-gray-500"><p>Your library is empty.</p><button onClick={() => { setShowMediaSelector(false); setMediaFilterYear('any'); navigate('/add') }} className="mt-2 text-red-400 hover:text-red-300 text-sm font-medium">Add your first entry</button></div>
-              ) : (() => {
-                const { addedYear, releaseYear } = parseYearFilter(mediaFilterYear)
-                const filteredEntries = collectUniqueMedia(entries).filter(entry => {
-                  // A type list only holds that type. A year list takes
-                  // anything: a best-of-the-year is about what you watched,
-                  // not about what the thing is.
-                  const typeLists = ['movie', 'show', 'game', 'book']
-                  if (typeLists.includes(favoriteList) && entry.media_type !== favoriteList) {
-                    return false
-                  }
-                  const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
-                  const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
-                  const matchesYear =
-                    (!addedYear || addedYearOf(entry) === addedYear) &&
-                    (!releaseYear || entry.year === releaseYear)
-                  const notInFavorites = !favorites.some(f => f.media_entry_id === entry.id)
-                  return matchesType && matchesSearch && matchesYear && notInFavorites
-                })
-                if (filteredEntries.length === 0) return <div className="text-center py-8 text-gray-500"><p>No matches found.</p></div>
-                return filteredEntries.map(entry => {
-                  const Icon = getIcon(entry.media_type)
-                  return (
-                    <button key={entry.id} onClick={() => handleAddFavorite(entry.id)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-800 transition-colors text-left group border border-transparent hover:border-gray-700">
-                      <div className="w-10 h-14 bg-gray-800 rounded flex-shrink-0 overflow-hidden relative">
-                        {entry.cover_image_url ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Icon className="w-4 h-4 text-gray-600" /></div>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">{entry.title}</h4>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5"><span className="capitalize">{entry.media_type}</span>{entry.year && <span>• {entry.year}</span>}</div>
-                      </div>
-                      <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex items-center justify-center group-hover:border-green-500 transition-colors"><Plus className="w-3 h-3 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-                    </button>
-                  )
-                })
-              })()}
-            </div>
+              </span>
+            </label>
           </div>
-        </div>
+          <div className="mt-4 space-y-1">
+            {entries.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted">
+                <p>Your library is empty.</p>
+                <button type="button" onClick={() => { setShowMediaSelector(false); setMediaFilterYear('any'); navigate('/add') }} className="app-button-ghost mt-2">Add your first entry</button>
+              </div>
+            ) : (() => {
+              const { addedYear, releaseYear } = parseYearFilter(mediaFilterYear)
+              const filteredEntries = collectUniqueMedia(entries).filter((entry) => {
+                // A type list only holds that type. A year list takes
+                // anything: a best-of-the-year is about what you watched,
+                // not about what the thing is.
+                const typeLists = ['movie', 'show', 'game', 'book']
+                if (typeLists.includes(favoriteList) && entry.media_type !== favoriteList) return false
+                const matchesType = mediaFilterType === 'all' || entry.media_type === mediaFilterType
+                const matchesSearch = entry.title.toLowerCase().includes(mediaSearchQuery.toLowerCase())
+                const matchesYear =
+                  (!addedYear || addedYearOf(entry) === addedYear) &&
+                  (!releaseYear || entry.year === releaseYear)
+                const notInFavorites = !favorites.some((f) => f.media_entry_id === entry.id)
+                return matchesType && matchesSearch && matchesYear && notInFavorites
+              })
+              if (filteredEntries.length === 0) return <p className="py-8 text-center text-sm text-muted">No matches found.</p>
+              return filteredEntries.map((entry) => {
+                const Icon = TYPE_ICONS[entry.media_type] ?? Film
+                return (
+                  <button key={entry.id} type="button" onClick={() => handleAddFavorite(entry.id)} className="flex min-h-14 w-full items-center gap-3 rounded-xl px-2 text-left transition-colors hover:bg-surface-strong">
+                    <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-surface-strong">
+                      {entry.cover_image_url ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={16} /></div>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-gray-50">{entry.title}</p>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-muted"><span>{TYPE_NAMES[entry.media_type] ?? entry.media_type}</span>{entry.year && <span>· {entry.year}</span>}</div>
+                    </div>
+                    <Plus size={18} className="flex-shrink-0 text-accent-soft" aria-hidden="true" />
+                  </button>
+                )
+              })
+            })()}
+          </div>
+        </Sheet>
       )}
 
-      {/* Avatar Cropper Modal */}
       {showAvatarCropper && avatarToCrop && (
-        <AvatarCropper
-          imageSrc={avatarToCrop}
-          onCropComplete={handleAvatarCropComplete}
-          onCancel={handleAvatarCropCancel}
-        />
+        <AvatarCropper imageSrc={avatarToCrop} onCropComplete={handleAvatarCropComplete} onCancel={handleAvatarCropCancel} />
       )}
 
-      {/* Image Cropper Modal */}
       {showImageCropper && imageToCrop && cropperUserPreview && (
         <ImageCropper
           imageSrc={imageToCrop}

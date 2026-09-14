@@ -178,6 +178,7 @@ export function useFollowUser(userId: string) {
       queryClient.invalidateQueries({ queryKey: peopleKeys.counts(userId) })
       queryClient.invalidateQueries({ queryKey: peopleKeys.following(userId) })
       queryClient.invalidateQueries({ queryKey: peopleKeys.explore(userId) })
+      queryClient.invalidateQueries({ queryKey: peopleKeys.followers(userId) })
     },
   })
 }

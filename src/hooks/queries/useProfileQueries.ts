@@ -18,6 +18,8 @@ export type UserProfile = {
   bg_url: string | null
   bg_opacity: number | null
   bg_crop?: any | null
+  /** Hogwarts house; null until sorted. */
+  house?: string | null
   created_at: string
 }
 

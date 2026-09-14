@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Check } from 'lucide-react'
+import { useKeyboardFit } from './useKeyboardFit'
 
 /**
  * A full-screen surface for writing.
@@ -31,6 +32,7 @@ export default function NoteComposer({
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const field = useRef<HTMLTextAreaElement>(null)
+  useKeyboardFit(dialog)
   const [draft, setDraft] = useState(value)
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export default function NoteComposer({
             <ArrowLeft size={20} />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-gray-100">
+            <p className="truncate text-sm font-semibold text-gray-50">
               {title}
             </p>
             {subtitle && (
@@ -88,7 +90,7 @@ export default function NoteComposer({
           <button
             type="button"
             onClick={keep}
-            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 text-sm font-bold text-accent-on"
+            className="app-button-primary app-button-sm !rounded-full"
           >
             <Check size={16} />
             Done
@@ -103,10 +105,10 @@ export default function NoteComposer({
           maxLength={10000}
           // Roomy line height and generous type: this is for reading back what
           // you wrote, not for squeezing text into a control.
-          className="min-h-0 flex-1 resize-none bg-transparent px-5 py-4 text-[17px] leading-[1.75] text-gray-100 outline-none placeholder:text-gray-600"
+          className="min-h-0 flex-1 resize-none bg-transparent px-5 py-4 text-[17px] leading-[1.75] text-gray-50 outline-none placeholder:text-gray-500"
         />
 
-        <footer className="flex shrink-0 items-center justify-between border-t border-line-soft px-5 py-2 pb-[max(10px,env(safe-area-inset-bottom))] text-xs text-gray-600">
+        <footer className="flex shrink-0 items-center justify-between border-t border-line-soft px-5 py-2 pb-[max(10px,env(safe-area-inset-bottom))] text-xs text-muted">
           <span>{words === 1 ? '1 word' : `${words} words`}</span>
           <span>Saved when you tap Done</span>
         </footer>

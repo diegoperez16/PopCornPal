@@ -1,9 +1,10 @@
-import { useCallback, useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { Bell, X, Heart, MessageCircle, UserPlus, Megaphone, Check, AtSign } from 'lucide-react'
+import { useCallback, useState, useEffect } from 'react'
+import { Bell, Heart, MessageCircle, UserPlus, Megaphone, Check, AtSign } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import UserAvatar from './UserAvatar'
+import Sheet from './Sheet'
+import PalMark from './brand/PalMark'
 import { useAuthStore } from '../store/authStore'
 
 type AppNotification = {
@@ -48,25 +49,24 @@ function notificationText(n: AppNotification): string {
 }
 
 function NotifIcon({ type }: { type: AppNotification['type'] }) {
-  const cls = 'w-4 h-4'
+  const cls = 'mt-0.5 shrink-0'
   switch (type) {
-    case 'like':    return <Heart className={`${cls} text-red-400`} />
-    case 'comment': return <MessageCircle className={`${cls} text-blue-400`} />
-    case 'reply':   return <MessageCircle className={`${cls} text-purple-400`} />
-    case 'follow':  return <UserPlus className={`${cls} text-green-400`} />
-    case 'mention': return <AtSign className={`${cls} text-cyan-400`} />
-    case 'system':  return <Megaphone className={`${cls} text-yellow-400`} />
-    default:        return <Bell className={`${cls} text-gray-400`} />
+    case 'like':    return <Heart size={16} className={`${cls} text-accent-soft`} />
+    case 'comment': return <MessageCircle size={16} className={`${cls} text-muted`} />
+    case 'reply':   return <MessageCircle size={16} className={`${cls} text-muted`} />
+    case 'follow':  return <UserPlus size={16} className={`${cls} text-ok`} />
+    case 'mention': return <AtSign size={16} className={`${cls} text-butter-300`} />
+    case 'system':  return <Megaphone size={16} className={`${cls} text-butter-400`} />
+    default:        return <Bell size={16} className={`${cls} text-muted`} />
   }
 }
 
-export default function NotificationBell({ dropUp = false }: { dropUp?: boolean }) {
+export default function NotificationBell() {
   const user = useAuthStore(state => state.user)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const panelRef = useRef<HTMLDivElement>(null)
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return
@@ -120,18 +120,6 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
     }
   }, [fetchNotifications, user])
 
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
-
   const markAllRead = async () => {
     if (!user || unreadCount === 0) return
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
@@ -167,149 +155,72 @@ export default function NotificationBell({ dropUp = false }: { dropUp?: boolean 
   if (!user) return null
 
   return (
-    <div className="relative" ref={panelRef}>
-      {/* Bell button */}
+    <>
       <button
+        type="button"
         onClick={() => setOpen(prev => !prev)}
-        className={`relative transition-colors ${
-          dropUp
-            ? 'p-1 text-gray-500 hover:text-white'
-            : 'p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800'
-        } ${open && dropUp ? 'text-white' : ''}`}
+        className="app-icon-button relative"
         aria-label="Notifications"
+        aria-expanded={open}
       >
-        <Bell className={dropUp ? 'w-6 h-6' : 'w-5 h-5'} strokeWidth={open && dropUp ? 2.5 : 2} />
+        <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-accent text-white rounded-full px-1">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-on">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Panel — full-screen sheet on mobile nav, dropdown on desktop */}
-      {open && dropUp ? createPortal(
-        /* Mobile: full-screen bottom sheet — rendered via portal to escape backdrop-filter stacking context */
-        <div className="fixed inset-0 z-[300] flex flex-col animate-in fade-in duration-150">
-          {/* Backdrop */}
-          <div className="flex-1 bg-black/60" onClick={() => setOpen(false)} />
-          {/* Sheet */}
-          <div className="bg-gray-900 border-t border-gray-700 rounded-t-3xl flex flex-col h-[75vh] animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-              <div className="w-10 h-1 rounded-full bg-gray-700" />
-            </div>
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
-              <span className="font-bold text-white text-base">Notifications</span>
-              <div className="flex items-center gap-3">
-                {unreadCount > 0 && (
-                  <button
-                    onClick={markAllRead}
-                    className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    <Check className="w-4 h-4" />
-                    Mark all read
-                  </button>
-                )}
-                <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white transition-colors p-1">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            {/* List */}
-            <div className="overflow-y-auto flex-1">
-              {notifications.length === 0 ? (
-                <div className="py-16 text-center text-gray-500">
-                  <Bell className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No notifications yet</p>
-                </div>
-              ) : (
-                notifications.map(n => (
-                  <button
-                    key={n.id}
-                    onClick={() => handleNotifClick(n)}
-                    className={`w-full text-left flex items-start gap-4 px-5 py-4 hover:bg-gray-800 active:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0 ${
-                      !n.read ? 'bg-gray-800/40' : ''
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
-                      <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
-                      {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-1.5">
-                        <NotifIcon type={n.type} />
-                        <p className="text-sm text-gray-200 leading-snug">{notificationText(n)}</p>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{timeAgo(n.created_at)}</p>
-                    </div>
-                    {!n.read && (
-                      <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      ) : open ? (
-        /* Desktop: dropdown */
-        <div className="absolute right-0 mt-2 w-80 max-h-[480px] bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl z-[200] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 flex-shrink-0">
-            <span className="font-bold text-white text-sm">Notifications</span>
-            <div className="flex items-center gap-2">
+      {open && (
+        <Sheet
+          size="narrow"
+          onClose={() => setOpen(false)}
+          header={
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <h2 className="text-lg font-semibold tracking-tight text-gray-50">Notifications</h2>
               {unreadCount > 0 && (
-                <button
-                  onClick={markAllRead}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  Mark all read
+                <button type="button" className="app-button-ghost app-button-sm" onClick={markAllRead}>
+                  <Check size={16} /> Mark all read
                 </button>
               )}
-              <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white transition-colors">
-                <X className="w-4 h-4" />
-              </button>
             </div>
-          </div>
-          {/* List */}
-          <div className="overflow-y-auto flex-1">
-            {notifications.length === 0 ? (
-              <div className="py-12 text-center text-gray-500">
-                <Bell className="w-8 h-8 mx-auto mb-3 opacity-40" />
-                <p className="text-sm">No notifications yet</p>
-              </div>
-            ) : (
-              notifications.map(n => (
-                <button
-                  key={n.id}
-                  onClick={() => handleNotifClick(n)}
-                  className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0 ${
-                    !n.read ? 'bg-gray-800/40' : ''
-                  }`}
-                >
-                  <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
-                    <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
-                    {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-1.5">
-                      <NotifIcon type={n.type} />
-                      <p className="text-sm text-gray-200 leading-snug">{notificationText(n)}</p>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{timeAgo(n.created_at)}</p>
-                  </div>
-                  {!n.read && (
-                    <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-1.5" />
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      ) : null}
-    </div>
+          }
+          bodyClassName="!px-0"
+        >
+          {notifications.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <PalMark size={48} />
+              <p className="text-sm text-muted">No notifications yet</p>
+            </div>
+          ) : (
+            notifications.map(n => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => handleNotifClick(n)}
+                className={`flex min-h-14 w-full items-start gap-3 border-b border-line-soft px-5 py-3 text-left last:border-0 hover:bg-surface-strong ${
+                  !n.read ? 'bg-surface-sunken' : ''
+                }`}
+              >
+                <span className="app-avatar h-10 w-10 text-sm">
+                  <UserAvatar avatarUrl={n.from_profile?.avatar_url} avatarCrop={n.from_profile?.avatar_crop} username={n.from_profile?.username ?? '?'} />
+                  {!n.from_profile?.avatar_url && (n.from_profile?.username?.[0] ?? '?').toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start gap-1.5">
+                    <NotifIcon type={n.type} />
+                    <span className="text-sm leading-snug text-gray-200">{notificationText(n)}</span>
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">{timeAgo(n.created_at)}</span>
+                </span>
+                {!n.read && (
+                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                )}
+              </button>
+            ))
+          )}
+        </Sheet>
+      )}
+    </>
   )
 }

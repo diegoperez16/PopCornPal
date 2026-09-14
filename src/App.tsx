@@ -15,10 +15,10 @@ export default function App() {
       <main className="min-h-dvh flex items-center justify-center p-6">
         <div className="app-panel rounded-3xl p-8 max-w-md">
           <Brand />
-          <h1 className="text-2xl font-semibold mt-8 mb-3">
+          <h1 className="mb-3 mt-8 text-2xl font-semibold tracking-tight text-gray-50">
             Let’s get connected.
           </h1>
-          <p className="app-muted">
+          <p className="text-muted">
             This installation needs its Supabase connection before you can sign
             in. Add your project settings from the setup guide and restart the
             app.

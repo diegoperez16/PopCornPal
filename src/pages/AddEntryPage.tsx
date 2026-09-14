@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -8,18 +7,18 @@ import {
   Film,
   Gamepad2,
   Loader2,
+  RotateCcw,
   Search,
-
   Tv,
   X,
 } from 'lucide-react'
-import DecimalRating from '../components/DecimalRating'
-import VerdictMark from '../features/verdict/VerdictMark'
-import VerdictBadge from '../features/verdict/VerdictBadge'
+import RatingField from '../components/RatingField'
 import NoteField from '../components/NoteField'
+import Sheet from '../components/Sheet'
 import PalMark from '../components/brand/PalMark'
 import { useAddEntryPage, type WatchStatus } from '../hooks/useAddEntryPage'
 import { localDateString } from '../lib/addEntryDraft'
+import { STATUS_LABELS } from '../features/library/libraryModel'
 
 const categories = [
   { type: 'movie', label: 'Movies', Icon: Film },
@@ -28,99 +27,105 @@ const categories = [
   { type: 'book', label: 'Books', Icon: BookOpen },
 ] as const
 const statuses: { value: WatchStatus; title: string }[] = [
-  { value: 'completed', title: 'Finished' },
-  { value: 'in-progress', title: 'In progress' },
-  { value: 'planned', title: 'Up next' },
-  { value: 'logged', title: 'Add to library' },
+  { value: 'completed', title: STATUS_LABELS.completed },
+  { value: 'in-progress', title: STATUS_LABELS['in-progress'] },
+  { value: 'planned', title: STATUS_LABELS.planned },
+  { value: 'logged', title: STATUS_LABELS.logged },
 ]
+const typeNames = { movie: 'Movie', show: 'Show', game: 'Game', book: 'Book' }
 
 type Workflow = ReturnType<typeof useAddEntryPage>
+
+/**
+ * The logging moment: what did you just finish, and what did you think?
+ * One sheet, thumb-reach controls, Poppy reacting to the score.
+ */
 function LogSheet({ workflow: w }: { workflow: Workflow }) {
-  const dialog = useRef<HTMLDialogElement>(null)
   const item = w.selectedItem
-  useEffect(() => {
-    const element = dialog.current
-    if (item) element?.showModal()
-    else element?.close()
-    return () => element?.close()
-  }, [item])
   if (!item) return null
+  const meta = [typeNames[item.type] ?? item.type, item.year]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <dialog
-      ref={dialog}
-      aria-labelledby="log-title"
-      className="log-sheet"
-      onCancel={(e) => {
-        e.preventDefault()
-        w.handleClose()
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) w.handleClose()
-      }}
-    >
-      <div className="flex flex-col max-h-[90dvh]">
-        <div
-          aria-hidden="true"
-          className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-line-strong md:hidden"
-        />
-        <header className="flex shrink-0 items-start gap-4 border-b border-white/10 p-5">
+    <Sheet
+      ariaLabel={`Log ${item.title}`}
+      onClose={w.handleClose}
+      closeLabel="Close log; keep draft"
+      closeDisabled={w.saving}
+      header={
+        <div className="flex items-center gap-4 pt-1">
           {item.image ? (
             <img
               src={item.image}
               alt=""
-              className="h-24 w-16 rounded-lg object-cover bg-gray-800"
+              className="h-[100px] w-[68px] shrink-0 rounded-xl border border-line-soft bg-surface-strong object-cover"
             />
           ) : (
-            <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-lg bg-surface-strong">
-              <Clapperboard size={25} />
+            <div className="flex h-[100px] w-[68px] shrink-0 items-center justify-center rounded-xl border border-line-soft bg-surface-strong text-muted">
+              <Clapperboard size={26} strokeWidth={1.5} />
             </div>
           )}
-          <div className="min-w-0 pt-1 flex-1">
-            <p className="app-kicker mb-2">
-              {item.type} {item.year && `· ${item.year}`}
-            </p>
+          <div className="min-w-0 flex-1">
             <h2
               id="log-title"
-              className="text-xl font-semibold leading-tight tracking-tight"
+              className="text-xl font-semibold leading-tight tracking-tight text-gray-50"
             >
               {item.title}
             </h2>
+            <p className="mt-1 text-sm text-muted">{meta}</p>
           </div>
-          <button
-            type="button"
-            aria-label="Close log; keep draft"
-            disabled={w.saving}
-            onClick={w.handleClose}
-            className="app-icon-button shrink-0 -mr-2 -mt-2"
-          >
-            <X size={20} />
-          </button>
-        </header>
-        <div className="sheet-scroll overflow-y-auto px-5 py-4 space-y-5">
-          {item.type === 'show' && (
-            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-surface-sunken p-1">
-              <button
-                className={`min-h-11 rounded-lg text-sm ${!w.episodeMode ? 'bg-gray-700 text-white' : 'text-gray-400'}`}
-                aria-pressed={!w.episodeMode}
-                onClick={w.exitEpisodeMode}
-              >
-                Whole show
-              </button>
-              <button
-                className={`min-h-11 rounded-lg text-sm ${w.episodeMode ? 'bg-gray-700 text-white' : 'text-gray-400'}`}
-                aria-pressed={w.episodeMode}
-                onClick={w.enterEpisodeMode}
-              >
-                By episode
-              </button>
-            </div>
-          )}
-          {w.episodeMode ? (
+        </div>
+      }
+      footer={
+        <button
+          className="app-button-primary w-full"
+          onClick={() => void w.handleSave()}
+          disabled={w.saving || (w.episodeMode && !w.pendingRatings.length)}
+        >
+          {w.saving ? (
             <>
-              <div>
-                <label htmlFor="season" className="auth-label">
-                  Season
-                </label>
+              <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : (
+            <>
+              <Check size={18} aria-hidden="true" />
+              {w.episodeMode ? 'Save ratings' : 'Save'}
+            </>
+          )}
+        </button>
+      }
+    >
+      <div className="space-y-5 pt-1">
+        {item.type === 'show' && (
+          <div className="app-segmented" role="group" aria-label="What to log">
+            <button
+              type="button"
+              aria-pressed={!w.episodeMode}
+              onClick={w.exitEpisodeMode}
+              disabled={w.saving}
+            >
+              Whole show
+            </button>
+            <button
+              type="button"
+              aria-pressed={w.episodeMode}
+              onClick={w.enterEpisodeMode}
+              disabled={w.saving}
+            >
+              By episode
+            </button>
+          </div>
+        )}
+
+        {w.episodeMode ? (
+          <>
+            <div>
+              <label htmlFor="season" className="app-label">
+                Season
+              </label>
+              <span className="app-select w-full">
                 <select
                   id="season"
                   value={w.selectedSeason}
@@ -137,374 +142,352 @@ function LogSheet({ workflow: w }: { workflow: Workflow }) {
                     </option>
                   ))}
                 </select>
-              </div>
-              {w.seasonError && (
-                <p role="alert" className="text-sm text-rose-200">
-                  {w.seasonError}{' '}
-                  <button onClick={w.retrySeasons} className="underline">
-                    Retry seasons
-                  </button>
-                </p>
-              )}
-              {w.episodeError && (
-                <p role="alert" className="text-sm text-rose-200">
-                  {w.episodeError}{' '}
-                  <button onClick={w.retryEpisodes} className="underline">
-                    Retry episodes
-                  </button>
-                </p>
-              )}
-              {(w.loadingSeasons || w.loadingEpisodes) && (
-                <p role="status" className="text-sm text-gray-400">
-                  Loading episodes…
-                </p>
-              )}
-              <div className="space-y-3">
-                {w.episodes.map((episode) => (
-                  <div
-                    key={episode.episode_number}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 p-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="app-kicker">
-                        Episode {episode.episode_number}
-                      </p>
-                      <p className="text-sm mt-1 truncate">{episode.name}</p>
-                    </div>
-                    <label className="flex items-center gap-1 text-xs text-gray-400">
-                      <span className="sr-only">Rating for {episode.name}</span>
-                      <input
-                        className="app-input !w-20 !min-h-11 text-center !p-2"
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        max="10"
-                        step="0.5"
-                        disabled={w.saving}
-                        value={
-                          w.getPendingEpisodeRating(
-                            w.selectedSeason,
-                            episode.episode_number
-                          ) || ''
-                        }
-                        placeholder="—"
-                        onChange={(e) =>
-                          w.setPendingEpisodeRating(
-                            w.selectedSeason,
-                            episode.episode_number,
-                            episode.name,
-                            Number(e.target.value)
-                          )
-                        }
-                      />
-                      <span>/10</span>
-                    </label>
+              </span>
+            </div>
+            {w.seasonError && (
+              <p role="alert" className="app-note app-note-danger">
+                {w.seasonError}{' '}
+                <button
+                  onClick={w.retrySeasons}
+                  className="font-semibold underline underline-offset-4"
+                >
+                  Retry seasons
+                </button>
+              </p>
+            )}
+            {w.episodeError && (
+              <p role="alert" className="app-note app-note-danger">
+                {w.episodeError}{' '}
+                <button
+                  onClick={w.retryEpisodes}
+                  className="font-semibold underline underline-offset-4"
+                >
+                  Retry episodes
+                </button>
+              </p>
+            )}
+            {(w.loadingSeasons || w.loadingEpisodes) && (
+              <p role="status" className="flex items-center gap-2 text-sm text-muted">
+                <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                Loading episodes…
+              </p>
+            )}
+            <div className="space-y-2">
+              {w.episodes.map((episode) => (
+                <div
+                  key={episode.episode_number}
+                  className="flex items-center gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-muted">
+                      Episode {episode.episode_number}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-gray-50">
+                      {episode.name}
+                    </p>
                   </div>
+                  <label className="flex items-center gap-1.5 text-xs text-muted">
+                    <span className="sr-only">Rating for {episode.name}</span>
+                    <input
+                      className="app-input !w-20 !min-h-11 !p-2 text-center tabular-nums"
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      max="10"
+                      step="0.5"
+                      disabled={w.saving}
+                      value={
+                        w.getPendingEpisodeRating(
+                          w.selectedSeason,
+                          episode.episode_number
+                        ) || ''
+                      }
+                      placeholder="—"
+                      onChange={(e) =>
+                        w.setPendingEpisodeRating(
+                          w.selectedSeason,
+                          episode.episode_number,
+                          episode.name,
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+                    <span>/10</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+            {!w.loadingEpisodes &&
+              !w.loadingSeasons &&
+              !w.seasonError &&
+              !w.episodeError &&
+              !w.episodes.length && (
+                <p className="text-sm text-muted">
+                  There are no episodes available for this season yet.
+                </p>
+              )}
+            <p className="text-xs text-muted">
+              {w.pendingRatings.length} episode{' '}
+              {w.pendingRatings.length === 1 ? 'rating' : 'ratings'} ready.
+            </p>
+          </>
+        ) : (
+          <>
+            <fieldset disabled={w.saving}>
+              <legend className="app-label">How did it go?</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {statuses.map((status) => (
+                  <button
+                    key={status.value}
+                    type="button"
+                    onClick={() => w.setStatus(status.value)}
+                    aria-pressed={w.status === status.value}
+                    className="app-option"
+                  >
+                    {status.title}
+                  </button>
                 ))}
               </div>
-              {!w.loadingEpisodes &&
-                !w.loadingSeasons &&
-                !w.seasonError &&
-                !w.episodeError &&
-                !w.episodes.length && (
-                  <p className="text-sm text-gray-400">
-                    There are no episodes available for this season yet.
-                  </p>
-                )}
-              <p className="text-xs text-gray-400">
-                {w.pendingRatings.length} episode ratings ready.
-              </p>
-            </>
-          ) : (
-            <>
-              <fieldset disabled={w.saving}>
-                <legend className="auth-label">Status</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {statuses.map((status) => (
-                    <button
-                      key={status.value}
-                      type="button"
-                      onClick={() => w.setStatus(status.value)}
-                      aria-pressed={w.status === status.value}
-                      className={`min-h-12 rounded-xl border px-3 text-sm font-semibold ${w.status === status.value ? 'border-accent-soft bg-accent/10 text-[#ff9b8e]' : 'border-white/10 bg-surface-sunken text-gray-200'}`}
-                    >
-                      {status.title}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              {(w.status === 'completed' || w.status === 'logged') && (
-                <div>
-                  <p className="auth-label">
-                    Your rating{' '}
-                    <span className="text-gray-400 text-xs font-normal">
-                      · optional
-                    </span>
-                  </p>
-                  {w.dumpstered ? (
-                    <div className="flex items-center gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3">
-                      <VerdictMark verdict="dumpster" size={40} />
-                      <p className="text-sm text-gray-300">
-                        No rating — you sent this one to the dumpster.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <DecimalRating value={w.rating} onChange={w.setRating} />
-                      <VerdictBadge rating={w.rating} />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={w.toggleDumpster}
-                    aria-pressed={w.dumpstered}
-                    disabled={w.saving}
-                    className={`mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors ${
-                      w.dumpstered
-                        ? 'border-accent bg-accent/10 text-accent-soft'
-                        : 'border-line-soft bg-surface-sunken text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    <VerdictMark verdict="dumpster" size={20} />
-                    {w.dumpstered ? 'Dumpstered' : 'Too bad to rate'}
-                  </button>
-                </div>
-              )}
-              {w.status === 'completed' && (
-                <div>
-                  <label htmlFor="finished-date" className="auth-label">
-                    Finished on
-                  </label>
-                  <input
-                    id="finished-date"
-                    type="date"
-                    className="app-input"
-                    max={localDateString()}
-                    value={w.watchedDate}
-                    onChange={(e) => w.setWatchedDate(e.target.value)}
-                    disabled={w.saving}
-                    required
-                  />
-                </div>
-              )}
-              <NoteField
-                id="entry-notes"
-                label="Notes"
-                title={item.title}
-                subtitle={`${item.type}${item.year ? ` · ${item.year}` : ''}`}
-                placeholder="What stayed with you?"
-                value={w.notes}
-                onChange={w.setNotes}
+            </fieldset>
+            {(w.status === 'completed' || w.status === 'logged') && (
+              <RatingField
+                rating={w.rating}
+                onChange={w.setRating}
+                dumpstered={w.dumpstered}
+                onToggleDumpster={w.toggleDumpster}
                 disabled={w.saving}
               />
-            </>
-          )}
-          {w.duplicateError && (
-            <p
-              role="alert"
-              className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200"
-            >
-              This title is already in your collection. You can edit it from
-              your library, or log another finished viewing.
-            </p>
-          )}
-          {w.saveError && (
-            <p
-              role="alert"
-              className="rounded-xl bg-rose-400/10 p-3 text-sm text-rose-200"
-            >
-              {w.saveError}
-            </p>
-          )}
-        </div>
-        <footer className="shrink-0 border-t border-white/10 px-5 pt-4 pb-[max(20px,env(safe-area-inset-bottom))] bg-gray-800">
-          <button
-            className="app-button-primary w-full"
-            onClick={() => void w.handleSave()}
-            disabled={w.saving || (w.episodeMode && !w.pendingRatings.length)}
-          >
-            {w.saving ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <Check size={18} />
-                {w.episodeMode ? 'Save ratings' : 'Save'}
-              </>
             )}
-          </button>
-        </footer>
+            {w.status === 'completed' && (
+              <div>
+                <label htmlFor="finished-date" className="app-label">
+                  Finished on
+                </label>
+                <input
+                  id="finished-date"
+                  type="date"
+                  className="app-input"
+                  max={localDateString()}
+                  value={w.watchedDate}
+                  onChange={(e) => w.setWatchedDate(e.target.value)}
+                  disabled={w.saving}
+                  required
+                />
+              </div>
+            )}
+            <NoteField
+              id="entry-notes"
+              label="Notes"
+              title={item.title}
+              subtitle={meta}
+              placeholder="What stayed with you?"
+              value={w.notes}
+              onChange={w.setNotes}
+              disabled={w.saving}
+            />
+          </>
+        )}
+        {w.duplicateError && (
+          <p role="alert" className="app-note app-note-warn">
+            This title is already in your collection. You can edit it from your
+            library, or log another finished viewing.
+          </p>
+        )}
+        {w.saveError && (
+          <p role="alert" className="app-note app-note-danger">
+            {w.saveError}
+          </p>
+        )}
       </div>
-    </dialog>
+    </Sheet>
   )
 }
 
 export default function AddEntryPage() {
   const w = useAddEntryPage()
+  const activeLabel =
+    w.activeTab === 'movie'
+      ? 'a movie'
+      : w.activeTab === 'show'
+        ? 'a show'
+        : w.activeTab === 'game'
+          ? 'a game'
+          : 'a book'
   return (
     <main className="app-page">
-      <div className="mx-auto max-w-4xl px-5 pt-8 md:pt-10">
+      <div className="mx-auto max-w-4xl px-5 pt-7 md:pt-10">
         <h1 className="app-title">
           What’s your latest<span className="text-accent-soft">?</span>
         </h1>
+
         <div
-          className="grid grid-cols-4 gap-1 mt-6 mb-4 rounded-xl border border-white/10 bg-surface-sunken p-1"
+          className="app-segmented mt-6"
           role="group"
           aria-label="Media type"
         >
           {categories.map(({ type, label, Icon }) => (
             <button
               key={type}
+              type="button"
               aria-pressed={w.activeTab === type}
               onClick={() => w.setActiveTab(type)}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium ${w.activeTab === type ? 'bg-gray-700 text-gray-50' : 'text-gray-400'}`}
+              className="!text-[13px]"
             >
-              <Icon size={16} />
-              <span className="hidden sm:inline">{label}</span>
-              <span className="sm:hidden text-xs">{label}</span>
+              <Icon size={16} aria-hidden="true" />
+              {label}
             </button>
           ))}
         </div>
-        <div className="relative">
-          <Search className="absolute left-4 top-4 text-gray-400" size={20} />
+
+        <div className="app-search mt-3">
+          <Search size={20} aria-hidden="true" />
           <input
             aria-label="Search titles"
             type="search"
-            className="app-input !pl-12 !pr-12 !min-h-14"
-            placeholder={`Find ${w.activeTab === 'movie' ? 'a movie' : w.activeTab === 'show' ? 'a show' : w.activeTab === 'game' ? 'a game' : 'a book'}…`}
+            className="app-input !min-h-14 !pr-12"
+            placeholder={`Find ${activeLabel}…`}
             value={w.query}
             onChange={(e) => w.setQuery(e.target.value)}
             autoComplete="off"
+            enterKeyHint="search"
           />
           {w.searching && (
             <Loader2
-              className="absolute top-4 right-4 animate-spin text-accent-soft"
+              className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-accent-soft"
               size={20}
+              aria-hidden="true"
             />
           )}
         </div>
+
         {w.saveFeedback && (
-          <div
-            role="status"
-            className="mt-5 rounded-2xl border border-[#9bb180]/30 bg-[#9bb180]/10 p-4"
-          >
-            <div className="flex justify-between gap-3">
+          <div role="status" className="app-note app-note-ok mt-5">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-[#d3e5bb]">
-                  {w.saveFeedback.title}
-                </p>
-                <p className="text-xs text-gray-300 mt-1">
+                <p className="font-semibold">{w.saveFeedback.title}</p>
+                <p className="mt-0.5 text-sm text-gray-200">
                   {w.saveFeedback.detail}
                 </p>
               </div>
               <button
                 aria-label="Dismiss saved message"
-                className="app-icon-button -mr-2 -mt-2"
+                className="app-icon-button -mr-3 -mt-2 text-current"
                 onClick={w.dismissSaveFeedback}
               >
                 <X size={17} />
               </button>
             </div>
-            <div className="flex gap-5 mt-4 text-xs">
+            <div className="mt-2 flex flex-wrap gap-x-4 text-sm">
               <Link
-                className="text-[#d3e5bb] inline-flex items-center gap-1"
+                className="inline-flex min-h-11 items-center gap-1 font-semibold"
                 to="/feed"
               >
-                Share your thoughts <ArrowRight size={13} />
+                Share your thoughts <ArrowRight size={14} aria-hidden="true" />
               </Link>
-              <Link to="/library" className="text-gray-300">
+              <Link
+                to="/library"
+                className="inline-flex min-h-11 items-center font-semibold text-gray-200"
+              >
                 View collection
               </Link>
             </div>
           </div>
         )}
+
         {w.draftItem && !w.selectedItem && (
-          <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-[#d6b78e]/20 bg-[#d6b78e]/5 p-4">
-            <div>
-              <p className="app-kicker mb-1">Your unfinished scene</p>
-              <p className="text-sm">{w.draftItem.title}</p>
+          <div className="app-panel mt-5 flex items-center gap-3 rounded-2xl p-3 pl-4">
+            <RotateCcw size={18} className="shrink-0 text-butter-300" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-muted">Unfinished log</p>
+              <p className="truncate text-sm font-semibold text-gray-50">
+                {w.draftItem.title}
+              </p>
             </div>
             <button
-              className="min-h-11 text-sm font-semibold text-[#e4c398]"
+              className="app-button-secondary app-button-sm"
               onClick={w.resumeDraft}
             >
               Continue
             </button>
             <button
-              className="app-icon-button"
+              className="app-icon-button -mr-1"
               aria-label="Discard entry draft"
               onClick={w.discardDraft}
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
         )}
+
         {!w.draftStorageAvailable && (
-          <p role="status" className="mt-4 text-xs text-amber-200">
+          <p role="status" className="app-note app-note-warn mt-4">
             Your device couldn’t save this draft. Keep this page open until you
             finish.
           </p>
         )}
+
         {w.searchError ? (
-          <div role="alert" className="app-panel mt-6 p-6 rounded-2xl">
-            <h2 className="font-semibold">A brief intermission.</h2>
-            <p className="text-sm text-gray-400 mt-2">{w.searchError}</p>
-            <button onClick={w.retrySearch} className="app-button-primary mt-4">
+          <div role="alert" className="app-empty mt-6">
+            <PalMark size={56} />
+            <h3 className="mt-3">A brief intermission.</h3>
+            <p>{w.searchError}</p>
+            <button onClick={w.retrySearch} className="app-button-primary mt-6">
               Try search again
             </button>
           </div>
         ) : w.query.trim() ? (
           <section className="mt-7" aria-label="Search results">
-            <p className="app-kicker mb-4" aria-live="polite">
+            <p className="mb-4 text-sm text-muted" aria-live="polite">
               {w.searching
                 ? 'Finding your story…'
-                : `${w.results.length} titles found`}
+                : `${w.results.length} ${w.results.length === 1 ? 'title' : 'titles'} found`}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-6">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
               {w.results.map((item) => (
                 <button
                   key={`${item.type}-${item.id}`}
-                  className="text-left group min-w-0"
+                  className="group min-w-0 rounded-2xl text-left"
                   aria-label={`Log ${item.title}`}
                   onClick={() => w.selectItem(item)}
                 >
-                  <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-gray-800 border border-white/10">
+                  <div className="aspect-[2/3] overflow-hidden rounded-2xl border border-line bg-surface-strong">
                     {item.image ? (
                       <img
                         src={item.image}
                         alt=""
                         loading="lazy"
-                        className="h-full w-full object-cover transition-opacity group-hover:opacity-80"
+                        className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
                       />
                     ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <Clapperboard size={36} className="text-gray-500" />
+                      <div className="flex h-full items-center justify-center text-muted">
+                        <Clapperboard size={36} strokeWidth={1.3} />
                       </div>
                     )}
                   </div>
-                  <h2 className="mt-3 font-semibold text-sm leading-snug line-clamp-2">
+                  <h2 className="mt-3 line-clamp-2 text-sm font-semibold leading-snug text-gray-50 transition-colors group-hover:text-accent-soft">
                     {item.title}
                   </h2>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="mt-1 text-xs text-muted">
                     {item.year || 'Release date unknown'}
                   </p>
                 </button>
               ))}
             </div>
             {!w.searching && !w.results.length && (
-              <p className="py-12 text-sm text-gray-400 text-center">
+              <p className="py-12 text-center text-sm text-muted">
                 No matches this time. Try a different title or spelling.
               </p>
             )}
           </section>
         ) : (
-          <section className="mt-16 text-center">
-            <div className="mb-4 flex justify-center opacity-90">
-              <PalMark size={64} />
+          <section className="mt-14 text-center">
+            <div className="mb-4 flex justify-center">
+              <PalMark size={72} />
             </div>
-            <p className="text-sm text-gray-400">
+            <h2 className="text-lg font-semibold tracking-tight text-gray-50">
+              What did you just finish?
+            </h2>
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-muted">
               Search for something you’ve watched, played, or read.
             </p>
           </section>

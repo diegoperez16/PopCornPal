@@ -4,10 +4,21 @@ import { useAuthStore } from '../store/authStore'
 import { useActivity } from '../hooks/queries/useActivityQueries'
 import type { MediaEntry } from '../hooks/queries/useMediaQueries'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, Gamepad2, Book, Star, Calendar, ArrowUpRight } from 'lucide-react'
+import { Film, Tv, Gamepad2, Book, ArrowUpRight } from 'lucide-react'
+import PalMark from '../components/brand/PalMark'
+import VerdictMark from '../features/verdict/VerdictMark'
+import { verdictFor } from '../features/verdict/verdictModel'
+import { statusLabel } from '../features/library/libraryModel'
 
 interface GroupedEntries {
   [date: string]: MediaEntry[]
+}
+
+const MEDIA_LABELS: Record<MediaEntry['media_type'], string> = {
+  movie: 'Movie',
+  show: 'Show',
+  game: 'Game',
+  book: 'Book',
 }
 
 export default function ActivityPage() {
@@ -44,7 +55,7 @@ export default function ActivityPage() {
 
     // Sort entries within each day by time (newest first)
     Object.keys(grouped).forEach(date => {
-      grouped[date].sort((a, b) => 
+      grouped[date].sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
     })
@@ -62,23 +73,12 @@ export default function ActivityPage() {
     }
   }
 
-  // Refined colors for cleaner UI
-  const getMediaStyle = (type: string) => {
-    switch (type) {
-      case 'movie': return { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20', iconBg: 'bg-red-500/20' }
-      case 'show': return { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', iconBg: 'bg-purple-500/20' }
-      case 'game': return { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', iconBg: 'bg-blue-500/20' }
-      case 'book': return { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', iconBg: 'bg-emerald-500/20' }
-      default: return { bg: 'bg-gray-800', text: 'text-gray-400', border: 'border-gray-700', iconBg: 'bg-gray-700' }
-    }
-  }
-
   const formatTime = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     })
   }
 
@@ -89,15 +89,15 @@ export default function ActivityPage() {
 
     // Build local YYYY-MM-DD strings for comparison
     const toYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    
+
     if (dateKey === toYMD(today)) return 'Today'
     if (dateKey === toYMD(yesterday)) return 'Yesterday'
-    
+
     const date = new Date(dateKey + 'T00:00:00') // Force local time parsing
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
     })
   }
 
@@ -108,131 +108,112 @@ export default function ActivityPage() {
   const daysActive = sortedDates.length
 
   return (
-    <div className="app-page text-white">
+    <div className="app-page">
       <main className="relative z-10 max-w-3xl mx-auto px-5 pt-8 pb-8">
-        <header className="mb-6"><h1 className="app-title">The story so far<span className="text-accent-soft">.</span></h1></header>
-        {/* Quick Stats */}
-        <div className="flex gap-3 mb-8">
-          <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
-            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total</div>
-            <div className="text-xl font-bold text-white">{totalEntriesCount}</div>
-          </div>
-          <div className="bg-gray-800/40 backdrop-blur-md border border-gray-700/50 rounded-xl px-4 py-2 text-center">
-            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Days</div>
-            <div className="text-xl font-bold text-white">{daysActive}</div>
-          </div>
-        </div>
+        <header className="mb-8">
+          <h1 className="app-title">The story so far<span className="text-accent-soft">.</span></h1>
+          {totalEntriesCount > 0 && (
+            <p className="mt-2 text-sm text-muted">
+              {totalEntriesCount} {totalEntriesCount === 1 ? 'title' : 'titles'} across {daysActive} {daysActive === 1 ? 'day' : 'days'}
+            </p>
+          )}
+        </header>
 
         {/* Timeline Content */}
         {sortedDates.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-gray-800/30 border border-gray-800 rounded-3xl">
-            <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mb-6">
-              <Calendar className="w-10 h-10 text-gray-600" />
+          <div className="app-empty">
+            <div className="mx-auto mb-4 flex justify-center">
+              <PalMark size={64} />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">No activity yet</h3>
-            <p className="text-gray-400 mb-8 max-w-xs text-center">Start logging movies, games, or books to see your timeline build up.</p>
+            <h3>No activity yet</h3>
+            <p>Start logging movies, games, or books to see your timeline build up.</p>
             <button
+              type="button"
               onClick={() => navigate('/add')}
-              className="bg-accent text-white font-semibold px-8 py-3 rounded-full hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2"
+              className="app-button-primary mt-5"
             >
-              <ArrowUpRight className="w-5 h-5" />
+              <ArrowUpRight size={18} />
               Log Activity
             </button>
           </div>
         ) : (
-          <div className="relative border-l-2 border-gray-800 ml-4 md:ml-8 space-y-12">
+          <div className="relative border-l border-line ml-2 md:ml-4 space-y-10">
             {sortedDates.map(date => (
-              <div key={date} className="relative pl-8 md:pl-10">
+              <div key={date} className="relative pl-7 md:pl-9">
                 {/* Date Marker */}
-                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-gray-900 border-2 border-butter-400 ring-4 ring-gray-900"></div>
-                
+                <div className="absolute -left-[8.5px] top-1 w-4 h-4 rounded-full bg-bg border-2 border-butter-400 ring-4 ring-bg"></div>
+
                 {/* Date Header */}
-                <div className="flex items-baseline gap-3 mb-6">
-                  <h2 className="text-xl font-bold text-white">
+                <div className="flex items-baseline gap-3 mb-4">
+                  <h2 className="app-h2">
                     {getRelativeDateLabel(date)}
                   </h2>
-                  <span className="text-sm text-gray-500 font-medium">
+                  <span className="text-sm text-muted">
                     {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
 
                 {/* Cards for this day */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {groupedEntries[date].map(entry => {
                     const Icon = getMediaIcon(entry.media_type)
-                    const style = getMediaStyle(entry.media_type)
-                    
+                    const verdict = verdictFor(entry.rating, Boolean(entry.dumpstered))
+
                     return (
                       <div
                         key={entry.id}
-                        className={`group relative bg-gray-800/40 hover:bg-gray-800/60 backdrop-blur-sm border border-gray-700/50 hover:border-gray-600 rounded-2xl p-4 transition-all duration-200 hover:translate-x-1`}
+                        className="app-panel rounded-2xl p-3 sm:p-4 flex gap-4"
                       >
-                        <div className="flex gap-4">
-                          {/* Left: Image or Icon */}
-                          <div className="flex-shrink-0">
-                            {entry.cover_image_url ? (
-                              <div className="w-16 h-24 rounded-lg overflow-hidden shadow-md bg-gray-900">
-                                <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
-                              </div>
-                            ) : (
-                              <div className={`w-16 h-24 rounded-lg ${style.bg} flex items-center justify-center border ${style.border}`}>
-                                <Icon className={`w-8 h-8 ${style.text}`} />
-                              </div>
-                            )}
+                        {/* Left: Image or Icon */}
+                        <div className="flex-shrink-0">
+                          {entry.cover_image_url ? (
+                            <div className="w-16 h-24 rounded-lg overflow-hidden bg-surface-strong">
+                              <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-24 rounded-lg bg-surface-strong text-muted flex items-center justify-center">
+                              <Icon size={28} />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right: Content - min-w-0 keeps long titles from overflowing */}
+                        <div className="flex-1 min-w-0 py-0.5 flex flex-col">
+
+                          {/* Top Row: Title & Time */}
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-base font-semibold text-gray-50 leading-tight truncate" title={entry.title}>
+                                {entry.title}
+                              </h3>
+                              <p className="text-xs text-muted mt-1">
+                                {MEDIA_LABELS[entry.media_type] ?? entry.media_type} · {statusLabel(entry.status)}
+                              </p>
+                            </div>
+
+                            <span className="flex-shrink-0 text-xs text-muted tabular-nums">
+                              {formatTime(entry.created_at)}
+                            </span>
                           </div>
 
-                          {/* Right: Content - Added min-w-0 to fix overflow */}
-                          <div className="flex-1 min-w-0 py-1 flex flex-col h-full">
-                            
-                            {/* Top Row: Title & Time */}
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="min-w-0 flex-1">
-                                <h3 className="text-lg font-bold text-white leading-tight truncate pr-1" title={entry.title}>
-                                  {entry.title}
-                                </h3>
-                                
-                                {/* Tags Row */}
-                                <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                  <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${style.bg} ${style.text} border ${style.border}`}>
-                                    {entry.media_type}
-                                  </span>
-                                  
-                                  {/* Status Dot */}
-                                  <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                                    <span className={`w-1.5 h-1.5 rounded-full ${
-                                      entry.status === 'completed' ? 'bg-green-500' :
-                                      entry.status === 'in-progress' ? 'bg-blue-500' : 'bg-gray-500'
-                                    }`}></span>
-                                    <span className="capitalize truncate">{entry.status.replace('-', ' ')}</span>
-                                  </span>
-                                </div>
+                          {/* Bottom Row: Rating & Notes */}
+                          <div className="mt-auto pt-3 flex items-end justify-between gap-4">
+                            {verdict ? (
+                              <div className="flex items-center gap-1.5">
+                                <VerdictMark verdict={verdict.id} size={20} />
+                                {entry.rating !== null && !entry.dumpstered && (
+                                  <span className="text-sm font-semibold text-butter-gold tabular-nums">{entry.rating}</span>
+                                )}
                               </div>
-                              
-                              {/* Time Badge - Fixed width to prevent squashing */}
-                              <div className="flex-shrink-0 text-xs font-mono text-gray-500 bg-gray-900/50 px-2 py-1 rounded-md border border-gray-700/30">
-                                {formatTime(entry.created_at)}
-                              </div>
-                            </div>
+                            ) : (
+                              <div /> /* Spacer */
+                            )}
 
-                            {/* Bottom Row: Rating & Notes */}
-                            <div className="mt-auto pt-3 flex items-end justify-between gap-4">
-                              {entry.rating ? (
-                                <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded-lg border border-yellow-500/20">
-                                  <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                                  <span className="text-sm font-bold text-yellow-100">{entry.rating}</span>
-                                </div>
-                              ) : (
-                                <div /> /* Spacer */
-                              )}
-
-                              {entry.notes && (
-                                <div className="flex-1 min-w-0 text-right">
-                                  <p className="text-sm text-gray-400 italic truncate pl-4 border-l-2 border-gray-700/50">
-                                    "{entry.notes}"
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                            {entry.notes && (
+                              <p className="flex-1 min-w-0 text-right text-sm text-muted italic line-clamp-1">
+                                {entry.notes}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

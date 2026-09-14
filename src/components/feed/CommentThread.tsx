@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trash2, Pencil, MessageCircle, ArrowUp, Image as ImageIcon, X, Heart } from 'lucide-react'
 import { type Comment, formatTimeAgo, findImageLink, wasEdited } from './feedTypes'
 import { useMentionAutocomplete } from '../../hooks/useMentionAutocomplete'
 import MentionDropdown from '../MentionDropdown'
+import AutoGrowTextarea from '../AutoGrowTextarea'
 import { renderMentionText } from '../../lib/mentions'
 import UserAvatar from '../UserAvatar'
 
@@ -62,13 +64,13 @@ export default function CommentThread({
 }: CommentThreadProps) {
   const hasReplies = comment.replies && comment.replies.length > 0
   const replyMention = useMentionAutocomplete()
+  // Only a tap on this comment may focus its reply or edit box. A target
+  // restored from a draft, or left over from an earlier visit, mounts the
+  // box when the thread opens, and autoFocus would scroll the feed to it.
+  const [focusField, setFocusField] = useState(false)
 
   const handleReplyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
-
-    // Auto-resize
-    e.target.style.height = 'auto'
-    e.target.style.height = `${e.target.scrollHeight}px`
 
     replyMention.handleTextChange(value, e.target.selectionStart ?? value.length)
 
@@ -89,26 +91,24 @@ export default function CommentThread({
   return (
     <div
       id={`comment-${comment.id}`}
-      className={`${depth > 0 ? 'ml-6 mt-3' : ''} ${
+      className={`${depth > 0 ? 'ml-4 mt-3 border-l border-line-soft pl-3' : ''} ${
         highlightedId === comment.id
-          ? 'rounded-xl ring-2 ring-accent ring-offset-2 ring-offset-gray-800 transition-shadow'
+          ? 'rounded-xl ring-2 ring-accent ring-offset-2 ring-offset-surface transition-shadow'
           : ''
       }`}
     >
       <div className="flex gap-3">
-        <div className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0 overflow-hidden`}>
+        <span className={`app-avatar text-xs ${depth > 0 ? 'h-7 w-7' : 'h-8 w-8'}`}>
           <UserAvatar avatarUrl={comment.profiles.avatar_url} avatarCrop={comment.profiles.avatar_crop} username={comment.profiles.username} />
           {!comment.profiles.avatar_url && (
-            <span className="text-white text-xs font-bold">
-              {comment.profiles.username.charAt(0).toUpperCase()}
-            </span>
+            <span>{comment.profiles.username.charAt(0).toUpperCase()}</span>
           )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="bg-gray-800/50 rounded-lg p-3 max-w-full overflow-x-auto">
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="rounded-xl bg-surface-sunken p-3">
             <Link
               to={`/profile/${comment.profiles.username}`}
-              className="text-sm font-semibold text-white hover:text-red-400 transition-colors inline-block mb-1"
+              className="mb-1 inline-block text-sm font-semibold text-gray-50 transition-colors hover:text-accent-soft"
             >
               @{comment.profiles.username}
             </Link>
@@ -123,91 +123,99 @@ export default function CommentThread({
                     e.target.style.height = `${e.target.scrollHeight}px`
                   }}
                   rows={1}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
-                  autoFocus
+                  aria-label="Edit your comment"
+                  className="app-textarea overflow-hidden"
+                  autoFocus={focusField}
                 />
-                <div className="flex gap-2 mt-2 justify-end">
+                <div className="mt-2 flex justify-end gap-2">
                   <button
+                    type="button"
                     onClick={onCancelEdit}
-                    className="text-xs text-gray-400 hover:text-white px-2 py-1"
+                    className="app-button-ghost app-button-sm"
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={() => onUpdate(comment.id, postId)}
                     disabled={!editText.trim()}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg disabled:opacity-50"
+                    className="app-button-primary app-button-sm"
                   >
                     Save
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-300 break-all max-w-full whitespace-pre-wrap">{renderMentionText(comment.content)}</p>
+              <p className="whitespace-pre-wrap break-words text-sm text-gray-200">{renderMentionText(comment.content)}</p>
             )}
 
             {/* Comment Image */}
             {comment.image_url && !isEditing && (
-              <div className="mt-2">
-                <img loading="lazy" decoding="async"
-                  src={comment.image_url}
-                  alt="Comment attachment"
-                  className="max-w-full rounded-lg max-h-64 object-contain"
-                />
-              </div>
+              <img loading="lazy" decoding="async"
+                src={comment.image_url}
+                alt="Comment attachment"
+                className="mt-2 max-h-64 max-w-full rounded-lg object-contain"
+              />
             )}
 
-            <div className="flex items-center gap-3 mt-2">
-              <p className="text-xs text-gray-500">
+            <div className="-mb-2 -ml-2 mt-1 flex flex-wrap items-center gap-x-1">
+              <span className="px-2 text-xs text-muted">
                 {formatTimeAgo(comment.created_at)}
-              </p>
+              </span>
               {wasEdited(comment.created_at, comment.updated_at) && (
-                <span className="text-xs text-gray-600 italic">(edited)</span>
+                <span className="text-xs italic text-muted">(edited)</span>
               )}
               {!isEditing && (
                 <>
                   <button
+                    type="button"
                     onClick={() => onLike(comment.id)}
-                    className={`text-xs flex items-center gap-1 transition-colors active:scale-95 ${
-                      comment.is_liked ? 'text-red-400' : 'text-gray-500 hover:text-red-400'
+                    aria-pressed={comment.is_liked}
+                    aria-label={comment.is_liked ? 'Unlike comment' : 'Like comment'}
+                    className={`flex min-h-11 items-center gap-1 px-2 text-xs font-semibold tabular-nums transition-colors ${
+                      comment.is_liked ? 'text-accent-soft' : 'text-muted hover:text-gray-50'
                     }`}
                   >
-                    <Heart className={`w-3 h-3 ${comment.is_liked ? 'fill-current' : ''}`} />
+                    <Heart size={14} className={comment.is_liked ? 'fill-current' : ''} />
                     {(comment.likes_count ?? 0) > 0 && <span>{comment.likes_count}</span>}
                   </button>
                   <button
-                    onClick={() => onReply(comment.id)}
-                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                    type="button"
+                    onClick={() => { setFocusField(true); onReply(comment.id) }}
+                    className="min-h-11 px-2 text-xs font-semibold text-accent-soft"
                   >
                     Reply
                   </button>
                   {currentUserId === comment.user_id && (
                     <>
                       <button
-                        onClick={() => onEdit(comment)}
-                        className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+                        type="button"
+                        onClick={() => { setFocusField(true); onEdit(comment) }}
+                        className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-gray-50"
                       >
-                        <Pencil className="w-3 h-3" />
+                        <Pencil size={14} />
                         Edit
                       </button>
                       <button
+                        type="button"
                         onClick={() => onDelete(comment.id, postId)}
-                        className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                        className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-danger"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 size={14} />
                         Delete
                       </button>
                     </>
                   )}
                   {hasReplies && (
                     <button
+                      type="button"
                       onClick={() => {
                         const event = new CustomEvent('openThread', { detail: { comment, postId } })
                         window.dispatchEvent(event)
                       }}
-                      className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+                      className="flex min-h-11 items-center gap-1 px-2 text-xs font-semibold text-muted transition-colors hover:text-gray-50"
                     >
-                      <MessageCircle className="w-3 h-3" />
+                      <MessageCircle size={14} />
                       {comment.replies!.length} {comment.replies!.length === 1 ? 'reply' : 'replies'}
                     </button>
                   )}
@@ -218,8 +226,8 @@ export default function CommentThread({
 
           {/* Reply Input */}
           {replyingTo === comment.id && (
-            <div className="mt-3 pl-3 border-l-2 border-gray-700/50">
-              <div className="flex items-end gap-2 bg-gray-900/50 border border-gray-600 rounded-3xl p-2 relative transition-all focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+            <div className="mt-3 border-l border-line-soft pl-3">
+              <div className="relative flex items-end gap-1 rounded-2xl border border-line-soft bg-surface-sunken p-2 transition-colors focus-within:border-butter-400">
                 <MentionDropdown
                   users={replyMention.mention.users}
                   loading={replyMention.mention.loading}
@@ -227,8 +235,10 @@ export default function CommentThread({
                   selectedIndex={replyMention.mention.selectedIndex}
                   onSelect={(username) => setReplyText(replyMention.selectUser(replyText, username))}
                 />
-                <div className="flex-1 min-w-0">
-                  <textarea
+                <div className="min-w-0 flex-1">
+                  <AutoGrowTextarea
+                    minRows={1}
+                    maxRows={5}
                     value={replyText}
                     onChange={handleReplyChange}
                     onKeyDown={(e) => {
@@ -248,19 +258,20 @@ export default function CommentThread({
                       }
                     }}
                     placeholder={`Reply to @${comment.profiles.username}...`}
-                    rows={1}
-                    className="w-full bg-transparent border-none text-sm text-white placeholder-gray-500 focus:ring-0 resize-none max-h-32 py-2 px-2"
-                    autoFocus
+                    aria-label={`Reply to @${comment.profiles.username}`}
+                    enterKeyHint="send"
+                    className="w-full border-none bg-transparent px-2 py-2.5 text-base leading-6 text-gray-50 placeholder:text-gray-500 focus:outline-none focus:ring-0"
+                    autoFocus={focusField}
                   />
                 </div>
 
-                <div className="flex items-center gap-1 pb-1">
+                <div className="flex shrink-0 items-center">
                   <label
                     htmlFor={`reply-image-${comment.id}`}
-                    className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-gray-800 rounded-full cursor-pointer transition-colors"
-                    title="Upload Image"
+                    aria-label="Upload an image"
+                    className="app-icon-button cursor-pointer"
                   >
-                    <ImageIcon className="w-4 h-4" />
+                    <ImageIcon size={18} />
                     <input
                       type="file"
                       accept="image/*,image/gif"
@@ -273,42 +284,47 @@ export default function CommentThread({
                     />
                   </label>
                   <button
+                    type="button"
                     onClick={() => setShowReplyGifPicker(true)}
-                    className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-gray-800 rounded-full transition-colors font-bold text-[10px]"
-                    title="Add GIF"
+                    aria-label="Add a GIF"
+                    className="app-icon-button"
                   >
-                    <span className="border border-current rounded px-1">GIF</span>
+                    <span className="rounded border border-current px-1 text-xs font-bold leading-5">GIF</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => onSubmitReply(postId, comment.id)}
                     disabled={(!replyText.trim() && !replyImageUrl && !uploadingReplyImage) || postingComment}
-                    className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all disabled:opacity-50 disabled:scale-95 shadow-lg shadow-blue-500/20 ml-1"
+                    aria-label="Send"
+                    className="app-button-primary !min-h-11 !w-11 !p-0 !rounded-full ml-1"
                   >
-                    <ArrowUp className="w-4 h-4" />
+                    <ArrowUp size={18} />
                   </button>
                 </div>
               </div>
 
               {/* Preview Images in Reply */}
               {(replyImageUrl || uploadingReplyImage) && (
-                <div className="mt-2 ml-2">
+                <div className="mt-2">
                   {uploadingReplyImage ? (
-                    <div className="text-xs text-gray-400 flex items-center gap-2">
-                      <div className="w-3 h-3 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin"></div>
+                    <div className="flex items-center gap-2 text-xs text-muted">
+                      <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
                       Uploading image...
                     </div>
                   ) : (
-                    <div className="relative inline-block max-w-full group">
+                    <div className="flex items-start gap-1">
                       <img loading="lazy" decoding="async"
                         src={replyImageUrl}
                         alt="Reply attachment"
-                        className="h-auto w-auto max-w-full max-h-20 object-contain rounded-lg border border-gray-700"
+                        className="h-auto w-auto min-w-0 max-w-full max-h-20 rounded-lg border border-line-soft object-contain"
                       />
                       <button
+                        type="button"
                         onClick={() => setReplyImageUrl('')}
-                        className="absolute -top-1 -right-1 p-0.5 bg-black/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Remove image"
+                        className="app-icon-button"
                       >
-                        <X className="w-3 h-3" />
+                        <X size={18} />
                       </button>
                     </div>
                   )}

@@ -16,6 +16,7 @@ export default function NoteField({
   placeholder = 'Write about it…',
   onChange,
   disabled = false,
+  optional = true,
 }: {
   id?: string
   label: string
@@ -26,15 +27,16 @@ export default function NoteField({
   placeholder?: string
   onChange: (value: string) => void
   disabled?: boolean
+  /** Hide the "· optional" hint on a field that is simply a field. */
+  optional?: boolean
 }) {
   const [writing, setWriting] = useState(false)
   const written = value.trim()
 
   return (
     <div>
-      <label htmlFor={id} className="auth-label">
-        {label}{' '}
-        <span className="text-xs font-normal text-gray-400">· optional</span>
+      <label htmlFor={id} className="app-label">
+        {label}{optional && <small> · optional</small>}
       </label>
       <button
         id={id}
@@ -42,7 +44,7 @@ export default function NoteField({
         disabled={disabled}
         onClick={() => setWriting(true)}
         aria-label={written ? `Edit your notes: ${written}` : 'Write notes'}
-        className="flex w-full items-start gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3.5 text-left transition-colors hover:border-line-strong disabled:opacity-50"
+        className="flex w-full items-start gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3.5 text-left transition-colors hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-50"
       >
         <PenLine
           size={17}

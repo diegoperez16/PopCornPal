@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Lock, Loader2 } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
+import Brand from '../components/brand/Brand'
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const { updatePassword } = useAuthStore()
@@ -16,7 +18,7 @@ export default function UpdatePasswordPage() {
       setError('Password must be at least 6 characters')
       return
     }
-    
+
     setLoading(true)
     setError('')
 
@@ -31,45 +33,66 @@ export default function UpdatePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">Change Password</h1>
-          <p className="text-gray-400">Enter your new password below.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">New Password</label>
-            <div className="relative">
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 pl-10 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            </div>
-          </div>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-accent text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Update Password'}
-          </button>
-        </form>
+    <main className="auth-page">
+      <div className="auth-brand">
+        <Brand />
       </div>
-    </div>
+      <div className="mx-auto w-full max-w-md md:my-auto">
+        <section className="auth-form-panel" aria-labelledby="update-password-heading">
+          <h2 id="update-password-heading">Choose a new password.</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
+            Make it one you’ll remember. At least 6 characters.
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <div>
+              <label htmlFor="new-password" className="app-label">
+                New password
+              </label>
+              <div className="relative">
+                <input
+                  id="new-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="app-input pr-14"
+                  autoComplete="new-password"
+                  enterKeyHint="go"
+                  placeholder="Make it a good one"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  className="app-icon-button absolute right-1 top-1/2 -translate-y-1/2"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <p role="alert" className="app-note app-note-danger">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="app-button-primary w-full !mt-6"
+            >
+              {loading ? (
+                <Loader2 className="animate-spin" size={18} aria-hidden="true" />
+              ) : null}
+              Update password
+              {!loading && <ArrowRight size={17} aria-hidden="true" />}
+            </button>
+          </form>
+        </section>
+      </div>
+    </main>
   )
 }

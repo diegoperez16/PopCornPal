@@ -1,13 +1,46 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Film, Tv, Gamepad2, Book, UserPlus, UserCheck, ArrowLeft, Loader2, Heart, MessageCircle, Crown, Beaker, Star, X, Search, Library, Share2, Check } from 'lucide-react'
+import {
+  Film,
+  Tv,
+  Gamepad2,
+  Book,
+  UserPlus,
+  UserCheck,
+  ArrowLeft,
+  ChevronRight,
+  Loader2,
+  Heart,
+  MessageCircle,
+  Search,
+  Share2,
+  Check,
+  Pencil,
+  ListOrdered,
+  GalleryHorizontal,
+} from 'lucide-react'
 import ProfileSkeleton from '../components/ProfileSkeleton'
 import Brand from '../components/brand/Brand'
+import PalMark from '../components/brand/PalMark'
+import Sheet from '../components/Sheet'
+import Reveal from '../components/motion/Reveal'
 import ProfileStats from '../features/profile/ProfileStats'
-import { buildVisitorTabs } from '../features/profile/favoriteLists'
+import PillTabs from '../features/profile/PillTabs'
+import SectionHeader from '../features/profile/SectionHeader'
+import AuroraBanner from '../features/profile/AuroraBanner'
+import PeopleListSheet from '../features/profile/PeopleListSheet'
+import BadgeRow from '../features/profile/BadgeRow'
+import HouseRing from '../features/house/HouseRing'
+import VerdictMark from '../features/verdict/VerdictMark'
+import { verdictFor } from '../features/verdict/verdictModel'
+import { statusLabel } from '../features/library/libraryModel'
+import { buildVisitorTabs, labelForList } from '../features/profile/favoriteLists'
 import { useUserProfilePage } from '../hooks/useUserProfilePage'
 import UserAvatar from '../components/UserAvatar'
+
+const TYPE_NAMES: Record<string, string> = { movie: 'Movie', show: 'Show', game: 'Game', book: 'Book' }
+const TYPE_ICONS = { movie: Film, show: Tv, game: Gamepad2, book: Book } as const
 
 export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>()
@@ -47,9 +80,8 @@ export default function UserProfilePage() {
     followingListLoading,
     postsLoaded,
     recentActivityLoaded,
-    creatorBadge,
-    alphaBadge,
-    regularBadges,
+    topPicksView,
+    setTopPicksView,
     isOwnProfile,
     handleFollow,
     handleLike,
@@ -74,510 +106,527 @@ export default function UserProfilePage() {
     () => favorites.filter((fav) => (fav.list ?? 'all') === activeList),
     [favorites, activeList]
   )
+  const activeListLabel = labelForList(activeList, favoriteLists)
 
-  const getMediaIcon = (type: string) => {
-    switch (type) {
-      case 'movie': return Film
-      case 'show': return Tv
-      case 'game': return Gamepad2
-      case 'book': return Book
-      default: return Film
-    }
-  }
+  // A visited profile's entries arrive with a plain-string status.
+  const labelOf = (status: string) => statusLabel(status as Parameters<typeof statusLabel>[0])
 
-  // Shared badge renderer used in both profile pages
-  const renderBadges = () => {
-    if (!userBadges.length) return null
-    const colorEffects: Record<string, { gradient: string; glow: string }> = {
-      'purple-500': { gradient: 'from-purple-600 via-purple-500 to-pink-500', glow: 'shadow-purple-500/50' },
-      'blue-500': { gradient: 'from-blue-600 via-cyan-500 to-blue-400', glow: 'shadow-blue-500/50' },
-      'green-500': { gradient: 'from-green-600 via-emerald-500 to-green-400', glow: 'shadow-green-500/50' },
-      'yellow-500': { gradient: 'from-yellow-500 via-yellow-400 to-orange-500', glow: 'shadow-yellow-500/50' },
-      'pink-500': { gradient: 'from-pink-600 via-pink-500 to-rose-500', glow: 'shadow-pink-500/50' },
-      'red-500': { gradient: 'from-accent via-accent-soft to-butter-500', glow: 'shadow-red-500/50' },
-      'orange-500': { gradient: 'from-orange-600 via-orange-500 to-yellow-500', glow: 'shadow-orange-500/50' },
-      'cyan-500': { gradient: 'from-cyan-600 via-cyan-500 to-blue-400', glow: 'shadow-cyan-500/50' },
-      'emerald-500': { gradient: 'from-emerald-600 via-emerald-500 to-green-400', glow: 'shadow-emerald-500/50' },
-      'violet-500': { gradient: 'from-violet-600 via-violet-500 to-purple-400', glow: 'shadow-violet-500/50' },
-      'amber-500': { gradient: 'from-amber-600 via-amber-500 to-orange-400', glow: 'shadow-amber-500/50' },
-    }
+  /** Poppy's verdict beside the number — the app's own star. */
+  const renderRating = (rating: number | null | undefined, size = 18, textClass = 'text-sm') => {
+    const verdict = verdictFor(rating)
+    if (!rating || !verdict) return null
     return (
-      <div className="flex flex-wrap gap-2 mt-3">
-        {creatorBadge && (
-          <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(246,205,102,0.5)] ring-2 ring-butter-400/40">
-            {creatorBadge.badges?.gif_url
-              ? <div className="absolute inset-0" style={{ opacity: (creatorBadge.badges.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={creatorBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
-              : <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-500 to-red-500"/>}
-            <div className="relative px-3 py-1 flex items-center gap-1.5">
-              <Crown className="w-3 h-3 text-yellow-300" />
-              <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">CREATOR</span>
-            </div>
-          </div>
-        )}
-        {alphaBadge && (
-          <div className="relative overflow-hidden rounded-full shadow-[0_0_20px_rgba(34,211,238,0.5)] ring-2 ring-cyan-500/40">
-            {alphaBadge.badges?.gif_url
-              ? <div className="absolute inset-0" style={{ opacity: (alphaBadge.badges.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={alphaBadge.badges.gif_url} alt="" className="w-full h-full object-cover"/></div>
-              : <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-500 to-indigo-500"/>}
-            <div className="relative px-3 py-1 flex items-center gap-1.5">
-              <Beaker className="w-3 h-3 text-cyan-300" />
-              <span className="text-xs font-black text-white uppercase tracking-wider drop-shadow-md">ALPHA TESTER</span>
-            </div>
-          </div>
-        )}
-        {regularBadges.map((ub) => {
-          if (!ub.badges) return null
-          const badge = ub.badges
-          const fx = colorEffects[badge.color] || { gradient: 'from-gray-600 to-gray-500', glow: 'shadow-gray-500/40' }
-          return (
-            <div key={ub.id} className={`relative overflow-hidden rounded-full shadow-sm ${fx.glow}`}>
-              {badge.gif_url
-                ? <div className="absolute inset-0" style={{ opacity: (badge.opacity || 80) / 100 }}><img loading="lazy" decoding="async" src={badge.gif_url} alt="" className="w-full h-full object-cover"/></div>
-                : <div className={`absolute inset-0 bg-gradient-to-br ${fx.gradient}`} style={{ opacity: (badge.opacity || 80) / 100 }}/>}
-              <div className="relative px-3 py-1 flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"/>
-                <span className="text-xs font-bold text-white uppercase tracking-wide drop-shadow-lg">{badge.name}</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <span className={`flex shrink-0 items-center gap-1 font-bold tabular-nums text-butter-gold ${textClass}`} title={verdict.name}>
+        <VerdictMark verdict={verdict.id} size={size} />
+        {rating}
+      </span>
     )
   }
-
-  const renderUserListItem = (user: any, listType: 'followers' | 'following') => (
-    <li key={user.id} className="flex items-center gap-3 py-3">
-      <button className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity" onClick={() => navigateToProfile(user.username)}>
-        <UserAvatar avatarUrl={user.avatar_url} avatarCrop={user.avatar_crop} username={user.username} />
-        {!user.avatar_url && <span className="text-sm font-bold text-white">{user.username.charAt(0).toUpperCase()}</span>}
-      </button>
-      <button className="flex-1 min-w-0 text-left" onClick={() => navigateToProfile(user.username)}>
-        <span className="font-semibold text-white hover:text-red-400 transition-colors text-sm">@{user.username}</span>
-        {user.full_name && <p className="text-gray-500 text-xs truncate">{user.full_name}</p>}
-      </button>
-      {currentUser && currentUser.id !== user.id && (
-        <button onClick={(e) => { e.stopPropagation(); handleFollowUser(user.id, user.isFollowing, listType) }}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${
-            user.isFollowing ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-red-500/50 hover:text-red-400' : 'bg-accent text-accent-deep'
-          }`}>
-          {user.isFollowing ? 'Following' : 'Follow'}
-        </button>
-      )}
-    </li>
-  )
 
   if (initialLoading) {
     return <ProfileSkeleton />
   }
 
-  if (!profile) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">User not found</div>
+  if (!profile) {
+    return (
+      <div className="app-page">
+        <div className="mx-auto max-w-3xl px-5 pt-8">
+          <div className="app-empty">
+            <div className="flex justify-center"><PalMark size={56} /></div>
+            <h3 className="mt-3">User not found</h3>
+            <p>Nobody by that name here.</p>
+            <button type="button" onClick={() => navigate(-1)} className="app-button-secondary mt-5">Go back</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const bannerCrop = profile.bg_crop ? (isDesktop ? profile.bg_crop.desktop : profile.bg_crop.mobile) : null
+  const bannerStyle = {
+    objectFit: 'cover' as const,
+    objectPosition: bannerCrop ? `${bannerCrop.x}% ${bannerCrop.y}%` : 'center',
+    transform: bannerCrop ? `scale(${Math.max(1, bannerCrop.scale / 100)})` : 'none',
+    transformOrigin: bannerCrop ? `${bannerCrop.x}% ${bannerCrop.y}%` : 'center',
+    opacity: (profile.bg_opacity || 80) / 100,
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white pb-20 md:pb-8">
-      {loading && <div className="fixed top-0 left-0 right-0 h-0.5 bg-accent z-50 animate-pulse"/>}
+    <div className="app-page">
+      {loading && <div className="fixed left-0 right-0 top-0 z-50 h-0.5 animate-pulse bg-accent"/>}
 
-      <div className="max-w-2xl mx-auto">
+      <main className="mx-auto max-w-3xl px-5 pt-4 sm:pt-6">
         {/* Signed in, this is a page you navigated to; signed out, it is the
             whole app you have seen so far, so it introduces itself instead. */}
-        <div className="px-4 pt-4 pb-2">
+        <div className="pb-3">
           {currentUser ? (
-            <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm font-medium">
-              <ArrowLeft className="w-4 h-4" /> Back
+            <button type="button" onClick={() => navigate(-1)} className="app-button-ghost app-button-sm -ml-3">
+              <ArrowLeft size={16} /> Back
             </button>
           ) : (
             <div className="flex items-center justify-between gap-3">
               <Brand />
-              <Link to="/auth" className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-accent-deep transition-transform active:scale-95">
+              <Link to="/auth" className="app-button-primary app-button-sm rounded-full">
                 Join PopcornPal
               </Link>
             </div>
           )}
         </div>
 
-        {/* ── PROFILE HEADER ─────────────────────────── */}
-        <div className="relative mb-0">
-          {/* Banner — only rendered when user has a background */}
-          {profile.bg_url && (() => {
-            const cropData = profile.bg_crop ? (isDesktop ? profile.bg_crop.desktop : profile.bg_crop.mobile) : null
-            return (
-              <div className="h-36 sm:h-48 relative overflow-hidden rounded-2xl mb-0">
-                <img
-                  src={profile.bg_url}
-                  alt=""
-                  draggable={false}
-                  className="absolute inset-0 w-full h-full"
-                  style={{
-                    objectFit: 'cover',
-                    objectPosition: cropData ? `${cropData.x}% ${cropData.y}%` : 'center',
-                    transform: cropData ? `scale(${Math.max(1, cropData.scale / 100)})` : 'none',
-                    transformOrigin: cropData ? `${cropData.x}% ${cropData.y}%` : 'center',
-                    opacity: (profile.bg_opacity || 80) / 100,
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-gray-900/80"/>
-              </div>
-            )
-          })()}
+        {/* ── Header ── */}
+        <div className="mb-8">
+          <div className="relative h-40 overflow-hidden rounded-2xl border border-line-soft sm:h-52">
+            {profile.bg_url ? (
+              <img src={profile.bg_url} alt="" draggable={false} className="absolute inset-0 h-full w-full" style={bannerStyle} />
+            ) : (
+              <AuroraBanner />
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-bg/60 to-transparent" />
+          </div>
 
-          {/* Avatar + actions row — z-10 so avatar always sits above banner */}
-          <div className={`px-4 sm:px-6 relative z-10 ${profile.bg_url ? '' : 'pt-4'}`}>
-            <div className={`flex items-end justify-between ${profile.bg_url ? '-mt-10 sm:-mt-14' : ''} mb-3`}>
-              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-3xl sm:text-4xl font-bold border-4 border-gray-900 shadow-xl flex-shrink-0">
-                <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
-                {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex items-center gap-2">
-              <button
-                onClick={handleShareProfile}
-                title={`Share @${profile.username}'s profile`}
-                className={`h-9 px-3 rounded-full text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 border ${
-                  shareStatus === 'idle'
-                    ? 'bg-gray-800 text-gray-300 border-gray-600 hover:text-white'
-                    : shareStatus === 'failed'
-                      ? 'bg-red-500/10 text-red-300 border-red-500/40'
-                      : 'bg-butter-400/15 text-butter-300 border-butter-400/50'
-                }`}
-              >
-                {shareStatus === 'idle' ? <Share2 className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-                <span className="hidden sm:inline">
+          <div className="relative z-20 -mt-10 px-1 sm:-mt-14 sm:px-2">
+            <div className="flex items-end justify-between gap-3">
+              <HouseRing house={profile.house} beast>
+                <div className="app-avatar h-20 w-20 border-4 border-bg text-3xl sm:h-28 sm:w-28 sm:text-4xl">
+                  <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
+                  {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
+                </div>
+              </HouseRing>
+
+              {/* Sits clear of the banner's bottom edge; only the avatar overlaps it. */}
+              <div className="flex translate-y-2 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareProfile}
+                  title={`Share @${profile.username}'s profile`}
+                  className={`app-button-secondary app-button-sm rounded-full ${
+                    shareStatus === 'failed' ? 'text-danger' : shareStatus === 'idle' ? '' : 'text-butter-300'
+                  }`}
+                >
+                  {shareStatus === 'idle' ? <Share2 size={16} /> : <Check size={16} />}
                   {shareStatus === 'idle' ? 'Share' : shareStatus === 'copied' ? 'Link copied' : shareStatus === 'shared' ? 'Shared' : 'Copy failed'}
-                </span>
-              </button>
-              {!isOwnProfile && currentUser && (
-                <button onClick={handleFollow} disabled={followLoading}
-                  className={`h-9 px-5 rounded-full font-bold text-sm transition-all active:scale-95 flex items-center gap-2 ${
-                    isFollowing
-                      ? 'bg-gray-800 text-white border border-gray-600 hover:border-red-500/50 hover:text-red-400'
-                      : 'bg-accent text-accent-deep shadow-lg shadow-red-900/30'
-                  }`}>
-                  {followLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : isFollowing ? <><UserCheck className="w-4 h-4"/> Following</> : <><UserPlus className="w-4 h-4"/> Follow</>}
                 </button>
-              )}
-              {isOwnProfile && (
-                <button onClick={() => navigate('/profile')}
-                  className="h-9 px-5 rounded-full font-bold text-sm bg-gray-800 text-white border border-gray-600 hover:bg-gray-700 transition-all active:scale-95">
-                  Edit profile
-                </button>
-              )}
+                {!isOwnProfile && currentUser && (
+                  <button type="button" onClick={handleFollow} disabled={followLoading}
+                    className={isFollowing ? 'app-button-secondary app-button-sm rounded-full' : 'app-button-primary app-button-sm rounded-full'}>
+                    {followLoading ? <Loader2 size={16} className="animate-spin"/> : isFollowing ? <><UserCheck size={16}/> Following</> : <><UserPlus size={16}/> Follow</>}
+                  </button>
+                )}
+                {isOwnProfile && (
+                  <button type="button" onClick={() => navigate('/profile')} aria-label="Edit profile" className="app-icon-button">
+                    <Pencil size={18} />
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Name / bio / stats */}
-            <div className="pb-2 mt-3 bg-gray-900/50 border border-gray-800/60 rounded-2xl px-4 pt-4 pb-4">
-              <h2 className="text-xl font-bold text-white leading-tight">@{profile.username}</h2>
-              {profile.full_name && <p className="text-gray-400 text-sm mt-0.5">{profile.full_name}</p>}
-              {profile.bio
-                ? <p className="text-gray-300 text-sm mt-2 leading-relaxed">{profile.bio}</p>
-                : <p className="text-gray-600 text-sm mt-2 italic">No bio yet.</p>}
-
-              {renderBadges()}
-
-              {shelfSummary && (
-                <div className="mt-4">
-                  <ProfileStats stats={shelfSummary} />
+            <div className="mt-5 space-y-4">
+              <div>
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  <h2 className="name-shine text-[27px] font-bold leading-none tracking-tight">@{profile.username}</h2>
+                  {profile.full_name && <p className="text-sm text-muted">{profile.full_name}</p>}
                 </div>
-              )}
+                <p className="mt-2 text-[15px] leading-relaxed text-gray-200">
+                  {profile.bio ? profile.bio : <span className="italic text-muted">No bio yet.</span>}
+                </p>
+              </div>
 
-              <div className="flex gap-5 mt-4">
-                <button onClick={() => setShowFollowersModal(true)} className="text-left group">
-                  <span className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">{followersCount}</span>
-                  <span className="text-gray-500 text-sm ml-1.5">Followers</span>
+              <div className="flex gap-5">
+                <button type="button" onClick={() => setShowFollowersModal(true)} className="group min-h-11 text-left">
+                  <span className="text-base font-bold tabular-nums text-gray-50 transition-colors group-hover:text-accent-soft">{followersCount}</span>
+                  <span className="ml-1.5 text-sm text-muted">Followers</span>
                 </button>
-                <button onClick={() => setShowFollowingModal(true)} className="text-left group">
-                  <span className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">{followingCount}</span>
-                  <span className="text-gray-500 text-sm ml-1.5">Following</span>
+                <button type="button" onClick={() => setShowFollowingModal(true)} className="group min-h-11 text-left">
+                  <span className="text-base font-bold tabular-nums text-gray-50 transition-colors group-hover:text-accent-soft">{followingCount}</span>
+                  <span className="ml-1.5 text-sm text-muted">Following</span>
                 </button>
               </div>
+
+              <BadgeRow badges={userBadges} />
+
+              {shelfSummary && <ProfileStats stats={shelfSummary} />}
             </div>
           </div>
         </div>
 
-        <div className="h-px bg-gray-800 mb-6"/>
+        {/* ── Top picks: their ranked ten, hero at number one ── */}
+        {favorites.length > 0 && (
+          <Reveal className="mb-10">
+            <SectionHeader title="Top picks" count={shownFavorites.length} />
 
-        <div className="px-4 sm:px-6 space-y-8">
-          {/* Favorites */}
-          {favorites.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Top Picks</p>
-              </div>
+            <div className="mb-3 space-y-2">
               {/* Their lists, not yours: only tabs they have actually filled
                   are offered, so nobody browses a wall of empty shelves. */}
               {visitorLists.length > 1 && (
-                <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1" role="tablist">
-                  {visitorLists.map(({ id, label, count }) => (
-                    <button
-                      key={id}
-                      role="tab"
-                      aria-selected={activeList === id}
-                      onClick={() => setVisitorList(id)}
-                      className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
-                        activeList === id
-                          ? 'border-accent bg-accent/10 text-accent-soft'
-                          : 'border-gray-700 text-gray-400 hover:text-gray-200'
-                      }`}
-                    >
-                      {label}
-                      <span className={activeList === id ? 'text-accent-soft/70' : 'text-gray-600'}>{count}</span>
-                    </button>
-                  ))}
-                </div>
+                <PillTabs
+                  ariaLabel="Which top ten"
+                  value={activeList}
+                  onChange={setVisitorList}
+                  tabs={visitorLists}
+                />
               )}
-              <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {shownFavorites.map((fav, index) => (
-                  <div key={fav.id} className="relative group flex-shrink-0 w-20 sm:w-24 cursor-pointer" onClick={() => setInspectedEntry(fav.media_entry)}>
-                    <div className="aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden shadow-lg ring-1 ring-white/5 group-hover:ring-white/20 transition-all">
-                      {fav.media_entry?.cover_image_url
-                        ? <img loading="lazy" decoding="async" src={fav.media_entry.cover_image_url} alt={fav.media_entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
-                        : <div className="w-full h-full flex items-center justify-center text-gray-600"><Film className="w-6 h-6"/></div>}
-                      <div className="absolute top-1 left-1 bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full">{index + 1}</div>
-                    </div>
-                    <p className="text-[11px] text-center mt-1.5 truncate text-gray-500 group-hover:text-white transition-colors">{fav.media_entry?.title}</p>
-                  </div>
-                ))}
+              <div className="flex">
+                <div className="app-segmented !gap-0.5 !p-0.5" role="group" aria-label="Top picks layout">
+                  <button
+                    type="button"
+                    aria-pressed={topPicksView === 'list'}
+                    onClick={() => setTopPicksView('list')}
+                    className="!min-h-10 !px-3 !text-[13px]"
+                  >
+                    <ListOrdered size={16} aria-hidden="true" /> List
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={topPicksView === 'shelf'}
+                    onClick={() => setTopPicksView('shelf')}
+                    className="!min-h-10 !px-3 !text-[13px]"
+                  >
+                    <GalleryHorizontal size={16} aria-hidden="true" /> Shelf
+                  </button>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Their shelf, their week and their posts are for people who are
-              here properly; a shared link stops at the top tens. Signed out,
-              none of it is fetched either. */}
-          {currentUser && (<>
-          {/* Library button */}
-          <button onClick={() => { setLibrarySearchQuery(''); setLibraryFilterType(null); setShowLibraryModal(true) }}
-            className="w-full flex items-center justify-between px-5 py-4 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gray-600 rounded-2xl transition-all active:scale-[0.99] group">
-            <div className="flex items-center gap-3">
-              <Library className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors"/>
-              <span className="font-semibold text-gray-300 group-hover:text-white transition-colors text-sm">{profile.username}'s Library</span>
-            </div>
-            <ArrowLeft className="w-4 h-4 text-gray-600 rotate-180 group-hover:text-gray-400 transition-colors"/>
-          </button>
-
-          {/* Recent Activity */}
-          {!recentActivityLoaded ? (
-            <div className="space-y-3 animate-pulse">
-              {[1,2,3].map(i => <div key={i} className="h-16 bg-gray-800/40 rounded-2xl"/>)}
-            </div>
-          ) : recentActivity.length > 0 && (
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Recent Activity</p>
-              <div className="space-y-2">
-                {recentActivity.map((entry) => {
-                  const Icon = getMediaIcon(entry.media_type)
+            {topPicksView === 'shelf' ? (
+              <ol className="no-scrollbar -mx-5 flex gap-3 overflow-x-auto px-5 pb-1 pt-3" aria-label={`${activeListLabel} top ten`}>
+                {shownFavorites.map((fav, index) => {
+                  const entry = fav.media_entry
+                  const title = entry?.title ?? 'Untitled'
+                  const Icon = entry ? TYPE_ICONS[entry.media_type] ?? Film : Film
                   return (
-                    <div key={entry.id} onClick={() => setInspectedEntry(entry)}
-                      className="flex gap-3 p-3 bg-gray-800/30 hover:bg-gray-800/60 rounded-2xl border border-gray-700/30 hover:border-gray-600/50 transition-all cursor-pointer group">
-                      <div className="w-10 h-14 bg-gray-900 rounded-lg flex-shrink-0 overflow-hidden">
-                        {entry.cover_image_url
-                          ? <img loading="lazy" decoding="async" src={entry.cover_image_url} className="w-full h-full object-cover"/>
-                          : <div className="w-full h-full flex items-center justify-center text-gray-600"><Icon className="w-4 h-4"/></div>}
-                      </div>
-                      <div className="flex-1 min-w-0 py-0.5">
-                        <p className="font-semibold text-sm text-white truncate group-hover:text-red-400 transition-colors">{entry.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-gray-700/80 text-gray-400">{entry.status.replace('-', ' ')}</span>
-                          {entry.rating && <span className="text-[11px] text-yellow-400 font-bold">★ {entry.rating}</span>}
+                    <li key={fav.id} className="relative w-[104px] shrink-0">
+                      <button
+                        type="button"
+                        disabled={!entry}
+                        onClick={() => entry && setInspectedEntry(entry)}
+                        aria-label={`Number ${index + 1}: ${title}`}
+                        className="group block w-full text-left"
+                      >
+                        <div className="relative aspect-[2/3] rounded-xl border border-line bg-surface-strong">
+                          <div className="h-full w-full overflow-hidden rounded-[inherit]">
+                            {entry?.cover_image_url ? (
+                              <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105" draggable={false} />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={22} strokeWidth={1.4} /></div>
+                            )}
+                          </div>
+                          <span
+                            aria-hidden="true"
+                            className={`absolute -left-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-bg text-sm font-bold tabular-nums shadow-md ${
+                              index === 0 ? 'bg-butter-400 text-ink' : 'bg-surface-raised text-gray-50'
+                            }`}
+                          >
+                            {index + 1}
+                          </span>
                         </div>
-                      </div>
-                      <p className="text-[10px] text-gray-600 self-start pt-1 flex-shrink-0">{new Date(entry.updated_at).toLocaleDateString()}</p>
-                    </div>
+                        <p className="mt-2 line-clamp-2 text-xs font-semibold leading-snug text-gray-50">{title}</p>
+                        {entry?.year && <p className="mt-0.5 text-xs text-muted">{entry.year}</p>}
+                      </button>
+                    </li>
                   )
                 })}
+              </ol>
+            ) : (
+              <ol className="space-y-2" aria-label={`${activeListLabel} top ten`}>
+                {shownFavorites.map((fav, index) => {
+                  const entry = fav.media_entry
+                  const title = entry?.title ?? 'Untitled'
+                  const verdict = verdictFor(entry?.rating)
+                  const hero = index === 0
+                  const meta = [entry ? TYPE_NAMES[entry.media_type] ?? entry.media_type : null, entry?.year].filter(Boolean).join(' · ')
+                  const Icon = entry ? TYPE_ICONS[entry.media_type] ?? Film : Film
+                  return (
+                    <li key={fav.id} className={`app-panel flex items-center rounded-2xl ${hero ? 'gap-4 p-4' : 'gap-3 p-2 pr-2'}`}>
+                      {!hero && (
+                        <span className="w-7 shrink-0 text-center text-base font-bold tabular-nums text-muted" aria-hidden="true">
+                          {index + 1}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!entry}
+                        onClick={() => entry && setInspectedEntry(entry)}
+                        aria-label={`Number ${index + 1}: ${title}`}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
+                      >
+                        <div className={`relative shrink-0 rounded-lg border border-line bg-surface-strong ${hero ? 'h-[126px] w-[84px] rounded-xl' : 'h-16 w-11'}`}>
+                          <div className="h-full w-full overflow-hidden rounded-[inherit]">
+                            {entry?.cover_image_url ? (
+                              <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover" draggable={false} />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={hero ? 24 : 16} /></div>
+                            )}
+                          </div>
+                          {hero && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute -left-2.5 -top-2.5 flex h-9 w-9 items-center justify-center rounded-full border-2 border-surface bg-butter-400 text-base font-bold tabular-nums text-ink shadow-md"
+                            >
+                              1
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={hero ? 'text-lg font-semibold leading-tight text-gray-50' : 'truncate text-sm font-semibold text-gray-50'}>
+                            {title}
+                          </p>
+                          {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
+                          {hero && entry?.notes && (
+                            <p className="mt-2 line-clamp-2 text-sm italic leading-snug text-muted">{entry.notes}</p>
+                          )}
+                        </div>
+                      </button>
+                      {verdict && entry?.rating ? (
+                        <span className="flex shrink-0 items-center gap-1 pr-1 text-sm font-semibold tabular-nums text-butter-gold" title={verdict.name}>
+                          <VerdictMark verdict={verdict.id} size={hero ? 28 : 22} />
+                          {entry.rating.toFixed(1)}
+                        </span>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+          </Reveal>
+        )}
+
+        {/* Their shelf, their week and their posts are for people who are
+            here properly; a shared link stops at the top tens. Signed out,
+            none of it is fetched either. */}
+        {currentUser && (<>
+          {/* ── Recent activity: the last few things they logged, as posters ── */}
+          <Reveal className="mb-10">
+            <SectionHeader
+              title="Recent activity"
+              action={
+                <button
+                  type="button"
+                  onClick={() => { setLibrarySearchQuery(''); setLibraryFilterType(null); setShowLibraryModal(true) }}
+                  className="app-button-ghost app-button-sm shrink-0"
+                >
+                  Library <ChevronRight size={16} />
+                </button>
+              }
+            />
+            {!recentActivityLoaded ? (
+              <div className="flex gap-3 animate-pulse" aria-hidden="true">
+                {[1, 2, 3].map((i) => <div key={i} className="aspect-[2/3] w-[104px] shrink-0 rounded-xl bg-surface-strong" />)}
               </div>
-            </div>
-          )}
+            ) : recentActivity.length > 0 ? (
+              <ol className="no-scrollbar -mx-5 flex gap-3 overflow-x-auto px-5 pb-1" aria-label={`${profile.username}'s recent activity`}>
+                {recentActivity.map((entry) => {
+                  const Icon = TYPE_ICONS[entry.media_type] ?? Film
+                  return (
+                    <li key={entry.id} className="w-[104px] shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setInspectedEntry(entry)}
+                        aria-label={`${entry.title}, ${labelOf(entry.status)}`}
+                        className="group block w-full text-left"
+                      >
+                        <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-line bg-surface-strong">
+                          {entry.cover_image_url ? (
+                            <img loading="lazy" decoding="async" src={entry.cover_image_url} alt="" className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted"><Icon size={22} strokeWidth={1.4} /></div>
+                          )}
+                          {entry.rating ? (
+                            <span className="absolute right-1.5 top-1.5 rounded-md border border-line bg-bg/90 py-0.5 pl-0.5 pr-1.5 backdrop-blur">
+                              {renderRating(entry.rating, 18, 'text-xs')}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-xs font-semibold leading-snug text-gray-50 transition-colors group-hover:text-accent-soft">{entry.title}</p>
+                        <p className="mt-0.5 text-xs text-muted">{labelOf(entry.status)}</p>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+            ) : (
+              <div className="app-empty">
+                <div className="flex justify-center"><PalMark size={56} /></div>
+                <h3 className="mt-3">Nothing logged yet</h3>
+                <p>When they log something, it shows up here.</p>
+              </div>
+            )}
+          </Reveal>
 
           {/* Posts */}
           {!postsLoaded ? (
-            <div className="space-y-4 animate-pulse">
-              {[1,2].map(i => <div key={i} className="h-32 bg-gray-800/40 rounded-2xl"/>)}
+            <div className="space-y-4 animate-pulse" aria-hidden="true">
+              {[1,2].map(i => <div key={i} className="h-32 rounded-2xl bg-surface-strong"/>)}
             </div>
           ) : posts.length > 0 && (
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Posts</p>
+            <Reveal>
+              <SectionHeader title="Posts" count={posts.length} />
               <div className="space-y-4">
                 {posts.map((post) => (
-                  <div key={post.id} className="bg-gray-800/30 border border-gray-700/40 rounded-2xl p-4">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                  <article key={post.id} className="app-panel rounded-2xl p-4">
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <div className="app-avatar h-8 w-8 text-xs">
                         <UserAvatar avatarUrl={profile.avatar_url} avatarCrop={profile.avatar_crop} username={profile.username} />
                         {!profile.avatar_url && profile.username.charAt(0).toUpperCase()}
                       </div>
-                      <span className="font-semibold text-sm text-white">@{profile.username}</span>
-                      <span className="text-gray-600 text-xs ml-auto">{new Date(post.created_at).toLocaleDateString()}</span>
+                      <span className="text-sm font-semibold text-gray-50">@{profile.username}</span>
+                      <span className="ml-auto text-xs text-muted">{new Date(post.created_at).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-gray-300 text-sm leading-relaxed mb-3 whitespace-pre-wrap">{post.content}</p>
+                    <p className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-gray-200">{post.content}</p>
                     {post.media_entries && (
-                      <div className="bg-gray-900/60 rounded-xl p-3 mb-3 flex items-center gap-3 border border-gray-700/40">
-                        {post.media_entries.cover_image_url && <img loading="lazy" decoding="async" src={post.media_entries.cover_image_url} className="w-10 h-14 object-cover rounded-lg bg-gray-800 flex-shrink-0"/>}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate text-white">{post.media_entries.title}</p>
-                          <p className="text-xs text-gray-500 capitalize mt-0.5">{post.media_entries.media_type}</p>
+                      <div className="mb-3 flex items-center gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3">
+                        {post.media_entries.cover_image_url && <img loading="lazy" decoding="async" src={post.media_entries.cover_image_url} alt="" className="h-14 w-10 shrink-0 rounded-lg bg-surface-strong object-cover"/>}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-gray-50">{post.media_entries.title}</p>
+                          <p className="mt-0.5 text-xs capitalize text-muted">{post.media_entries.media_type}</p>
                         </div>
-                        {post.media_entries.rating && (
-                          <span className="flex-shrink-0 text-xs font-bold text-yellow-400">★ {post.media_entries.rating}</span>
-                        )}
+                        {renderRating(post.media_entries.rating, 18, 'text-xs')}
                       </div>
                     )}
-                    <div className="flex items-center gap-5 pt-2 border-t border-gray-700/30">
-                      <button onClick={() => (currentUser ? handleLike(post.id) : navigate('/auth'))} className={`flex items-center gap-1.5 text-sm font-medium transition-colors active:scale-95 ${post.user_liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400'}`}>
-                        <Heart className={`w-4 h-4 ${post.user_liked ? 'fill-current' : ''}`}/> {post.likes_count}
+                    <div className="flex items-center gap-4 border-t border-line-soft pt-1">
+                      <button
+                        type="button"
+                        onClick={() => (currentUser ? handleLike(post.id) : navigate('/auth'))}
+                        aria-pressed={Boolean(post.user_liked)}
+                        className={`flex min-h-11 items-center gap-1.5 px-2 text-sm font-medium transition-colors ${post.user_liked ? 'text-accent-soft' : 'text-muted hover:text-accent-soft'}`}
+                      >
+                        <Heart size={16} className={post.user_liked ? 'fill-current' : ''}/> {post.likes_count}
                       </button>
-                      <span className="flex items-center gap-1.5 text-sm text-gray-600">
-                        <MessageCircle className="w-4 h-4"/> {post.comments_count}
+                      <span className="flex min-h-11 items-center gap-1.5 text-sm text-muted">
+                        <MessageCircle size={16}/> {post.comments_count}
                       </span>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
-            </div>
+            </Reveal>
           )}
-          </>)}
-        </div>
+        </>)}
 
         {!currentUser && (
-          <div className="px-4 sm:px-6 pt-8">
-            <div className="rounded-3xl border border-butter-400/25 bg-gray-800/40 px-6 py-8 text-center">
-              <h3 className="text-lg font-bold text-white">Build your own shelves</h3>
-              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-gray-400">
-                Keep every film, show, game and book you finish — and a top ten worth arguing about.
-              </p>
-              <Link to="/auth" className="mt-5 inline-flex min-h-11 items-center rounded-full bg-accent px-6 text-sm font-bold text-accent-deep transition-transform active:scale-95">
-                Join PopcornPal
-              </Link>
-            </div>
+          <div className="app-empty mt-8">
+            <div className="flex justify-center"><PalMark size={56} /></div>
+            <h3 className="mt-3">Build your own shelves</h3>
+            <p>
+              Keep every film, show, game and book you finish — and a top ten worth arguing about.
+            </p>
+            <Link to="/auth" className="app-button-primary mt-5">
+              Join PopcornPal
+            </Link>
           </div>
         )}
+      </main>
 
-        <div className="h-8"/>
-      </div>
-
-      {/* Library Modal */}
+      {/* Library */}
       {showLibraryModal && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-800 w-full sm:max-w-4xl rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-              <h2 className="font-bold text-white">{profile.username}'s Library</h2>
-              <button onClick={() => setShowLibraryModal(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4"/></button>
+        <Sheet title={`${profile.username}'s library`} onClose={() => setShowLibraryModal(false)} size="wide">
+          <div className="space-y-3">
+            <div className="app-search">
+              <Search size={18}/>
+              <input
+                type="search"
+                value={librarySearchQuery}
+                onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                placeholder="Search their library"
+                aria-label={`Search ${profile.username}'s library`}
+                enterKeyHint="search"
+                className="app-input"
+              />
             </div>
-            <div className="px-4 py-3 border-b border-gray-800 space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"/>
-                <input type="text" value={librarySearchQuery} onChange={(e) => setLibrarySearchQuery(e.target.value)}
-                  placeholder="Search library…"
-                  className="w-full bg-gray-800/80 border border-gray-700/60 rounded-xl pl-9 pr-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 text-sm"/>
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-                {[{ id: null, label: 'All' }, { id: 'movie', label: 'Movies' }, { id: 'show', label: 'TV' }, { id: 'game', label: 'Games' }, { id: 'book', label: 'Books' }].map((type: any) => (
-                  <button key={type.id ?? 'all'} onClick={() => setLibraryFilterType(type.id)}
-                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${libraryFilterType === type.id ? 'bg-white text-black' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
-                    {type.label}
-                  </button>
-                ))}
-              </div>
+            <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+              {[{ id: null, label: 'All' }, { id: 'movie', label: 'Movies' }, { id: 'show', label: 'TV' }, { id: 'game', label: 'Games' }, { id: 'book', label: 'Books' }].map((type: any) => (
+                <button key={type.id ?? 'all'} type="button" aria-pressed={libraryFilterType === type.id} onClick={() => setLibraryFilterType(type.id)} className="app-chip">
+                  {type.label}
+                </button>
+              ))}
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {libraryLoading ? (
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 animate-pulse">
-                  {Array.from({length:10}).map((_,i) => <div key={i} className="aspect-[2/3] bg-gray-800 rounded-xl"/>)}
-                </div>
-              ) : getFilteredLibrary().length === 0 ? (
-                <div className="text-center py-12 text-gray-600">No entries found.</div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                  {getFilteredLibrary().map((entry) => {
-                    const Icon = getMediaIcon(entry.media_type)
-                    return (
-                      <div key={entry.id} className="group relative cursor-pointer" onClick={() => setInspectedEntry(entry)}>
-                        <div className="aspect-[2/3] bg-gray-800 rounded-xl overflow-hidden ring-1 ring-white/5 group-hover:ring-white/20 transition-all">
-                          {entry.cover_image_url
-                            ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt={entry.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
-                            : <div className="w-full h-full flex items-center justify-center text-gray-600"><Icon className="w-7 h-7"/></div>}
-                          {entry.rating && (
-                            <div className="absolute top-1.5 right-1.5 bg-black/80 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-[10px] font-bold text-yellow-400 flex items-center gap-0.5">
-                              <Star className="w-2.5 h-2.5 fill-current"/> {entry.rating}
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-center mt-1.5 truncate text-gray-500 group-hover:text-white transition-colors" title={entry.title}>{entry.title}</p>
+          </div>
+          <div className="mt-4">
+            {libraryLoading ? (
+              <div className="grid grid-cols-3 gap-3 animate-pulse sm:grid-cols-5">
+                {Array.from({length:10}).map((_,i) => <div key={i} className="aspect-[2/3] rounded-xl bg-surface-strong"/>)}
+              </div>
+            ) : getFilteredLibrary().length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted">No entries found.</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                {getFilteredLibrary().map((entry) => {
+                  const Icon = TYPE_ICONS[entry.media_type] ?? Film
+                  return (
+                    <button key={entry.id} type="button" className="group text-left" onClick={() => setInspectedEntry(entry)}>
+                      <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-line-soft bg-surface-strong">
+                        {entry.cover_image_url
+                          ? <img loading="lazy" decoding="async" src={entry.cover_image_url} alt={entry.title} className="h-full w-full object-cover"/>
+                          : <div className="flex h-full w-full items-center justify-center text-gray-500"><Icon size={28}/></div>}
+                        {entry.rating ? (
+                          <div className="absolute right-1.5 top-1.5 rounded-full border border-line bg-gray-900/85 px-1.5 py-0.5">
+                            {renderRating(entry.rating, 14, 'text-xs')}
+                          </div>
+                        ) : null}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                      <p className="mt-1.5 truncate text-center text-xs text-muted transition-colors group-hover:text-gray-50" title={entry.title}>{entry.title}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        </Sheet>
       )}
 
-      {/* Entry Inspection Modal */}
+      {/* One entry, up close */}
       {inspectedEntry && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-800 w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[calc(100vh-40px)]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 flex-shrink-0">
-              <div className="flex-1 min-w-0 pr-3">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">{inspectedEntry.media_type}</span>
-                  {inspectedEntry.year && <span className="text-[10px] text-gray-600">{inspectedEntry.year}</span>}
-                </div>
-                <h2 className="text-base font-bold text-white leading-tight truncate">{inspectedEntry.title}</h2>
-              </div>
-              <button onClick={() => setInspectedEntry(null)} className="flex-shrink-0 p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
-                <X className="w-4 h-4"/>
-              </button>
+        <Sheet
+          header={
+            <div className="pt-2">
+              <p className="text-xs text-muted">
+                <span className="capitalize">{inspectedEntry.media_type}</span>
+                {inspectedEntry.year && <> · {inspectedEntry.year}</>}
+              </p>
+              <h2 className="truncate text-lg font-semibold leading-snug tracking-tight text-gray-50">{inspectedEntry.title}</h2>
             </div>
-            <div className="flex gap-4 p-4 overflow-y-auto">
-              {inspectedEntry.cover_image_url && (
-                <div className="w-24 flex-shrink-0">
-                  <img loading="lazy" decoding="async" src={inspectedEntry.cover_image_url} alt={inspectedEntry.title} className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg border border-white/5"/>
+          }
+          ariaLabel={inspectedEntry.title}
+          onClose={() => setInspectedEntry(null)}
+        >
+          <div className="flex gap-4">
+            {inspectedEntry.cover_image_url && (
+              <img loading="lazy" decoding="async" src={inspectedEntry.cover_image_url} alt="" className="aspect-[2/3] w-24 shrink-0 rounded-lg border border-line-soft object-cover"/>
+            )}
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-line-soft bg-surface-sunken p-3">
+                  <p className="text-xs text-muted">Status</p>
+                  <p className="mt-0.5 text-sm font-semibold text-gray-50">{labelOf(inspectedEntry.status)}</p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0 flex flex-col gap-3">
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-gray-800/50 rounded-xl p-2.5 border border-gray-700/40 text-center">
-                    <div className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Status</div>
-                    <div className="text-xs text-white font-medium capitalize">{inspectedEntry.status.replace('-', ' ')}</div>
+                {inspectedEntry.rating ? (
+                  <div className="rounded-xl border border-line-soft bg-surface-sunken p-3">
+                    <p className="text-xs text-muted">Rating</p>
+                    <div className="mt-0.5">{renderRating(inspectedEntry.rating)}</div>
                   </div>
-                  {inspectedEntry.rating && (
-                    <div className="flex-1 bg-gray-800/50 rounded-xl p-2.5 border border-gray-700/40 text-center">
-                      <div className="text-[9px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Rating</div>
-                      <div className="text-xs text-yellow-400 font-bold flex items-center justify-center gap-1">{inspectedEntry.rating} <Star className="w-3 h-3 fill-current"/></div>
-                    </div>
-                  )}
-                </div>
-                {inspectedEntry.notes && (
-                  <div className="bg-gray-800/30 p-3 rounded-xl border border-gray-700/40 text-gray-300 text-xs leading-relaxed italic">
-                    "{inspectedEntry.notes}"
-                  </div>
-                )}
-                <p className="text-[10px] text-gray-700 mt-auto">Updated {new Date(inspectedEntry.updated_at).toLocaleDateString()}</p>
+                ) : null}
               </div>
+              {inspectedEntry.notes && (
+                <p className="rounded-xl bg-surface-sunken p-3 text-sm leading-relaxed text-gray-200">
+                  "{inspectedEntry.notes}"
+                </p>
+              )}
+              <p className="mt-auto text-xs text-muted">Updated {new Date(inspectedEntry.updated_at).toLocaleDateString()}</p>
             </div>
           </div>
-        </div>
+        </Sheet>
       )}
 
-      {/* Followers / Following Modals */}
+      {/* Followers / Following */}
       {(showFollowersModal || showFollowingModal) && (
-        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-800 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[75vh] overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-              <h2 className="font-bold text-white">{showFollowersModal ? 'Followers' : 'Following'}</h2>
-              <button onClick={() => showFollowersModal ? setShowFollowersModal(false) : setShowFollowingModal(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4"/></button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 min-h-0">
-              {(showFollowersModal ? followersListLoading : followingListLoading) ? (
-                <div className="space-y-3 py-4 animate-pulse">{Array.from({length:4}).map((_,i) => <div key={i} className="h-12 bg-gray-800/40 rounded-xl"/>)}</div>
-              ) : (showFollowersModal ? followersList : followingList).length === 0 ? (
-                <div className="text-center py-10 text-gray-600 text-sm">{showFollowersModal ? 'No followers yet.' : 'Not following anyone yet.'}</div>
-              ) : (
-                <ul className="divide-y divide-gray-800/60">
-                  {(showFollowersModal ? followersList : followingList).map(user => renderUserListItem(user, showFollowersModal ? 'followers' : 'following'))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
+        <PeopleListSheet
+          title={showFollowersModal ? 'Followers' : 'Following'}
+          people={showFollowersModal ? followersList : followingList}
+          loading={showFollowersModal ? followersListLoading : followingListLoading}
+          currentUserId={currentUser?.id}
+          onClose={() => (showFollowersModal ? setShowFollowersModal(false) : setShowFollowingModal(false))}
+          onOpenProfile={navigateToProfile}
+          onToggleFollow={(id, following) => handleFollowUser(id, following, showFollowersModal ? 'followers' : 'following')}
+        />
       )}
     </div>
   )

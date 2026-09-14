@@ -1,4 +1,4 @@
-import { BookOpen, Film, Gamepad2, Star, Tv } from 'lucide-react'
+import { BookOpen, Film, Gamepad2, Tv } from 'lucide-react'
 import VerdictMark from '../verdict/VerdictMark'
 import { verdictFor } from '../verdict/verdictModel'
 import type { MediaEntry } from '../../hooks/queries/useMediaQueries'
@@ -29,10 +29,18 @@ export default function LibraryEntryCard({
       type="button"
       onClick={() => onSelect(entry)}
       aria-label={`View and edit ${entry.title}`}
-      className={`group min-w-0 text-left ${isList ? 'flex items-center gap-4 rounded-2xl border border-gray-700 bg-gray-800 p-3' : 'flex flex-col self-start rounded-2xl'} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent`}
+      className={`group min-w-0 text-left ${
+        isList
+          ? 'app-panel flex items-center gap-4 rounded-2xl p-3'
+          : 'flex flex-col self-start rounded-2xl'
+      }`}
     >
       <div
-        className={`relative overflow-hidden border border-white/10 bg-surface-strong ${isList ? 'h-24 w-16 shrink-0 rounded-lg' : 'w-full aspect-[2/3] rounded-2xl shadow-lg shadow-black/15'}`}
+        className={`relative overflow-hidden border border-line bg-surface-strong ${
+          isList
+            ? 'h-[84px] w-14 shrink-0 rounded-lg'
+            : 'aspect-[2/3] w-full rounded-2xl'
+        }`}
       >
         {entry.cover_image_url ? (
           <ProgressiveImg
@@ -42,14 +50,14 @@ export default function LibraryEntryCard({
             className="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-[#9a9691]">
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-muted">
             <Icon
               className={isList ? 'h-6 w-6' : 'h-10 w-10'}
               strokeWidth={1.2}
               aria-hidden="true"
             />
             {!isList && (
-              <span className="text-[10px] uppercase tracking-[0.2em]">
+              <span className="text-xs font-semibold">
                 {mediaLabels[entry.media_type]}
               </span>
             )}
@@ -57,7 +65,7 @@ export default function LibraryEntryCard({
         )}
         {!isList && verdict && (
           <span
-            className="absolute right-2 top-2 flex items-center gap-1 rounded-lg border border-white/10 bg-gray-900/95 py-1 pl-1 pr-2 text-xs font-semibold tabular-nums text-butter-gold"
+            className="absolute right-2 top-2 flex items-center gap-1 rounded-lg border border-line bg-bg/90 py-1 pl-1 pr-2 text-xs font-semibold tabular-nums text-butter-gold backdrop-blur"
             title={verdict.name}
           >
             <VerdictMark verdict={verdict.id} size={22} />
@@ -73,10 +81,10 @@ export default function LibraryEntryCard({
         )}
       </div>
       <div className={isList ? 'min-w-0 flex-1 py-1' : 'mt-3 px-0.5'}>
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-parchment transition-colors group-hover:text-accent-warm sm:text-base">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-gray-50 transition-colors group-hover:text-accent-soft sm:text-base">
           {entry.title}
         </h3>
-        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
           <span>{mediaLabels[entry.media_type]}</span>
           {entry.year && (
             <>
@@ -86,16 +94,25 @@ export default function LibraryEntryCard({
           )}
         </p>
         {isList && entry.notes && (
-          <p className="mt-2 line-clamp-1 text-xs text-muted">
+          <p className="mt-1.5 line-clamp-1 text-xs italic text-muted">
             {entry.notes}
           </p>
         )}
       </div>
-      {isList && entry.rating !== null && (
-        <span className="flex shrink-0 items-center gap-1 pr-1 text-sm font-semibold text-butter-gold">
-          <Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-          {entry.rating.toFixed(1)}
-          <span className="sr-only">out of 10</span>
+      {isList && verdict && (
+        <span
+          className="flex shrink-0 items-center gap-1 pr-1 text-sm font-semibold tabular-nums text-butter-gold"
+          title={verdict.name}
+        >
+          <VerdictMark verdict={verdict.id} size={22} />
+          {entry.dumpstered ? (
+            <span className="sr-only">{verdict.name}</span>
+          ) : (
+            <>
+              {entry.rating!.toFixed(1)}
+              <span className="sr-only">out of 10 — {verdict.name}</span>
+            </>
+          )}
         </span>
       )}
     </button>

@@ -1,54 +1,71 @@
+const pulse = 'animate-pulse rounded bg-surface-strong'
 
 export default function FeedSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-900 text-white pb-20 md:pb-8">
-      <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="app-page" aria-busy="true">
+      <div className="max-w-3xl mx-auto px-5 py-7 sm:py-10">
+        <span className="sr-only">Loading your feed</span>
 
-        {/* Create Post Skeleton */}
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">
+        {/* Title row */}
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div className={`${pulse} h-9 w-52 rounded-lg`} />
+          <div className={`${pulse} h-11 w-11 rounded-xl`} />
+        </div>
+
+        {/* Composer */}
+        <div className="app-panel mb-6 rounded-2xl p-4 sm:p-5">
           <div className="flex gap-3">
-            <div className="w-10 h-10 rounded-full bg-gray-700/60 animate-pulse flex-shrink-0" />
-            <div className="flex-1 space-y-3">
-              <div className="w-full h-10 bg-gray-700/60 rounded-lg animate-pulse" />
-              <div className="flex justify-between">
-                <div className="flex gap-2">
-                  <div className="w-8 h-8 bg-gray-700/60 rounded-full animate-pulse" />
-                  <div className="w-8 h-8 bg-gray-700/60 rounded-full animate-pulse" />
+            <div className={`${pulse} h-10 w-10 shrink-0 rounded-full`} />
+            <div className="min-w-0 flex-1">
+              <div className="space-y-2 py-2">
+                <div className={`${pulse} h-4 w-3/4`} />
+                <div className={`${pulse} h-4 w-1/2`} />
+              </div>
+              <div className="mt-4 flex items-center justify-between border-t border-line-soft pt-3">
+                <div className="flex gap-1">
+                  <div className={`${pulse} h-11 w-11 rounded-xl`} />
+                  <div className={`${pulse} h-11 w-11 rounded-xl`} />
+                  <div className={`${pulse} h-11 w-11 rounded-xl`} />
                 </div>
-                <div className="w-16 h-8 bg-gray-700/60 rounded-full animate-pulse" />
+                <div className={`${pulse} h-11 w-20 rounded-full`} />
               </div>
             </div>
           </div>
         </div>
 
+        {/* Section heading */}
+        <div className="mt-8 mb-5 border-b border-line-soft pb-4">
+          <div className={`${pulse} h-5 w-40`} />
+        </div>
+
         {/* Posts */}
         <div className="space-y-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-gray-700/60 animate-pulse flex-shrink-0" />
-                <div className="space-y-1.5 flex-1">
-                  <div className="w-28 h-3.5 bg-gray-700/60 rounded animate-pulse" />
-                  <div className="w-16 h-3 bg-gray-700/60 rounded animate-pulse" />
+            <div key={i} className="app-panel rounded-2xl p-4 sm:p-5">
+              <div className="mb-3 flex items-center gap-3">
+                <div className={`${pulse} h-10 w-10 shrink-0 rounded-full`} />
+                <div className="flex-1 space-y-1.5">
+                  <div className={`${pulse} h-4 w-28`} />
+                  <div className={`${pulse} h-3 w-16`} />
                 </div>
               </div>
-              <div className="space-y-2 mb-3">
-                <div className="w-full h-3.5 bg-gray-700/60 rounded animate-pulse" />
-                <div className="w-5/6 h-3.5 bg-gray-700/60 rounded animate-pulse" />
-                {i === 1 && <div className="w-3/4 h-3.5 bg-gray-700/60 rounded animate-pulse" />}
+              <div className="mb-3 space-y-2">
+                <div className={`${pulse} h-4 w-full`} />
+                <div className={`${pulse} h-4 w-5/6`} />
+                {i === 1 && <div className={`${pulse} h-4 w-3/4`} />}
               </div>
               {i === 0 && (
-                <div className="flex items-center gap-3 bg-gray-900/50 rounded-lg p-3 mb-3 border border-gray-700/40">
-                  <div className="w-12 h-16 bg-gray-700/60 rounded animate-pulse flex-shrink-0" />
-                  <div className="space-y-2 flex-1">
-                    <div className="w-36 h-4 bg-gray-700/60 rounded animate-pulse" />
-                    <div className="w-20 h-3 bg-gray-700/60 rounded animate-pulse" />
+                <div className="mb-3 flex items-center gap-3 rounded-xl border border-line-soft bg-surface-sunken p-3">
+                  <div className={`${pulse} h-20 w-14 shrink-0 rounded-lg`} />
+                  <div className="flex-1 space-y-2">
+                    <div className={`${pulse} h-4 w-36`} />
+                    <div className={`${pulse} h-3 w-20`} />
                   </div>
                 </div>
               )}
-              <div className="flex gap-5 pt-3 border-t border-gray-700/50">
-                <div className="w-10 h-4 bg-gray-700/60 rounded animate-pulse" />
-                <div className="w-10 h-4 bg-gray-700/60 rounded animate-pulse" />
+              <div className="flex gap-1 border-t border-line-soft pt-2">
+                <div className={`${pulse} h-11 w-14 rounded-full`} />
+                <div className={`${pulse} h-11 w-14 rounded-full`} />
               </div>
             </div>
           ))}

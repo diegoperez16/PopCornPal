@@ -1,7 +1,8 @@
 import { useDeferredValue, useState, useEffect, useLayoutEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { Search, UserPlus, UserCheck, Users, Compass } from 'lucide-react'
+import { Search, UserPlus, UserCheck, X } from 'lucide-react'
 import PalMark from '../components/brand/PalMark'
+import PillTabs from '../features/profile/PillTabs'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useSocialStore, type ProfileWithFollowStatus } from '../store/socialStore'
@@ -104,54 +105,53 @@ export default function PeoplePage() {
   const renderProfileCard = (profile: ProfileWithFollowStatus) => (
     <div
       key={profile.id}
-      className="group flex items-center gap-3 p-3.5 bg-gray-800/40 border border-gray-700/50 rounded-2xl hover:bg-gray-800/70 hover:border-gray-600 transition-all duration-200"
+      className="app-panel rounded-2xl p-3 flex items-center gap-3"
     >
       <ProfileLink
         username={profile.username}
         currentUserId={user?.id}
         className="flex items-center gap-3 flex-1 min-w-0"
       >
-        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden ring-1 ring-white/10">
+        <span className="app-avatar h-12 w-12 text-lg">
           {profile.avatar_url ? (
-            <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} />
           ) : (
             profile.username.charAt(0).toUpperCase()
           )}
-        </div>
+        </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-white group-hover:text-red-400 transition-colors truncate text-sm">
+            <span className="font-semibold text-gray-50 hover:text-accent-soft transition-colors truncate">
               {profile.username}
             </span>
             {profile.isFollowing && profile.isFollower && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30 flex-shrink-0">
+              <span className="rounded-full bg-butter-400/15 px-2 py-0.5 text-xs font-semibold text-butter-300 flex-shrink-0">
                 Friends
               </span>
             )}
             {!profile.isFollowing && profile.isFollower && (
-              <span className="text-[10px] text-gray-500 flex-shrink-0">Follows you</span>
+              <span className="text-xs text-muted flex-shrink-0">Follows you</span>
             )}
           </div>
           {profile.bio ? (
-            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{profile.bio}</p>
+            <p className="text-xs text-muted line-clamp-1 mt-0.5">{profile.bio}</p>
           ) : (
-            <p className="text-xs text-gray-600 italic mt-0.5">No bio</p>
+            <p className="text-xs text-gray-500 italic mt-0.5">No bio</p>
           )}
         </div>
       </ProfileLink>
 
       <button
+        type="button"
         onClick={() => profile.isFollowing ? handleUnfollow(profile.id) : handleFollow(profile.id)}
-        className={`flex-shrink-0 h-9 px-4 rounded-full font-bold text-xs transition-all duration-200 active:scale-95 ${
-          profile.isFollowing
-            ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 hover:text-white'
-            : 'bg-accent text-accent-deep'
+        className={`flex-shrink-0 app-button-sm !rounded-full ${
+          profile.isFollowing ? 'app-button-secondary' : 'app-button-primary'
         }`}
       >
         {profile.isFollowing ? (
-          <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> Following</span>
+          <><UserCheck size={16} /> Following</>
         ) : (
-          <span className="flex items-center gap-1"><UserPlus className="w-3.5 h-3.5" /> Follow</span>
+          <><UserPlus size={16} /> Follow</>
         )}
       </button>
     </div>
@@ -160,78 +160,59 @@ export default function PeoplePage() {
   const renderExploreCard = (profile: ProfileWithFollowStatus) => (
     <div
       key={profile.id}
-      className="group bg-gray-800/40 border border-gray-700/50 rounded-2xl p-4 hover:bg-gray-800/70 hover:border-gray-600 transition-all duration-200 flex flex-col items-center text-center"
+      className="app-panel rounded-2xl p-4 flex flex-col items-center text-center"
     >
       <ProfileLink
         username={profile.username}
         currentUserId={user?.id}
         className="flex flex-col items-center mb-3 w-full"
       >
-        <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg mb-3 ring-2 ring-gray-700 group-hover:ring-red-500/40 transition-all flex-shrink-0">
+        <span className="app-avatar h-16 w-16 text-xl mb-3">
           {profile.avatar_url ? (
-            <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={profile.avatar_url} alt={profile.username} />
           ) : (
             profile.username.charAt(0).toUpperCase()
           )}
-        </div>
-        <h3 className="font-bold text-white truncate w-full group-hover:text-red-400 transition-colors text-sm">
+        </span>
+        <h3 className="font-semibold text-gray-50 hover:text-accent-soft transition-colors truncate w-full text-sm">
           {profile.username}
         </h3>
         {profile.isFollower && (
-          <span className="text-[10px] text-gray-500 mt-0.5">Follows you</span>
+          <span className="text-xs text-muted mt-0.5">Follows you</span>
         )}
         {profile.bio ? (
-          <p className="text-xs text-gray-500 line-clamp-2 mt-1 leading-relaxed">{profile.bio}</p>
+          <p className="text-xs text-muted line-clamp-2 mt-1 leading-relaxed">{profile.bio}</p>
         ) : (
-          <p className="text-xs text-gray-600 italic mt-1">No bio</p>
+          <p className="text-xs text-gray-500 italic mt-1">No bio</p>
         )}
       </ProfileLink>
       <button
+        type="button"
         onClick={() => handleFollow(profile.id)}
-        className="app-button-primary w-full !min-h-11"
+        className="app-button-primary app-button-sm w-full mt-auto"
       >
-        Follow
+        <UserPlus size={16} /> Follow
       </button>
     </div>
   )
 
   return (
-    <div className="app-page text-white">
+    <div className="app-page">
       <div className="max-w-3xl mx-auto px-5 py-8">
         <header className="mb-6"><h1 className="app-title">Find your people<span className="text-accent-soft">.</span></h1></header>
         {/* Tab Bar */}
-        <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 scrollbar-hide">
-          {[
-            { id: 'search', label: 'Search' },
-            { id: 'explore', label: 'Discover' },
-            { id: 'followers', label: 'Followers', count: followersCount },
-            { id: 'following', label: 'Following', count: followingCount },
-          ].map((tab) => {
-            const isActive = peopleActiveTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                aria-pressed={isActive}
-                onClick={() => {
-                  setPeopleActiveTab(tab.id as typeof peopleActiveTab)
-                }}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
-                  isActive
-                    ? 'bg-white text-black'
-                    : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700/50'
-                }`}
-              >
-                {tab.label}
-                {tab.count !== undefined && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center ${
-                    isActive ? 'bg-black/20 text-black/70' : 'bg-gray-700 text-gray-400'
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+        <div className="mb-6">
+          <PillTabs
+            ariaLabel="People"
+            value={peopleActiveTab}
+            onChange={(id) => setPeopleActiveTab(id as typeof peopleActiveTab)}
+            tabs={[
+              { id: 'search', label: 'Search' },
+              { id: 'explore', label: 'Discover' },
+              { id: 'followers', label: 'Followers', count: followersCount },
+              { id: 'following', label: 'Following', count: followingCount },
+            ]}
+          />
         </div>
 
         {/* Content */}
@@ -239,42 +220,44 @@ export default function PeoplePage() {
 
           {/* Search Tab */}
           {peopleActiveTab === 'search' && (
-            <div className="animate-in fade-in duration-200">
-              <div className="relative mb-6 group">
-                <div className="absolute inset-0 bg-gradient-to-r from-accent/10 to-butter-400/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
-                <div className="relative bg-gray-800/60 border border-gray-700/60 rounded-2xl flex items-center group-focus-within:border-gray-500 transition-colors">
-                  <div className="pl-4 text-gray-500 group-focus-within:text-white transition-colors">
-                    <Search className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    aria-label="Search people by username"
-                    placeholder="Search by username…"
-                    className="w-full bg-transparent border-none py-4 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-base font-medium"
-                  />
-                  {searchQuery && (
-                    <button onClick={() => { setSearchQuery('') }} className="mr-3 p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
-                      <span className="text-sm">✕</span>
-                    </button>
-                  )}
-                </div>
+            <div>
+              <div className="app-search mb-6">
+                <Search size={18} />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search people by username"
+                  placeholder="Search by username…"
+                  autoComplete="off"
+                  enterKeyHint="search"
+                  className={`app-input !min-h-14 ${searchQuery ? 'pr-14' : ''}`}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery('') }}
+                    aria-label="Clear search"
+                    className="app-icon-button absolute right-1 top-1/2 -translate-y-1/2"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
               </div>
 
               {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
-                <div className="text-center py-20">
-                  <p className="text-gray-400 font-semibold">No users found for "{searchQuery}"</p>
-                  <p className="text-gray-600 text-sm mt-1">Try a different username</p>
+                <div className="text-center py-16">
+                  <p className="text-gray-200 font-semibold">No users found for "{searchQuery}"</p>
+                  <p className="text-muted text-sm mt-1">Try a different username</p>
                 </div>
               )}
               {searchResults.length === 0 && searchQuery.trim().length < 2 && (
-                <div className="text-center py-24">
-                  <div className="mx-auto mb-4 flex w-16 justify-center opacity-90">
-                    <PalMark size={64} />
+                <div className="app-empty">
+                  <div className="mx-auto mb-4 flex justify-center">
+                    <PalMark size={56} />
                   </div>
-                  <p className="text-gray-400 font-semibold">Find people you know</p>
-                  <p className="text-gray-600 text-sm mt-1">Search by username to connect with friends</p>
+                  <h3>Find people you know</h3>
+                  <p>Search by username to connect with friends.</p>
                 </div>
               )}
               <div className="space-y-3">
@@ -285,25 +268,25 @@ export default function PeoplePage() {
 
           {/* Discover Tab */}
           {peopleActiveTab === 'explore' && (
-            <div className="animate-in fade-in duration-200">
+            <div>
               {exploreLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 animate-pulse">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 motion-safe:animate-pulse" aria-hidden="true">
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="bg-gray-800/40 rounded-2xl p-4 flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 rounded-full bg-gray-700" />
-                      <div className="h-3 bg-gray-700 rounded-full w-20" />
-                      <div className="h-2 bg-gray-700/60 rounded-full w-16" />
-                      <div className="h-8 bg-gray-700 rounded-xl w-full" />
+                    <div key={i} className="bg-surface rounded-2xl p-4 flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-surface-strong" />
+                      <div className="h-3 bg-surface-strong rounded-full w-20" />
+                      <div className="h-2 bg-surface-strong rounded-full w-16" />
+                      <div className="h-11 bg-surface-strong rounded-xl w-full" />
                     </div>
                   ))}
                 </div>
               ) : exploreData.length === 0 ? (
-                <div className="text-center py-24">
-                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Compass className="w-7 h-7 text-gray-600" />
+                <div className="app-empty">
+                  <div className="mx-auto mb-4 flex justify-center">
+                    <PalMark size={56} />
                   </div>
-                  <p className="text-gray-400 font-semibold">You follow everyone!</p>
-                  <p className="text-gray-600 text-sm mt-1">No new users to discover right now.</p>
+                  <h3>You follow everyone!</h3>
+                  <p>No new users to discover right now.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -315,20 +298,20 @@ export default function PeoplePage() {
 
           {/* Followers Tab */}
           {peopleActiveTab === 'followers' && (
-            <div className="animate-in fade-in duration-200">
+            <div>
               {!peopleLoaded ? (
-                <div className="space-y-3 animate-pulse">
+                <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-20 bg-gray-800/40 rounded-2xl" />
+                    <div key={i} className="h-[72px] bg-surface rounded-2xl" />
                   ))}
                 </div>
               ) : followersData.length === 0 ? (
-                <div className="text-center py-24">
-                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Users className="w-7 h-7 text-gray-600" />
+                <div className="app-empty">
+                  <div className="mx-auto mb-4 flex justify-center">
+                    <PalMark size={56} />
                   </div>
-                  <p className="text-gray-400 font-semibold">No followers yet</p>
-                  <p className="text-gray-600 text-sm mt-1">Share your profile to get your first follower</p>
+                  <h3>No followers yet</h3>
+                  <p>Share your profile to get your first follower.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -340,23 +323,24 @@ export default function PeoplePage() {
 
           {/* Following Tab */}
           {peopleActiveTab === 'following' && (
-            <div className="animate-in fade-in duration-200">
+            <div>
               {!peopleLoaded ? (
-                <div className="space-y-3 animate-pulse">
+                <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-20 bg-gray-800/40 rounded-2xl" />
+                    <div key={i} className="h-[72px] bg-surface rounded-2xl" />
                   ))}
                 </div>
               ) : followingData.length === 0 ? (
-                <div className="text-center py-24">
-                  <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <UserPlus className="w-7 h-7 text-gray-600" />
+                <div className="app-empty">
+                  <div className="mx-auto mb-4 flex justify-center">
+                    <PalMark size={56} />
                   </div>
-                  <p className="text-gray-400 font-semibold">Not following anyone</p>
-                  <p className="text-gray-600 text-sm mt-1 mb-6">Discover people to follow</p>
+                  <h3>Not following anyone</h3>
+                  <p>Discover people to follow.</p>
                   <button
+                    type="button"
                     onClick={() => { setPeopleActiveTab('explore') }}
-                    className="px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-gray-100 transition-colors"
+                    className="app-button-primary mt-5"
                   >
                     Discover people
                   </button>

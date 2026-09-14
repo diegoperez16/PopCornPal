@@ -17,10 +17,10 @@ export default function SectionHeader({
 }) {
   return (
     <div className="mb-3 flex items-center gap-3">
-      <h2 className="flex shrink-0 items-baseline gap-2 text-sm font-bold tracking-tight text-gray-100">
+      <h2 className="flex shrink-0 items-baseline gap-2 text-[15px] font-semibold tracking-tight text-gray-50">
         {title}
         {count !== undefined && count > 0 && (
-          <span className="text-xs font-semibold tabular-nums text-gray-500">
+          <span className="text-xs font-semibold tabular-nums text-muted">
             {count}
           </span>
         )}
@@ -29,7 +29,7 @@ export default function SectionHeader({
           without needing to agree on a width. */}
       <span
         aria-hidden="true"
-        className="h-px min-w-4 flex-1 bg-gradient-to-r from-gray-700 to-transparent"
+        className="h-px min-w-4 flex-1 bg-gradient-to-r from-line-soft to-transparent"
       />
       {action}
     </div>

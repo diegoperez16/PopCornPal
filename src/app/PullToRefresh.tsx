@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ArrowDown } from 'lucide-react'
 import { queryClient } from '../lib/queryClient'
 const PTR_THRESHOLD = 70
 
@@ -75,25 +76,18 @@ export default function PullToRefresh() {
         transition: refreshing ? 'transform 0.2s ease' : 'none',
       }}
     >
-      <div className="w-10 h-10 rounded-full bg-gray-800 border border-gray-700 shadow-xl flex items-center justify-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-line-soft bg-surface-strong text-muted shadow-xl">
         {refreshing ? (
-          <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
         ) : (
-          <svg
-            className="w-5 h-5 text-gray-400"
+          <ArrowDown
+            size={20}
+            strokeWidth={2.5}
             style={{
               transform: `rotate(${progress * 210}deg)`,
               opacity: 0.4 + progress * 0.6,
             }}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 5v14M5 12l7 7 7-7" />
-          </svg>
+          />
         )}
       </div>
     </div>

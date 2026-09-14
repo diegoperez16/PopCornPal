@@ -2,14 +2,19 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
+  BookOpen,
   Check,
-  Clapperboard,
   Eye,
   EyeOff,
+  Film,
+  Gamepad2,
   Loader2,
+  Tv,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import Brand from '../components/brand/Brand'
+import VerdictMark from '../features/verdict/VerdictMark'
+import { VERDICTS } from '../features/verdict/verdictModel'
 
 type AuthMode = 'signin' | 'signup' | 'forgot'
 const copy = {
@@ -127,51 +132,54 @@ export default function AuthPage() {
             <br />
             of a <em>good story.</em>
           </h1>
-          <p className="auth-description">
-            Movies, shows, games, and books — logged, rated, and shared with
-            friends who get it.
-          </p>
-          <div className="cinema-ticket" aria-hidden="true">
-            <div className="ticket-sky">
-              <span className="ticket-orbit" />
-              <span className="ticket-sun" />
-              <div className="ticket-hills" />
-              <div className="ticket-art-caption">
-                <span>POPCORN PAL PRESENTS</span>
-                <strong>
-                  Your next
-                  <br />
-                  obsession.
-                </strong>
-                <small>WATCH · LOG · SHARE · REPEAT</small>
-              </div>
-            </div>
-            <div className="ticket-stub">
-              <span>ADMIT ONE</span>
-              <Clapperboard size={27} strokeWidth={1.2} />
-              <span>GOOD COMPANY INCLUDED</span>
-            </div>
+          <div className="auth-categories" aria-hidden="true">
+            <span>
+              <Film size={15} /> Movies
+            </span>
+            <span>
+              <Tv size={15} /> Shows
+            </span>
+            <span>
+              <Gamepad2 size={15} /> Games
+            </span>
+            <span>
+              <BookOpen size={15} /> Books
+            </span>
+          </div>
+          {/* The app's own rating vocabulary, as the desktop flourish: the
+              six verdicts everyone here rates with, from a golden bucket to
+              the dumpster. */}
+          <div className="auth-scale" aria-hidden="true">
+            <p className="auth-scale-eyebrow">Every title gets a verdict</p>
+            <ol className="auth-scale-list">
+              {VERDICTS.map((verdict) => (
+                <li key={verdict.id}>
+                  <VerdictMark verdict={verdict.id} size={56} />
+                  <span>{verdict.name}</span>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
-        <section className="auth-form-panel">
-          <h2 className="text-[30px] font-semibold tracking-[-1px] leading-tight mb-7">
-            {copy[mode].title}
-          </h2>
-          {mode === 'forgot' && (
-            <p className="app-muted text-sm -mt-4 mb-7 leading-relaxed">
-              {copy[mode].detail}
-            </p>
-          )}
+
+        <section className="auth-form-panel" aria-labelledby="auth-heading">
+          <h2 id="auth-heading">{copy[mode].title}</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
+            {copy[mode].detail}
+          </p>
+
           {sessionExpired && (
-            <p
-              role="status"
-              className="mb-4 rounded-xl bg-amber-500/10 p-3 text-sm text-amber-200"
-            >
+            <p role="status" className="app-note app-note-warn mt-4">
               Your session ended. Sign in to pick up where you left off.
             </p>
           )}
+
           {mode !== 'forgot' && (
-            <div className="grid grid-cols-2 gap-1 mb-6 rounded-xl border border-white/10 p-1 bg-[#111214]">
+            <div
+              className="app-segmented mt-5"
+              role="group"
+              aria-label="Sign in or create an account"
+            >
               {(['signin', 'signup'] as const).map((value) => (
                 <button
                   disabled={busy}
@@ -179,17 +187,17 @@ export default function AuthPage() {
                   key={value}
                   aria-pressed={value === mode}
                   onClick={() => switchMode(value)}
-                  className={`min-h-11 rounded-lg text-sm font-semibold ${mode === value ? 'bg-gray-700 text-gray-50' : 'text-gray-400'}`}
                 >
                   {value === 'signin' ? 'Sign in' : 'Create account'}
                 </button>
               ))}
             </div>
           )}
-          <form onSubmit={submit} className="space-y-5">
+
+          <form onSubmit={submit} className="mt-5 space-y-4">
             {mode === 'signup' && (
               <div>
-                <label htmlFor="username" className="auth-label">
+                <label htmlFor="username" className="app-label">
                   Username
                 </label>
                 <input
@@ -198,6 +206,7 @@ export default function AuthPage() {
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
+                  enterKeyHint="next"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
                   placeholder="your_screen_name"
@@ -205,21 +214,23 @@ export default function AuthPage() {
                   minLength={3}
                   maxLength={30}
                 />
-                <p className="mt-2 text-xs text-gray-400">
+                <p className="mt-2 text-xs text-muted">
                   Lowercase letters, numbers, and underscores.
                 </p>
               </div>
             )}
             <div>
-              <label htmlFor="email" className="auth-label">
+              <label htmlFor="email" className="app-label">
                 Email address
               </label>
               <input
                 id="email"
                 className="app-input"
                 type="email"
+                inputMode="email"
                 autoComplete="email"
                 autoCapitalize="none"
+                enterKeyHint={mode === 'forgot' ? 'send' : 'next'}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
@@ -228,8 +239,8 @@ export default function AuthPage() {
             </div>
             {mode !== 'forgot' && (
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label htmlFor="password" className="text-sm font-medium">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <label htmlFor="password" className="app-label !mb-0">
                     Password
                   </label>
                   {mode === 'signin' && (
@@ -237,7 +248,7 @@ export default function AuthPage() {
                       type="button"
                       disabled={busy}
                       onClick={() => switchMode('forgot')}
-                      className="text-xs text-[#d9bfb1] min-h-6"
+                      className="app-button-ghost app-button-sm -mr-3 text-butter-300 hover:text-butter-300"
                     >
                       Forgot password?
                     </button>
@@ -246,11 +257,12 @@ export default function AuthPage() {
                 <div className="relative">
                   <input
                     id="password"
-                    className="app-input pr-12"
+                    className="app-input pr-14"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete={
                       mode === 'signin' ? 'current-password' : 'new-password'
                     }
+                    enterKeyHint={mode === 'signin' ? 'go' : 'next'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={
@@ -261,7 +273,7 @@ export default function AuthPage() {
                   />
                   <button
                     type="button"
-                    className="app-icon-button absolute right-1 top-1"
+                    className="app-icon-button absolute right-1 top-1/2 -translate-y-1/2"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={
                       showPassword ? 'Hide password' : 'Show password'
@@ -271,26 +283,31 @@ export default function AuthPage() {
                   </button>
                 </div>
                 {mode === 'signup' && (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <ul className="mt-3 flex flex-wrap gap-2" aria-label="Password requirements">
                     {checks.map((check) => (
-                      <span
+                      <li
                         key={check.label}
-                        className={`text-xs flex gap-1 items-center ${check.valid ? 'text-[#c7dbb1]' : 'text-gray-400'}`}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                          check.valid
+                            ? 'border-ok/40 bg-ok/10 text-ok'
+                            : 'border-line-soft text-muted'
+                        }`}
                       >
                         <Check
                           size={12}
+                          strokeWidth={3}
                           className={check.valid ? '' : 'opacity-30'}
                         />
                         {check.label}
-                      </span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </div>
             )}
             {mode === 'signup' && (
               <div>
-                <label htmlFor="confirm-password" className="auth-label">
+                <label htmlFor="confirm-password" className="app-label">
                   Confirm password
                 </label>
                 <input
@@ -298,6 +315,7 @@ export default function AuthPage() {
                   type={showPassword ? 'text' : 'password'}
                   className="app-input"
                   autoComplete="new-password"
+                  enterKeyHint="go"
                   value={confirmation}
                   onChange={(e) => setConfirmation(e.target.value)}
                   placeholder="One more time"
@@ -306,53 +324,41 @@ export default function AuthPage() {
               </div>
             )}
             {error && (
-              <p
-                role="alert"
-                className="rounded-xl border border-rose-400/25 bg-rose-400/10 p-3 text-sm text-rose-200"
-              >
+              <p role="alert" className="app-note app-note-danger">
                 {error}
               </p>
             )}
             {message && (
-              <p
-                role="status"
-                className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-3 text-sm text-emerald-200"
-              >
+              <p role="status" className="app-note app-note-ok">
                 {message}
               </p>
             )}
             <button
               disabled={busy || !!message}
               type="submit"
-              className="app-button-primary w-full"
+              className="app-button-primary w-full !mt-6"
             >
               {busy ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : (
-                <>
-                  {copy[mode].action}
-                  <ArrowRight size={17} />
-                </>
-              )}
+                <Loader2 className="animate-spin" size={18} aria-hidden="true" />
+              ) : null}
+              {copy[mode].action}
+              {!busy && <ArrowRight size={17} aria-hidden="true" />}
             </button>
           </form>
+
           {mode === 'forgot' ? (
             <button
               type="button"
               disabled={busy}
               onClick={() => switchMode('signin')}
-              className="mt-5 w-full min-h-11 text-sm text-gray-300"
+              className="app-button-ghost mt-3 w-full"
             >
               Back to sign in
             </button>
-          ) : (
-            <p className="mt-6 text-center text-xs text-gray-400">
-              A home for everything you watch, play, and read.
-            </p>
-          )}
+          ) : null}
           {mode === 'signup' && message && (
             <button
-              className="mt-4 w-full min-h-11 text-sm text-[#ff9b84]"
+              className="app-button-secondary mt-3 w-full"
               onClick={() => switchMode('signin')}
             >
               Continue to sign in

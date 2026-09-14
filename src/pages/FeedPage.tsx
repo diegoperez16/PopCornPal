@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { type Post, useSocialStore } from '../store/socialStore'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowUp, RefreshCw, WifiOff, Users, ArrowRight } from 'lucide-react'
+import { ArrowUp, WifiOff, Users, ArrowRight } from 'lucide-react'
 
 import { supabase } from '../lib/supabase'
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query'
@@ -36,6 +36,7 @@ import FeedPostCard from '../components/feed/FeedPostCard'
 import ThreadModal from '../components/feed/ThreadModal'
 import { type Comment } from '../components/feed/feedTypes'
 import { uploadPostImage } from '../lib/postImages'
+import PalMark from '../components/brand/PalMark'
 
 type FeedPageChunk = {
   posts: Post[]
@@ -662,13 +663,30 @@ export default function FeedPage() {
     node.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [highlightedComment, activeComments])
 
+  // Only one thread is open at a time, so opening a post's comments collapses
+  // whatever thread was open above it. Chrome re-anchors the scroll position
+  // when content above the viewport shrinks; Safari does not, and the page
+  // lands two or three posts further down. Keep the tapped post where it was.
+  const pinnedPost = useRef<{ id: string; top: number } | null>(null)
   const toggleComments = useCallback((postId: string) => {
+    const node = document.getElementById(`post-${postId}`)
+    pinnedPost.current = node ? { id: postId, top: node.getBoundingClientRect().top } : null
     setExpandedComments((current) => {
       if (current === postId) return null
       queryClient.invalidateQueries({ queryKey: feedKeys.comments(postId) })
       return postId
     })
   }, [queryClient])
+
+  useLayoutEffect(() => {
+    const pin = pinnedPost.current
+    if (!pin) return
+    pinnedPost.current = null
+    const node = document.getElementById(`post-${pin.id}`)
+    if (!node) return
+    const drift = node.getBoundingClientRect().top - pin.top
+    if (Math.abs(drift) > 1) window.scrollBy(0, drift)
+  }, [expandedComments])
 
   // Build a comments map for ThreadModal compatibility (keyed by postId)
   const commentsForModal: Record<string, Comment[]> = expandedComments
@@ -681,53 +699,64 @@ export default function FeedPage() {
 
   if (feedIsError && posts.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center gap-4 pb-20">
-        <RefreshCw className="w-8 h-8 text-gray-500" />
-        <p className="text-gray-400 text-sm">Something went wrong.</p>
-        <button
-          onClick={() => refetchFeed()}
-          className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-full transition-colors"
-        >
-          Try again
-        </button>
+      <div className="app-page">
+        <div className="max-w-3xl mx-auto px-5 py-7 sm:py-10">
+          <div className="app-empty">
+            <PalMark size={56} />
+            <h3 className="mt-4">Something went wrong.</h3>
+            <p>Your front row didn’t load. Give it another try.</p>
+            <button
+              type="button"
+              onClick={() => refetchFeed()}
+              className="app-button-primary mt-6"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="app-page bg-gray-900 text-white">
+    <div className="app-page">
       {/* Loading Bar */}
       {refreshing && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-800">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-surface-strong">
           <div className="h-full bg-accent animate-[loading_1s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
         </div>
       )}
 
-      {/* Offline Banner */}
-      {isOffline && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 text-center text-xs text-red-200 flex items-center justify-center gap-2 safe-area-top">
-          <WifiOff className="w-3 h-3" />
-          You are offline. Some features may be unavailable.
-        </div>
-      )}
+      <div className="max-w-3xl mx-auto px-5 py-7 sm:py-10">
+        {isOffline && (
+          <p role="status" className="app-note app-note-warn mb-6 flex items-center gap-2">
+            <WifiOff size={16} className="shrink-0" />
+            You are offline. Some features may be unavailable.
+          </p>
+        )}
 
-
-<div className="max-w-3xl mx-auto px-5 py-7 sm:py-10">
         <header className="mb-6">
-          <div className="flex items-end justify-between gap-4"><h1 className="app-title">Your front row<span className="text-accent-soft">.</span></h1><Link to="/people" className="app-icon-button" aria-label="Find your people"><Users size={20} /></Link></div>
+          <div className="flex items-end justify-between gap-4">
+            <h1 className="app-title">Your front row<span className="text-accent-soft">.</span></h1>
+            <Link to="/people" className="app-icon-button" aria-label="Find your people">
+              <Users size={20} />
+            </Link>
+          </div>
         </header>
         {user ? <FeedComposer userId={user.id} profile={profile} /> : null}
 
-        {/* Feed section label */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5 mt-8"><h2 className="text-lg font-semibold tracking-tight">Around your circle</h2></div>
+        <div className="mt-8 mb-5 flex items-center justify-between border-b border-line-soft pb-4">
+          <h2 className="app-h2">Around your circle</h2>
+        </div>
 
-        {/* Feed */}
         {posts.length === 0 ? (
-          <div className="app-panel text-center rounded-2xl px-6 py-12">
-            <Users className="mx-auto mb-4 text-[#e4c398]" size={30} strokeWidth={1.3} />
-            <h3 className="text-xl font-semibold mb-3">Every great story needs an audience.</h3>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">Find your friends, share a favorite, and let the conversation begin.</p>
-            <Link to="/people" className="app-button-primary mt-6">Find your people <ArrowRight size={16} /></Link>
+          <div className="app-empty">
+            <PalMark size={56} />
+            <h3 className="mt-4">Every great story needs an audience.</h3>
+            <p>Find your friends, share a favorite, and let the conversation begin.</p>
+            <Link to="/people" className="app-button-primary mt-6">
+              Find your people <ArrowRight size={16} />
+            </Link>
           </div>
         ) : (
           <div className="space-y-4">
@@ -751,9 +780,9 @@ export default function FeedPage() {
                 onToggleComments={toggleComments}
                 onSharePost={handleShare}
                 expandedContent={expandedComments === post.id ? (
-                  <div className="mt-3 pt-3 border-t border-gray-700 space-y-3 expand-down">
+                  <div className="mt-3 space-y-3 border-t border-line-soft pt-3 expand-down">
                     {activeComments.rootComments.length > 0 && (
-                      <div className="space-y-3 mb-4 fade-in">
+                      <div className="mb-4 space-y-3">
                         {activeComments.rootComments.map((comment) => (
                           <CommentThread
                             key={comment.id}
@@ -803,30 +832,31 @@ export default function FeedPage() {
         {!initialLoading && posts.length > 0 && (
           <>
             {visiblePostsCount < posts.length && (
-              <div className="text-center py-6">
+              <div className="flex justify-center py-6">
                 <button
+                  type="button"
                   onClick={() => setVisiblePostsCount(visiblePostsCount + 10)}
-                  className="bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700/60 hover:border-gray-600 text-gray-300 font-medium px-8 py-2.5 rounded-full transition-all active:scale-95 text-sm"
+                  className="app-button-secondary"
                 >
                   Show more
                 </button>
               </div>
             )}
             {visiblePostsCount >= posts.length && hasMore && (
-              <div className="text-center py-6">
+              <div className="flex justify-center py-6">
                 <button
+                  type="button"
                   onClick={() => fetchFeed(true)}
                   disabled={loadingMore || isFetchingNextPage}
-                  className="bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700/60 hover:border-gray-600 text-gray-300 font-medium px-8 py-2.5 rounded-full transition-all active:scale-95 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                  className="app-button-secondary"
                 >
-                  {(loadingMore || isFetchingNextPage) ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-gray-600 border-t-red-500 rounded-full animate-spin" />
-                      Loading…
-                    </>
-                  ) : (
-                    'Load more'
+                  {(loadingMore || isFetchingNextPage) && (
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-accent"
+                    />
                   )}
+                  Load more
                 </button>
               </div>
             )}
@@ -834,22 +864,26 @@ export default function FeedPage() {
         )}
       </div>
 
-      {/* GIF Pickers */}
+      {/* Reply GIF picker (renders its own sheet) */}
       {showReplyGifPicker && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4" onClick={() => setShowReplyGifPicker(false)}>
-          <GifPicker onSelect={(gifUrl) => { setUploadedReplyImage(gifUrl); setReplyImageUrl(''); setShowReplyGifPicker(false) }} onClose={() => setShowReplyGifPicker(false)} />
-        </div>
+        <GifPicker
+          onSelect={(gifUrl) => { setUploadedReplyImage(gifUrl); setReplyImageUrl(''); setShowReplyGifPicker(false) }}
+          onClose={() => setShowReplyGifPicker(false)}
+        />
       )}
 
       {/* Scroll to Top Button */}
       <button
+        type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 p-3 bg-accent hover:bg-accent-soft text-white rounded-full shadow-lg shadow-red-500/30 z-40 hover:scale-110 transition-all duration-300 ${
+        aria-label="Scroll to top"
+        aria-hidden={!showScrollTop}
+        tabIndex={showScrollTop ? 0 : -1}
+        className={`fixed bottom-24 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-line-soft bg-surface-strong text-gray-50 shadow-lg shadow-black/30 transition-all duration-300 md:bottom-8 md:right-8 ${
           showScrollTop ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-16 pointer-events-none'
         }`}
-        aria-label="Scroll to top"
       >
-        <ArrowUp className="w-5 h-5" />
+        <ArrowUp size={20} />
       </button>
 
       {/* Thread Modal */}

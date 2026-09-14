@@ -35,11 +35,15 @@ export function NetworkErrorBanner() {
   if (!hasError) return null
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-full px-4 py-2.5 shadow-2xl text-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
-      <span className="text-gray-300">Something went wrong.</span>
+    <div
+      aria-live="polite"
+      className="fixed bottom-20 left-1/2 z-[500] flex -translate-x-1/2 items-center gap-3 rounded-full border border-line-soft bg-surface-strong py-0.5 pl-4 pr-2 text-sm text-gray-200 shadow-2xl md:bottom-6"
+    >
+      <span>Something went wrong.</span>
       <button
+        type="button"
         onClick={() => queryClient.refetchQueries({ type: 'active' })}
-        className="font-semibold text-red-400 hover:text-red-300 transition-colors"
+        className="min-h-11 px-2 font-semibold text-accent-soft"
       >
         Retry
       </button>
@@ -68,7 +72,10 @@ export function OfflineQueueBanner() {
   if (queuedCount === 0 && !syncError) return null
 
   return (
-    <div className="fixed bottom-32 md:bottom-6 left-1/2 -translate-x-1/2 z-[520] w-[calc(100%-32px)] max-w-md rounded-2xl border border-amber-500/30 bg-[#29241c] px-4 py-2 text-sm text-amber-100 shadow-2xl backdrop-blur">
+    <div
+      aria-live="polite"
+      className="app-note app-note-warn fixed bottom-32 left-1/2 z-[520] w-[calc(100%-32px)] max-w-md -translate-x-1/2 shadow-2xl backdrop-blur md:bottom-6"
+    >
       {syncError
         ? syncError
         : isOnline
@@ -76,7 +83,8 @@ export function OfflineQueueBanner() {
           : `${queuedCount} ${queuedCount === 1 ? 'change is' : 'changes are'} queued and will sync when you're back online.`}
       {syncError && isOnline && (
         <button
-          className="ml-3 underline"
+          type="button"
+          className="ml-3 inline-flex min-h-11 items-center font-semibold underline"
           onClick={() => void flushOfflineMutationQueue()}
         >
           Retry sync

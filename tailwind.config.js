@@ -39,7 +39,13 @@ export default {
           raised: themed('surface-raised'),
         },
         line: { DEFAULT: themed('line'), soft: themed('line-soft'), strong: themed('line-strong') },
+        bg: themed('bg'),
         ink: themed('ink'),
+        // Fixed state colours; a season repaints the brand, not the meaning
+        // of "saved", "careful" and "gone".
+        ok: themed('ok'),
+        warn: themed('warn'),
+        danger: themed('danger'),
         muted: themed('muted'),
         parchment: themed('parchment'),
         // Kept for legacy markup that still references the old primary ramp.

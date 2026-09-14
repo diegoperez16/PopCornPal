@@ -62,7 +62,7 @@ export default function ProfileStats({ stats }: { stats: ShelfSummary }) {
       {cells.map((cell, index) => (
         <SpotlightCard
           key={cell.key}
-          className="group flex flex-col items-center gap-1 overflow-hidden rounded-2xl border border-gray-700/60 bg-gray-800/40 px-1 py-3 transition-colors duration-300 hover:border-gray-600 hover:bg-gray-800/70"
+          className="group flex flex-col items-center gap-1 overflow-hidden rounded-2xl border border-line-soft bg-surface px-1 py-3 transition-colors duration-300 hover:border-line-strong hover:bg-surface-strong"
         >
           {/* A hairline of the season's accent along the top edge, brightening
               on approach — enough to make the cell feel like an object. */}
@@ -84,7 +84,7 @@ export default function ProfileStats({ stats }: { stats: ShelfSummary }) {
               />
             )}
           </dd>
-          <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          <dt className="text-xs font-semibold text-muted">
             {cell.label}
           </dt>
         </SpotlightCard>

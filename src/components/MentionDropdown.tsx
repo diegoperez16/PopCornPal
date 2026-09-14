@@ -21,29 +21,30 @@ export default function MentionDropdown({ users, loading, query, selectedIndex, 
     : 'absolute bottom-full left-0 right-0 mb-1'
 
   return (
-    <div className={`${positionClass} bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl z-50`}>
+    <div className={`${positionClass} z-50 overflow-hidden rounded-xl border border-line-soft bg-surface-strong shadow-2xl`}>
       {loading ? (
-        <div className="px-4 py-3 text-sm text-gray-500">Searching...</div>
+        <div className="px-4 py-3 text-sm text-muted">Searching...</div>
       ) : (
         users.map((user, i) => (
           <button
             key={user.username}
+            type="button"
             onMouseDown={(e) => {
               e.preventDefault() // Don't blur the textarea
               onSelect(user.username)
             }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-              i === selectedIndex ? 'bg-gray-700' : 'hover:bg-gray-700/50'
+            className={`flex min-h-11 w-full items-center gap-3 px-4 text-left transition-colors ${
+              i === selectedIndex ? 'bg-surface-raised' : 'hover:bg-surface-raised/60'
             }`}
           >
-            <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <span className="app-avatar h-7 w-7 text-xs">
               {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                <img src={user.avatar_url} alt="" />
               ) : (
-                <span className="text-white text-xs font-bold">{user.username[0].toUpperCase()}</span>
+                <span>{user.username[0].toUpperCase()}</span>
               )}
-            </div>
-            <span className="text-sm text-white font-medium">@{user.username}</span>
+            </span>
+            <span className="text-sm font-medium text-gray-50">@{user.username}</span>
           </button>
         ))
       )}

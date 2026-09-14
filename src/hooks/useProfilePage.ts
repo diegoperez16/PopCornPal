@@ -4,7 +4,13 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useMediaStore } from '../store/mediaStore'
 import { useMediaEntries, useUpdateEntry, useDeleteEntry } from './queries/useMediaQueries'
-import { usePeopleCounts } from './queries/usePeopleQueries'
+import {
+  useFollowUser,
+  useFollowers,
+  useFollowing,
+  usePeopleCounts,
+  useUnfollowUser,
+} from './queries/usePeopleQueries'
 import { useSocialStore } from '../store/socialStore'
 import type { MediaEntry } from './queries/useMediaQueries'
 import { collectLibraryYears } from '../features/library/libraryModel'
@@ -52,6 +58,17 @@ export function useProfilePage() {
   // TanStack Query for server data
   const { data: entries = [] } = useMediaEntries(user?.id ?? '')
   const { data: peopleCounts } = usePeopleCounts(user?.id ?? '')
+  // Your own followers and following, in a sheet on the page rather than a
+  // trip to People. Fetched only once the sheet is asked for.
+  const [peopleSheet, setPeopleSheet] = useState<'followers' | 'following' | null>(null)
+  const followersQuery = useFollowers(user?.id ?? '', peopleSheet === 'followers')
+  const followingQuery = useFollowing(user?.id ?? '', peopleSheet === 'following')
+  const { mutate: followUser } = useFollowUser(user?.id ?? '')
+  const { mutate: unfollowUser } = useUnfollowUser(user?.id ?? '')
+  const toggleFollow = (profileId: string, isFollowing: boolean) => {
+    if (isFollowing) unfollowUser(profileId)
+    else followUser(profileId)
+  }
   const { mutate: updateEntryMutation } = useUpdateEntry(user?.id ?? '')
   const { mutate: deleteEntryMutation } = useDeleteEntry(user?.id ?? '')
 
@@ -180,6 +197,19 @@ export function useProfilePage() {
   const mediaYears = collectLibraryYears(entries)
 
   const [isManagingFavorites, setIsManagingFavorites] = useState(false)
+  // How the top ten is shown: the ranked list, or a compact shelf of posters.
+  // Remembered on this device; it is a way of looking, not profile data.
+  const [topPicksView, setTopPicksViewState] = useState<'list' | 'shelf'>(() =>
+    localStorage.getItem('popcorn_top_picks_view') === 'shelf' ? 'shelf' : 'list'
+  )
+  const setTopPicksView = (view: 'list' | 'shelf') => {
+    setTopPicksViewState(view)
+    try {
+      localStorage.setItem('popcorn_top_picks_view', view)
+    } catch {
+      /* Private mode: the choice simply lasts for this visit. */
+    }
+  }
 
   const [showAddButton, setShowAddButton] = useState(false)
   const recentActivityRef = useRef<HTMLDivElement>(null)
@@ -1248,6 +1278,8 @@ export function useProfilePage() {
     mediaYears,
     isManagingFavorites,
     setIsManagingFavorites,
+    topPicksView,
+    setTopPicksView,
     showAddButton,
     recentActivityRef,
     profileBgRef,
@@ -1264,6 +1296,13 @@ export function useProfilePage() {
     // Handlers
     followersCount: peopleCounts?.followersCount ?? 0,
     followingCount: peopleCounts?.followingCount ?? 0,
+    peopleSheet,
+    setPeopleSheet,
+    followersList: followersQuery.data ?? [],
+    followingList: followingQuery.data ?? [],
+    peopleListLoading:
+      peopleSheet === 'followers' ? followersQuery.isLoading : followingQuery.isLoading,
+    toggleFollow,
     updateProfile,
     openPeopleTab,
     handleSignOut,

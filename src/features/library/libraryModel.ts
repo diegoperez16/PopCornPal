@@ -190,3 +190,15 @@ export function buildEntryUpdates(
       draft.status === 'completed' ? entry.completed_date || today : null,
   }
 }
+
+/** The one vocabulary for an entry's status, everywhere it is shown. */
+export const STATUS_LABELS: Record<MediaEntry['status'], string> = {
+  completed: 'Finished',
+  'in-progress': 'In progress',
+  planned: 'Up next',
+  logged: 'On the shelf',
+}
+
+export function statusLabel(status: MediaEntry['status']): string {
+  return STATUS_LABELS[status] ?? status
+}

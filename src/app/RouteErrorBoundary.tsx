@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import Brand from '../components/brand/Brand'
 
 function isChunkLoadError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -46,12 +47,17 @@ export default class ChunkErrorBoundary extends Component<
   render() {
     if (this.state.crashed) {
       return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white text-center p-8">
-          <div>
-            <p className="text-lg font-semibold mb-2">Something went wrong</p>
+        <div className="flex min-h-screen items-center justify-center bg-bg p-6">
+          <div className="app-empty w-full max-w-md">
+            <div className="mb-4 flex justify-center">
+              <Brand />
+            </div>
+            <h3>Something went wrong</h3>
+            <p>Reload to pick up where you left off.</p>
             <button
+              type="button"
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition-colors"
+              className="app-button-primary mt-6"
             >
               Reload page
             </button>
