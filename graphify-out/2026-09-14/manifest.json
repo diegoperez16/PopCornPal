@@ -840,9 +840,9 @@
     "semantic_hash": ""
   },
   "src/pages/AuthPage.tsx": {
-    "mtime": 1789350582.5957978,
-    "seen": 1789350850.9982898,
-    "ast_hash": "e9c2aced95e36f5848b3539fde666c35",
+    "mtime": 1789360966.7602065,
+    "seen": 1789361030.001354,
+    "ast_hash": "69b858441378f6fba03588d45f452c83",
     "semantic_hash": ""
   },
   "src/pages/FeedPage.tsx": {

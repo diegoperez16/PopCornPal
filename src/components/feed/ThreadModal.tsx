@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, RefreshCw, Pencil, Trash2, ArrowUp, Image as ImageIcon, MessageCircle, Heart } from 'lucide-react'
+import { X, Pencil, Trash2, ArrowUp, Image as ImageIcon, MessageCircle, Heart } from 'lucide-react'
 import GifPicker from '../GifPicker'
 import AutoGrowTextarea from '../AutoGrowTextarea'
 import Sheet from '../Sheet'
@@ -261,21 +261,8 @@ export default function ThreadModal({
     <>
       <Sheet
         size="wide"
-        ariaLabel="Thread"
+        title="Thread"
         onClose={onClose}
-        header={
-          <div className="flex items-center gap-1">
-            <h2 className="text-lg font-semibold leading-snug tracking-tight text-gray-50">Thread</h2>
-            <button
-              type="button"
-              onClick={() => refreshModal()}
-              aria-label="Refresh thread"
-              className="app-icon-button"
-            >
-              <RefreshCw size={18} />
-            </button>
-          </div>
-        }
         footer={replyComposer}
       >
         <div className="space-y-4">

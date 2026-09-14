@@ -1,23 +1,23 @@
 # Graph Report - PopcornPal  (2026-09-14)
 
 ## Corpus Check
-- 201 files · ~125,870 words
+- 201 files · ~126,307 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1110 nodes · 2588 edges · 61 communities (55 shown, 4 thin omitted)
+- 1110 nodes · 2531 edges · 57 communities (52 shown, 3 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 143 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0a1df7a6`
+- Built from commit: `28c28cb5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - FeedPage.tsx
 - queryClient.ts
-- PeoplePage.tsx
+- BadgeRow.tsx
 - PalMark.tsx
 - useAddEntryPage.ts
 - Real-time Replication
@@ -27,53 +27,49 @@
 - AppShell.tsx
 - useProfilePage.ts
 - offlineMutationQueue.ts
-- vite.config.ts
+- README
 - compilerOptions
 - package.json
 - compilerOptions
 - devDependencies
 - Deployment Guide
 - Mobile PWA Handoff
-- EntryEditor.tsx
+- SleekPopcornRefresh.tsx
 - dependencies
 - useAuthStore
 - Supabase Setup Guide
 - Features Showcase
-- react-router-dom
-- engines
-- cleanup-base64-images.mjs
 - lucide-react
+- appDisplay.ts
+- cleanup-base64-images.mjs
+- MobileNav.tsx
 - App.tsx
 - PWA Setup Complete
-- Project Structure
+- AuthPage.tsx
 - PopcornPal
 - /auth/callback route
 - add-comment-images-migration.sql
-- ActivityPage.tsx
+- verdictFor
 - index.html
 - mediaStore.ts
 - Popcorn Pal design system
 - profile-preview.ts
 - Product
 - LibraryPage.tsx
-- Contributing Guide
+- Account-Scoped Offline Queue
 - Database Indexes
 - scripts
 - react
-- Environment Variables
-- useMediaQueries.ts
-- Git Setup & Deployment Guide
+- Supabase as Authentication Authority
 - follows table
-- RouteErrorBoundary.tsx
+- Brand.tsx
 - ProfilePage.tsx
-- Reveal.tsx
+- AdminBadgePanel.tsx
 - sort-house/index.ts
 - Validation Suite
-- flushOfflineMutationQueue
 - sw.ts
 - send-push/index.ts
 - tsconfig.json
-- supabase
 
 ## God Nodes (most connected - your core abstractions)
 1. `react` - 56 edges
@@ -88,16 +84,16 @@
 10. `executeQueuedMutationOrRun()` - 20 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Vercel` --semantically_similar_to--> `Vercel`  [INFERRED] [semantically similar]
-  GIT_GUIDE.md → DEPLOYMENT.md
 - `follows table` --semantically_similar_to--> `follows table`  [INFERRED] [semantically similar]
   SUPABASE_SETUP.md → .trae/documents/Optimization Plan for User Profiles & Social Functions.md
-- `.env` --semantically_similar_to--> `Environment Variables`  [INFERRED] [semantically similar]
-  SUPABASE_SETUP.md → DEPLOYMENT.md
 - `Netlify` --semantically_similar_to--> `Netlify`  [INFERRED] [semantically similar]
   GIT_GUIDE.md → DEPLOYMENT.md
-- `Deployment Options` --semantically_similar_to--> `Deployment Guide`  [INFERRED] [semantically similar]
+- `Vercel` --semantically_similar_to--> `Vercel`  [INFERRED] [semantically similar]
   GIT_GUIDE.md → DEPLOYMENT.md
+- `Radial Launcher Menu` --semantically_similar_to--> `Mobile Bottom Navigation`  [INFERRED] [semantically similar]
+  docs/MOBILE_PWA_HANDOFF.md → .github/copilot-instructions.md
+- `.env` --semantically_similar_to--> `Environment Variables`  [INFERRED] [semantically similar]
+  SUPABASE_SETUP.md → DEPLOYMENT.md
 
 ## Import Cycles
 - None detected.
@@ -107,23 +103,23 @@
 - **Email Confirmation Flow** — email_templates_confirm_email_confirmation_url, email_confirmation_fix_supabase_redirect_urls, email_confirmation_fix_auth_callback_route, email_confirmation_fix_authstore_initialize, supabase_setup_email_confirmation [INFERRED 0.85]
 - **External Catalog Search APIs** — readme_smart_search, src_lib_api, readme_tmdb_api, readme_rawg_api, readme_google_books_api [INFERRED 0.85]
 
-## Communities (61 total, 4 thin omitted)
+## Communities (57 total, 3 thin omitted)
 
 ### Community 0 - "FeedPage.tsx"
-Cohesion: 0.06
-Nodes (75): RFC-4122, AutoGrowTextarea(), Props, CommentComposer(), CommentComposerProps, DRAFT_KEYS, CommentThread(), CommentThreadProps (+67 more)
+Cohesion: 0.05
+Nodes (78): RFC-4122, Props, CommentComposer(), CommentComposerProps, DRAFT_KEYS, CommentThread(), CommentThreadProps, FeedComposer() (+70 more)
 
 ### Community 1 - "queryClient.ts"
-Cohesion: 0.13
-Nodes (17): idb-keyval, @tanstack/query-async-storage-persister, @tanstack/react-query-persist-client, accountScope, createAccountScope(), createOfflineQueue(), OwnedQueueItem, QueueStorage (+9 more)
+Cohesion: 0.09
+Nodes (33): idb-keyval, @tanstack/query-async-storage-persister, @tanstack/react-query, @tanstack/react-query-persist-client, fetchExploreUsers(), fetchFollowers(), fetchFollowing(), fetchPeopleCounts() (+25 more)
 
-### Community 2 - "PeoplePage.tsx"
-Cohesion: 0.25
-Nodes (16): @tanstack/react-query, fetchExploreUsers(), fetchFollowers(), fetchFollowing(), fetchPeopleCounts(), fetchSearchPeople(), useExploreUsers(), useFollowers() (+8 more)
+### Community 2 - "BadgeRow.tsx"
+Cohesion: 0.36
+Nodes (9): BadgeMedal(), badgeOrigin(), BadgeRow(), BADGE_HEX, badgeHex(), badgeKind, ORDER, sortBadges() (+1 more)
 
 ### Community 3 - "PalMark.tsx"
-Cohesion: 0.08
-Nodes (37): PalMark(), ThemePicker(), HouseBeast(), HouseCard(), House, HOUSE_LIST, HouseId, HOUSES (+29 more)
+Cohesion: 0.10
+Nodes (32): PalMark(), ThemePicker(), HouseBeast(), HouseCard(), House, HOUSE_LIST, HouseId, HOUSES (+24 more)
 
 ### Community 4 - "useAddEntryPage.ts"
 Cohesion: 0.10
@@ -134,8 +130,8 @@ Cohesion: 0.36
 Nodes (9): Feed Page, follows table, Supabase Free Tier Realtime Limits, People Page, post_comments table, post_likes table, posts table, Real-time Replication (+1 more)
 
 ### Community 6 - "supabase.ts"
-Cohesion: 0.07
-Nodes (48): ProfileLink(), ProfileLinkProps, BadgeMedal(), badgeOrigin(), BadgeRow(), BADGE_HEX, badgeHex(), badgeKind (+40 more)
+Cohesion: 0.08
+Nodes (39): ProfileLink(), ProfileLinkProps, Favorite, fetchFollowersList(), fetchFollowingList(), fetchOwnProfileData(), fetchUserLibrary(), fetchUserPosts() (+31 more)
 
 ### Community 7 - "GifPicker.tsx"
 Cohesion: 0.14
@@ -150,24 +146,24 @@ Cohesion: 0.10
 Nodes (24): ActivityPage, AddEntryPage, AdminBadgePanel, AppShell(), FeedPage, getMobileRouteWarmupTargets(), LibraryPage, MOBILE_ROUTE_WARMUP_TARGETS (+16 more)
 
 ### Community 10 - "useProfilePage.ts"
-Cohesion: 0.13
-Nodes (28): buildOwnerTabs(), buildVisitorTabs(), BUILT_IN_LISTS, countByList(), CUSTOM_LIST_PREFIX, CustomList, FavoriteTab, isCustomList() (+20 more)
+Cohesion: 0.14
+Nodes (26): statusLabel(), buildOwnerTabs(), buildVisitorTabs(), BUILT_IN_LISTS, countByList(), CUSTOM_LIST_PREFIX, CustomList, FavoriteTab (+18 more)
 
 ### Community 11 - "offlineMutationQueue.ts"
-Cohesion: 0.12
-Nodes (30): sendMentionNotifications(), enqueueOfflineMutation(), listeners, migrateLegacyQueue(), OfflineMutation, OfflineMutationBase, OfflineMutationInput, offlineMutationStore (+22 more)
+Cohesion: 0.07
+Nodes (53): NetworkErrorBanner(), OfflineQueueBanner(), episodeKeys, EpisodeRatingInput, EpisodeRatingRow, useUpsertEpisodeRating(), fetchMediaStats(), useAddEntry() (+45 more)
 
-### Community 12 - "vite.config.ts"
-Cohesion: 0.50
-Nodes (3): vite, vite-plugin-pwa, @vitejs/plugin-react
+### Community 12 - "README"
+Cohesion: 0.25
+Nodes (9): MIT License, Database Migrations, MIT License, Notifications, notifications-schema.sql, performance-indexes-migration.sql, README, Roadmap (+1 more)
 
 ### Community 13 - "compilerOptions"
 Cohesion: 0.09
 Nodes (21): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, jsx, lib, module, moduleDetection, moduleResolution (+13 more)
 
 ### Community 14 - "package.json"
-Cohesion: 0.11
-Nodes (20): name, private, type, version, autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks (+12 more)
+Cohesion: 0.09
+Nodes (25): engines, node, name, private, type, version, autoprefixer, eslint (+17 more)
 
 ### Community 15 - "compilerOptions"
 Cohesion: 0.10
@@ -178,60 +174,64 @@ Cohesion: 0.11
 Nodes (18): devDependencies, autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, globals, @playwright/test (+10 more)
 
 ### Community 17 - "Deployment Guide"
-Cohesion: 0.19
-Nodes (13): API Key Troubleshooting, Deployment Guide, GitHub Auto-Deploy, Netlify, Netlify CLI, public/_redirects, Post-Deployment Checklist, SPA Rewrites (+5 more)
+Cohesion: 0.06
+Nodes (40): Bug Reporting, Code Style, Contributing Guide, Development Setup, Feature Branch, Feature Suggestions, GitHub Repository diegoperez16/PopCornPal, Pull Request Workflow (+32 more)
 
 ### Community 18 - "Mobile PWA Handoff"
-Cohesion: 0.13
-Nodes (26): Account-Scoped Offline Queue, App Composition Root, codex/mobile-pwa-redesign branch, Collection View, Cover Loading Wrappers, Episode Ratings, Repository-wide ESLint Debt, Hosting Prerequisites (+18 more)
+Cohesion: 0.17
+Nodes (19): App Composition Root, codex/mobile-pwa-redesign branch, Collection View, Cover Loading Wrappers, Episode Ratings, Repository-wide ESLint Debt, Hosting Prerequisites, Logged Records Semantics (+11 more)
 
-### Community 19 - "EntryEditor.tsx"
-Cohesion: 0.14
-Nodes (11): NoteField(), PopcornParticle, PopcornShapes, SleekPopcornRefreshProps, EntryEditor(), statuses, typeNames, EntryDraft (+3 more)
+### Community 19 - "SleekPopcornRefresh.tsx"
+Cohesion: 0.40
+Nodes (3): PopcornParticle, PopcornShapes, SleekPopcornRefreshProps
 
 ### Community 20 - "dependencies"
 Cohesion: 0.13
 Nodes (15): dependencies, @giphy/js-fetch-api, @giphy/react-components, idb-keyval, lucide-react, react, react-dom, react-router-dom (+7 more)
 
 ### Community 21 - "useAuthStore"
-Cohesion: 0.15
-Nodes (17): RequireSession(), Notification, NotificationBanner(), NotificationWithFollow, AppNotification, NotificationBell(), notificationText(), timeAgo() (+9 more)
+Cohesion: 0.17
+Nodes (15): RequireSession(), DesktopNav(), Notification, NotificationBanner(), NotificationWithFollow, clearPersistedQueryCache(), persistedCacheKey(), setQueryCacheUser() (+7 more)
 
 ### Community 22 - "Supabase Setup Guide"
-Cohesion: 0.24
-Nodes (11): Row Level Security, Supabase API Credentials, Edit Profile, .env, follows table, Helper Views for Statistics, profiles table, Row Level Security (+3 more)
+Cohesion: 0.18
+Nodes (14): VITE_SUPABASE_ANON_KEY, VITE_* Values Are Public, Row Level Security, Supabase anon key, Supabase API Credentials, Edit Profile, .env, follows table (+6 more)
 
 ### Community 23 - "Features Showcase"
-Cohesion: 0.14
-Nodes (20): Activity Timeline, Browser Support, Features Showcase, Follow System, Friend Badges, Google Books API, Lucide Icons, RAWG API (+12 more)
+Cohesion: 0.16
+Nodes (18): Browser Support, Features Showcase, Follow System, Friend Badges, Google Books API, Lucide Icons, RAWG API, App Screenshots (+10 more)
 
-### Community 24 - "react-router-dom"
-Cohesion: 0.27
-Nodes (7): react-router-dom, Brand(), MobileHeader(), AuthMode, AuthPage(), copy, UpdatePasswordPage()
+### Community 24 - "lucide-react"
+Cohesion: 0.28
+Nodes (8): lucide-react, react-router-dom, navigation, MobileHeader(), AppNotification, NotificationBell(), notificationText(), timeAgo()
+
+### Community 25 - "appDisplay.ts"
+Cohesion: 0.43
+Nodes (5): applyAppChrome(), isStandalone(), lockPinchZoom(), PINCH_GESTURES, Stub
 
 ### Community 26 - "cleanup-base64-images.mjs"
 Cohesion: 0.19
 Nodes (12): @supabase/supabase-js, APPLY, __dirname, envFile, envLocal, EXT_BY_MIME, fmtBytes(), main() (+4 more)
 
-### Community 27 - "lucide-react"
-Cohesion: 0.27
-Nodes (11): Responsive Design, lucide-react, navigation, DesktopNav(), destinations, MobileNav(), polar(), sectorPath() (+3 more)
+### Community 27 - "MobileNav.tsx"
+Cohesion: 0.43
+Nodes (7): Responsive Design, destinations, MobileNav(), polar(), sectorPath(), slotAt(), prefetchRouteModule()
 
 ### Community 28 - "App.tsx"
-Cohesion: 0.42
-Nodes (6): App(), useAppLifecycle(), SplashLoader(), registerOfflineSync(), queryClient, isSupabaseConfigured
+Cohesion: 0.33
+Nodes (7): Project Structure, App(), PullToRefresh(), useAppLifecycle(), registerOfflineSync(), queryClient, isSupabaseConfigured
 
 ### Community 29 - "PWA Setup Complete"
-Cohesion: 0.16
-Nodes (15): iOS Home Screen Meta Tags, Mobile Bottom Navigation, Progressive Web App, PWA Icons, PWA Installation Testing, PWA Setup Complete, React 19, Tailwind CSS 3 (+7 more)
+Cohesion: 0.13
+Nodes (20): iOS Home Screen Meta Tags, Mobile Bottom Navigation, Progressive Web App, PWA Icons, PWA Installation Testing, PWA Setup Complete, React 19, Tailwind CSS 3 (+12 more)
 
-### Community 30 - "Project Structure"
-Cohesion: 0.33
-Nodes (4): Saved Checkout Reconciliation, index.css, Project Structure, Tailwind CSS 3
+### Community 30 - "AuthPage.tsx"
+Cohesion: 0.18
+Nodes (7): Saved Checkout Reconciliation, index.css, Tailwind CSS 3, VERDICTS, AuthMode, AuthPage(), copy
 
 ### Community 31 - "PopcornPal"
-Cohesion: 0.10
-Nodes (25): vite-plugin-pwa, MIT License, Profile Customization, add-avatar-url-migration.sql, Currently Enjoying, Dark Mode, Database Migrations, Media Tracking (+17 more)
+Cohesion: 0.15
+Nodes (13): Activity Timeline, Profile Customization, Activity Timeline, add-avatar-url-migration.sql, Currently Enjoying, Dark Mode, Media Tracking, People Discovery (+5 more)
 
 ### Community 32 - "/auth/callback route"
 Cohesion: 0.10
@@ -241,17 +241,17 @@ Nodes (28): Auth Redirects (/auth/callback, /update-password), /auth/callback ro
 Cohesion: 0.22
 Nodes (11): add-comment-images-migration.sql, Comment Images Feature, image_url column, post_comments table, Supabase SQL Editor, Nested Comment Threads, Social Feed, add-image-url-migration.sql (+3 more)
 
-### Community 34 - "ActivityPage.tsx"
-Cohesion: 0.08
-Nodes (31): getMediaIcon(), MediaSelectorModal(), MediaSelectorModalProps, MediaType, SpotlightCard(), ProgressiveImg(), ProgressiveImgProps, RatingField() (+23 more)
+### Community 34 - "verdictFor"
+Cohesion: 0.07
+Nodes (29): getMediaIcon(), MediaSelectorModal(), MediaSelectorModalProps, MediaType, ProgressiveImgProps, RatingField(), LibraryEntryCard(), mediaIcons (+21 more)
 
 ### Community 35 - "index.html"
 Cohesion: 0.36
 Nodes (7): Cinema Ticket Palette, apple-touch-icon.png, Favicon Version Tag, Fraunces (Google Fonts), icon.svg, /src/main.tsx, Theme Color #14181c
 
 ### Community 36 - "mediaStore.ts"
-Cohesion: 0.13
-Nodes (14): Next Development Phase Roadmap, React Router, Supabase, Zustand, Supabase, Supabase as Authentication Authority, Zustand, React Router 7 (+6 more)
+Cohesion: 0.18
+Nodes (10): Next Development Phase Roadmap, React Router, Supabase, Zustand, React Router 7, Zustand, zustand, MediaEntry (+2 more)
 
 ### Community 37 - "Popcorn Pal design system"
 Cohesion: 0.15
@@ -266,12 +266,12 @@ Cohesion: 0.17
 Nodes (11): Accessibility & Inclusion, Brand Commitments, Capabilities and Constraints, Evidence on Hand, Operating Context, Platform, Positioning, Product (+3 more)
 
 ### Community 40 - "LibraryPage.tsx"
-Cohesion: 0.20
-Nodes (18): saveEntry(), addedYearOf(), buildEntryUpdates(), collectLibraryEntries(), collectLibraryYears(), collectUniqueMedia(), countLibraryEntries(), LibrarySort (+10 more)
+Cohesion: 0.14
+Nodes (23): NoteField(), EntryEditor(), saveEntry(), statuses, typeNames, addedYearOf(), buildEntryUpdates(), collectLibraryEntries() (+15 more)
 
-### Community 41 - "Contributing Guide"
-Cohesion: 0.18
-Nodes (12): Bug Reporting, Code Style, Contributing Guide, Development Setup, Feature Branch, Feature Suggestions, GitHub Repository diegoperez16/PopCornPal, Pull Request Workflow (+4 more)
+### Community 41 - "Account-Scoped Offline Queue"
+Cohesion: 0.33
+Nodes (7): Account-Scoped Offline Queue, IndexedDB, MDN Offline and Background Operation Guide, Offline Support Limits, Service Worker Update Policy, TanStack Query, Web Locks API
 
 ### Community 42 - "Database Indexes"
 Cohesion: 0.29
@@ -282,36 +282,28 @@ Cohesion: 0.25
 Nodes (8): scripts, build, dev, icons, lint, preview, test, test:e2e
 
 ### Community 44 - "react"
-Cohesion: 0.12
-Nodes (20): react, AvatarCropper(), AvatarCropperProps, CropData, ImageCropper(), ImageCropperProps, UserPreviewBadge, UserPreviewData (+12 more)
+Cohesion: 0.21
+Nodes (11): react, AvatarCropper(), AvatarCropperProps, CropData, ImageCropper(), ImageCropperProps, UserPreviewBadge, UserPreviewData (+3 more)
 
-### Community 45 - "Environment Variables"
-Cohesion: 0.18
-Nodes (11): Environment Variables, Security Best Practices, VITE_GOOGLE_BOOKS_API_KEY, VITE_RAWG_API_KEY, VITE_SUPABASE_ANON_KEY, VITE_SUPABASE_URL, VITE_TMDB_API_KEY, VITE_* Values Are Public (+3 more)
-
-### Community 46 - "useMediaQueries.ts"
-Cohesion: 0.32
-Nodes (7): fetchMediaStats(), useAddEntry(), useMediaStats(), UserStats, mediaKeys, createMediaEntry(), MediaEntryMutationInput
-
-### Community 47 - "Git Setup & Deployment Guide"
-Cohesion: 0.38
-Nodes (7): Commit Message Conventions, Deployment Options, Git Setup & Deployment Guide, GitHub Actions CI/CD, GitHub Pages, GitHub Repository Settings, Vercel
+### Community 45 - "Supabase as Authentication Authority"
+Cohesion: 0.50
+Nodes (4): Supabase, Supabase as Authentication Authority, Zustand, Supabase
 
 ### Community 48 - "follows table"
 Cohesion: 0.43
 Nodes (7): fetchFollowers, fetchFollowersList, fetchFollowing, fetchFollowingList, follows table, Pagination with Infinite Scroll, Split Query Approach
 
-### Community 49 - "RouteErrorBoundary.tsx"
-Cohesion: 0.38
-Nodes (3): ChunkErrorBoundary, isChunkLoadError(), reloadForChunkError()
+### Community 49 - "Brand.tsx"
+Cohesion: 0.24
+Nodes (5): ChunkErrorBoundary, isChunkLoadError(), reloadForChunkError(), Brand(), SplashLoader()
 
 ### Community 50 - "ProfilePage.tsx"
-Cohesion: 0.16
-Nodes (15): fetchUserProfile, Lazy Loading User Profile, Modal Loading States, ProfileSkeleton(), AuroraBanner(), ListedPerson, PeopleListSheet(), PillTab (+7 more)
+Cohesion: 0.13
+Nodes (16): fetchUserProfile, Lazy Loading User Profile, Modal Loading States, ProfileSkeleton(), UserAvatarProps, ListedPerson, PeopleListSheet(), PillTab (+8 more)
 
-### Community 51 - "Reveal.tsx"
-Cohesion: 0.67
-Nodes (4): CountUp(), Reveal(), useInView(), usePrefersReducedMotion()
+### Community 51 - "AdminBadgePanel.tsx"
+Cohesion: 0.21
+Nodes (11): CountUp(), Reveal(), useInView(), usePrefersReducedMotion(), loadAdminBadgePanel(), AdminBadges(), BADGE_COLOR_HEX, BADGE_COLORS (+3 more)
 
 ### Community 53 - "sort-house/index.ts"
 Cohesion: 0.33
@@ -321,37 +313,29 @@ Nodes (4): corsHeaders, Entry, House, HOUSES
 Cohesion: 0.50
 Nodes (5): Node 22.18+, Playwright, Validation Suite, Playwright, Test Suite
 
-### Community 56 - "flushOfflineMutationQueue"
-Cohesion: 0.22
-Nodes (12): NetworkErrorBanner(), OfflineQueueBanner(), canQueueOffline(), emitQueueChange(), flushOfflineMutationQueue(), getServerSnapshot(), getSnapshot(), initializeOfflineMutationQueue() (+4 more)
-
-### Community 67 - "supabase"
-Cohesion: 0.29
-Nodes (5): episodeKeys, EpisodeRatingInput, EpisodeRatingRow, useUpsertEpisodeRating(), supabase
-
 ## Ambiguous Edges - Review These
 - `ProfilePage.tsx` → `UserProfilePage.tsx`  [AMBIGUOUS]
   README.md · relation: semantically_similar_to
 
 ## Knowledge Gaps
-- **329 isolated node(s):** `PreviewRequest`, `PreviewResponse`, `PreviewProfile`, `name`, `private` (+324 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 363 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **330 isolated node(s):** `Mode`, `Tokens (Tailwind names)`, `Type`, `Layout and spacing`, `Control vocabulary (shared classes in src/index.css and components)` (+325 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 369 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `ProfilePage.tsx` and `UserProfilePage.tsx`?**
   _Edge tagged AMBIGUOUS (relation: semantically_similar_to) - confidence is low._
-- **Why does `react` connect `react` to `FeedPage.tsx`, `PeoplePage.tsx`, `PalMark.tsx`, `useAddEntryPage.ts`, `supabase.ts`, `GifPicker.tsx`, `WelcomeModal.tsx`, `AppShell.tsx`, `useProfilePage.ts`, `offlineMutationQueue.ts`, `package.json`, `EntryEditor.tsx`, `useAuthStore`, `react-router-dom`, `lucide-react`, `App.tsx`, `ActivityPage.tsx`, `LibraryPage.tsx`, `RouteErrorBoundary.tsx`, `ProfilePage.tsx`, `Reveal.tsx`, `flushOfflineMutationQueue`?**
-  _High betweenness centrality (0.152) - this node is a cross-community bridge._
-- **Why does `Project Structure` connect `Project Structure` to `FeedPage.tsx`, `ActivityPage.tsx`, `PalMark.tsx`, `useAddEntryPage.ts`, `PeoplePage.tsx`, `supabase.ts`, `mediaStore.ts`, `vite.config.ts`, `ProfilePage.tsx`, `useAuthStore`, `react-router-dom`, `lucide-react`, `App.tsx`, `PopcornPal`?**
-  _High betweenness centrality (0.129) - this node is a cross-community bridge._
-- **Why does `README` connect `PopcornPal` to `Contributing Guide`, `Deployment Guide`, `Mobile PWA Handoff`, `Validation Suite`, `Features Showcase`, `Supabase Setup Guide`, `Project Structure`?**
-  _High betweenness centrality (0.105) - this node is a cross-community bridge._
-- **What connects `PreviewRequest`, `PreviewResponse`, `PreviewProfile` to the rest of the system?**
-  _329 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `react` connect `react` to `FeedPage.tsx`, `queryClient.ts`, `BadgeRow.tsx`, `PalMark.tsx`, `useAddEntryPage.ts`, `supabase.ts`, `GifPicker.tsx`, `WelcomeModal.tsx`, `AppShell.tsx`, `useProfilePage.ts`, `offlineMutationQueue.ts`, `package.json`, `SleekPopcornRefresh.tsx`, `useAuthStore`, `lucide-react`, `MobileNav.tsx`, `App.tsx`, `AuthPage.tsx`, `verdictFor`, `LibraryPage.tsx`, `Brand.tsx`, `ProfilePage.tsx`, `AdminBadgePanel.tsx`?**
+  _High betweenness centrality (0.173) - this node is a cross-community bridge._
+- **Why does `Project Structure` connect `App.tsx` to `FeedPage.tsx`, `queryClient.ts`, `verdictFor`, `useAddEntryPage.ts`, `mediaStore.ts`, `supabase.ts`, `README`, `package.json`, `ProfilePage.tsx`, `useAuthStore`, `lucide-react`, `MobileNav.tsx`, `AuthPage.tsx`?**
+  _High betweenness centrality (0.106) - this node is a cross-community bridge._
+- **Why does `README` connect `README` to `Deployment Guide`, `Mobile PWA Handoff`, `Validation Suite`, `Features Showcase`, `Supabase Setup Guide`, `App.tsx`, `PWA Setup Complete`, `PopcornPal`?**
+  _High betweenness centrality (0.080) - this node is a cross-community bridge._
+- **What connects `Mode`, `Tokens (Tailwind names)`, `Type` to the rest of the system?**
+  _330 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `FeedPage.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.056334735857877516 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05133161512027491 - nodes in this community are weakly interconnected._
 - **Should `queryClient.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.13438735177865613 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09390243902439024 - nodes in this community are weakly interconnected._
